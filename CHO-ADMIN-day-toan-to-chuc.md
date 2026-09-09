@@ -9,7 +9,7 @@ NNC Lao Group: thêm hai khoá vào **managed settings** của tổ chức, mọ
     "nnc-claude-plugins": {
       "source": {
         "source": "url",
-        "url": "<ĐƯỜNG-DẪN-GIT-CỦA-REPO-NÀY>"
+        "url": "https://github.com/VOSYDUNG/nnc-claude-plugins"
       },
       "autoUpdate": true
     }

@@ -1,8 +1,17 @@
 {
   "name": "nnc",
   "version": "1.0.0",
-  "description": "Bộ skill nội bộ NNC Lao Group. Gồm NNC-AI-OSer: dựng 'xưởng AI' — đội agent nhiều bậc model có kỷ luật token — cho một repo bất kỳ, kèm thước đo chi phí và toggle đổi bậc theo gói.",
+  "description": "Bo skill cua NNC Lao Group. Gom NNC-AI-OSer: dung 'xuong AI' — doi agent nhieu bac model co ky luat token — cho mot repo bat ky, kem thuoc do chi phi va toggle doi bac theo goi.",
   "author": {
     "name": "NNC Lao Group · Ban R&D AI"
-  }
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent",
+    "quota",
+    "token",
+    "multi-agent",
+    "cost",
+    "nnc"
+  ]
 }

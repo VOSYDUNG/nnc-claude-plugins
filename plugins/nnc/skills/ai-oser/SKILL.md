@@ -8,10 +8,10 @@ description: Khởi tạo và vận hành "xưởng AI" — đội agent nhiều
 Skill này biến một repo thành **phân xưởng có tổ chức**: một quản đốc điều phối + các ghế thợ chạy
 model rẻ hơn, mỗi ghế ghim sẵn bậc model, có luật giao việc và có thước đo chi phí.
 
-**Vì sao cần:** đo trên dự án thật (NNC Kho, 34.143 lượt gọi, 10.893 điểm quota) — khi mọi ghế chạy
-chung một model mạnh, **77% quota cháy ở subagent**. Ghim bậc cho từng ghế kéo xuống **56%**. Phần
-còn lại là ghế Tech Lead bị gọi như thợ: **Opus tốn 0,464 điểm/lượt, Sonnet 0,069 — chênh 6,7 lần**.
-Skill này gói cả cơ cấu lẫn cái phanh.
+**Vì sao cần:** đo trên **34.626 lượt gọi thật** của một dự án đang chạy sản xuất — khi mọi ghế chạy
+chung một model mạnh, **77% quota cháy ở subagent**. Ghim bậc cho từng ghế kéo xuống **56%**, và chi
+phí mỗi lượt gọi từ **0,408 xuống 0,133 điểm — giảm 67%** trong khi nhịp việc tăng gấp sáu.
+Chênh lệch nền: **Opus 0,465 điểm/lượt · Sonnet 0,069 — gấp 6,7 lần**. Skill này gói cả cơ cấu lẫn cái phanh.
 
 ## Năm vai — nhớ VAI, không nhớ tên model
 
@@ -79,7 +79,7 @@ Chi tiết + số liệu ở `references/3-luat-tiet-kiem.md`. Tóm tắt:
 1. **Ghim bậc trong file ghế**, không chỉnh tay mỗi phiên — cấu hình đi theo git.
 2. **R0/R1 tiêu token vào ĐỀ BÀI, không vào lao động.** Đề bài mơ hồ ném xuống thợ rẻ là mua lại chính cái sai định tiết kiệm.
 3. **Đừng để R0 tự nghiên cứu trong phiên chính** — giao ghế `nghien-cuu`: cùng việc đó rẻ hơn **15,4 lần** (1,088 → 0,070 điểm/lượt) và không nhiễm ngữ cảnh quản đốc.
-4. **Gọi R1 đúng bốn việc đã khai.** Đây là chỗ rò lớn nhất còn lại: R1 chiếm **78,6% chi phí subagent** ở dự án mẫu.
+4. **Gọi R1 đúng bốn việc đã khai.** Đây là chỗ rò lớn nhất còn lại: R1 chiếm **78,6% chi phí subagent** trong phép đo.
 5. **Mỗi sóng lớn = một phiên mới.** Context dài là trả tiền lại cho cả lịch sử ở MỖI lượt.
 6. **Subagent trả tóm tắt có trần** (≤40 dòng + đường dẫn), không dán nguyên file/log.
 7. **R0 không tự đọc file dài** — giao ghế dò đường; cửa sổ subagent chết cùng subagent.

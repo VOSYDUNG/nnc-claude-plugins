@@ -35,7 +35,7 @@ bản — đổi hồ sơ là xong, không phải đi sửa 9 file rồi quên m
 ### Chọn hồ sơ nào
 
 - **`fable`** — gói có Fable. Còn "đệm" Tech Lead ở bậc Opus: thợ kẹt thì R1 gỡ mà không phiền quản đốc.
-  Nhược: chính cái đệm đó dễ bị lạm dụng — đo được R1 ăn **78,6%** chi phí phần thợ ở dự án mẫu.
+  Nhược: chính cái đệm đó dễ bị lạm dụng — đo được R1 ăn **78,6%** chi phí phần thợ.
 - **`opus`** — gói không Fable (Opus cao nhất). R0 xuống Opus, **Tech Lead về Sonnet**. Không ghim Opus
   cho R1: nếu R0 và R1 cùng bậc thì mất khoảng cách trọng tài, mà R1 lại đúng là chỗ rò lớn nhất.
 - **`sonnet`** — gói **20$ (Pro)** hoặc lúc hạn mức Opus gần cạn. Cả xưởng chạy Sonnet; quản đốc **nâng
@@ -45,7 +45,7 @@ bản — đổi hồ sơ là xong, không phải đi sửa 9 file rồi quên m
 Đề bài chặt (file sẽ đụng · GWT ba nhánh · checklist nghiệm thu · thứ không được đụng) là điều kiện
 sống, không phải điều nên có.
 
-## Chi phí — đo trên dự án thật, 34.626 lượt gọi
+## Chi phí — đo trên 34.626 lượt gọi thật của một dự án đang chạy sản xuất
 
 | Bậc | Điểm quota mỗi lượt | So với Sonnet |
 |---|---|---|

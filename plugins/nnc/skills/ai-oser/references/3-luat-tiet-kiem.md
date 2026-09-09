@@ -1,7 +1,7 @@
 # Bảy luật tiết kiệm token — kèm bằng chứng đo được
 
-**Nguồn số:** dự án NNC Kho & Giao nhận, 21/8 → 9/9/2026, đo bằng `do-quota.py` đọc transcript thật.
-Tổng **34.143 lượt gọi · 10.893 điểm quota**.
+**Nguồn số:** một dự án phân phối đang chạy sản xuất, 21/8 → 9/9/2026, đo bằng `do-quota.py` đọc
+transcript thật. Tổng **34.626 lượt gọi · 10.999 điểm quota**.
 
 ## Bằng chứng nền
 
@@ -9,8 +9,8 @@ Tổng **34.143 lượt gọi · 10.893 điểm quota**.
 |---|---|
 | Chi phí mỗi lượt gọi | Haiku **0,010** · Sonnet **0,069** · Opus **0,464** · Fable **0,937** điểm |
 | Chênh Opus / Sonnet | **6,7 lần** mỗi lượt |
-| Trước khi ghim bậc (GĐ4, 28/8) | 3.934 điểm — **subagent chiếm 77%** vì chạy nhầm bậc |
-| Sau khi ghim bậc (9/9) | 10.893 điểm — **subagent 55,8%** |
+| Trước khi ghim bậc (28/8) | **subagent chiếm 77%** quota vì chạy nhầm bậc · 0,408 điểm/lượt |
+| Sau khi ghim bậc (9/9) | **subagent 55,8%** · **0,133 điểm/lượt — giảm 67%**, nhịp việc tăng ~6× |
 | Cơ cấu phần subagent hiện tại | **Opus 78,6%** · Sonnet 21,4% · Haiku 0,1% |
 | Nếu subagent chạy đúng bậc rẻ | 6.073 → **1.215 điểm (−80%)**, tổng giảm ~45% |
 
