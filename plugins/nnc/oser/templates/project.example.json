@@ -1,0 +1,51 @@
+{
+  "schema": "nnc-oser/project@2",
+  "project": { "name": "my-project", "language": "vi" },
+  "phase": {
+    "id": "pre-build-setup",
+    "label": "PRE-BUILD SETUP",
+    "since": "2026-01-01",
+    "summary": ["One line per fact a fresh session must know about the phase."]
+  },
+  "mode": "setup",
+  "authority": {
+    "repo": "OWNER/strategy-repo",
+    "ref": "main",
+    "baseline": "abc1234",
+    "entry": "docs/HANDOFF.md",
+    "local_path_hints": ["../strategy-repo"]
+  },
+  "models": {
+    "root": "inherit",
+    "classes": { "frontier-audit": "fable", "lead": "opus", "worker": "sonnet", "mechanical": "haiku" }
+  },
+  "capabilities": { "audit": { "enabled": false } },
+  "assignments": null,
+  "workspace": {
+    "state_file": "workspace/TRANG-THAI.md",
+    "dir": "workspace",
+    "current": ["TRANG-THAI.md"],
+    "templates": []
+  },
+  "control_plane": {
+    "current": ["CLAUDE.md", "README.md", "workspace/TRANG-THAI.md"],
+    "project_tools": [],
+    "inactivate": [],
+    "historical": ["workspace/lich-su/"],
+    "historical_banner": "LỊCH SỬ|HISTORICAL",
+    "stale_markers": [{ "pattern": "text that must no longer appear as current", "why": "reason" }]
+  },
+  "compat": { "wrappers": { "cong-cu/do-quota.py": "quota" } },
+  "migrate": { "moves": [] },
+  "overrides": [],
+  "git": { "main": "main" },
+  "checks": {
+    "firebase": {
+      "data_project": "my-firebase-project",
+      "forbidden_defaults": ["some-other-project"],
+      "hosting_sites": { "my-site": "my-firebase-project" },
+      "protected_sites": [],
+      "admin_script_globs": ["scripts/*.mjs"]
+    }
+  }
+}

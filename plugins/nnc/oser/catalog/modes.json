@@ -1,0 +1,32 @@
+{
+  "catalog": "nnc-oser/modes@2",
+  "modes": {
+    "setup": {
+      "status": "active",
+      "summary": "Founder + Strategy Session + ROOT investigator. No subagents, no build crew, no audit model.",
+      "actors": ["founder", "strategy-session", "root-investigator"],
+      "active_capabilities": ["investigate"],
+      "subagents": "forbidden",
+      "audit": "disabled",
+      "settings": {
+        "permissions.deny": ["Agent", "Task", "Workflow"]
+      }
+    },
+    "build": {
+      "status": "contract-only",
+      "summary": "Contract only in OSER 2.0: the build roster is NOT defined by the plugin. A project enables BUILD by declaring assignments after its own engineering architecture is decided.",
+      "requires": ["assignments"],
+      "subagents": "per-assignment",
+      "audit": "gate-only",
+      "settings": {}
+    },
+    "operate": {
+      "status": "contract-only",
+      "summary": "Contract only in OSER 2.0: operations roster and gates are declared by the project when it goes live.",
+      "requires": ["assignments"],
+      "subagents": "per-assignment",
+      "audit": "gate-only",
+      "settings": {}
+    }
+  }
+}

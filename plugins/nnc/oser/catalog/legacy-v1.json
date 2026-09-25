@@ -1,0 +1,25 @@
+{
+  "catalog": "nnc-oser/legacy@1",
+  "summary": "Fingerprints of files that NNC-AI-OSer 1.0.0 copied into projects. A project copy whose LF-normalised sha256 matches is plugin-owned and may be replaced by a generated wrapper. Any other content is project-modified and is never overwritten.",
+  "tools": {
+    "doi-bac": {
+      "default_path": "cong-cu/doi-bac.py",
+      "sha256": ["a1d378af1be7a52893ea1d244a3a9551f536f4aa690302a00487ed56ee86d1ac"],
+      "signature": "HO_SO = {",
+      "replacement": "wrapper-doi-bac"
+    },
+    "do-quota": {
+      "default_path": "cong-cu/do-quota.py",
+      "sha256": ["d05243b1d35a2939bfc5704d129b739b92dbc75c9bdca7d0ac346c0fa8970804"],
+      "signature": "def quet(",
+      "replacement": "wrapper-quota"
+    }
+  },
+  "generated": {
+    "bac-dang-dung": {
+      "path": ".claude/BAC-DANG-DUNG.md",
+      "signature": "Sinh bởi `python cong-cu/doi-bac.py",
+      "action": "retire"
+    }
+  }
+}

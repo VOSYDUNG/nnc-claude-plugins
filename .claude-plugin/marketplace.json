@@ -1,7 +1,7 @@
 {
   "name": "nnc-claude-plugins",
   "description": "Bo skill dung chung cua NNC Lao Group cho Claude Code.",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "owner": {
     "name": "NNC Lao Group - Ban R&D AI"
   },
@@ -10,8 +10,8 @@
       "name": "nnc",
       "source": "./plugins/nnc",
       "displayName": "NNC — bo skill dung chung",
-      "description": "NNC-AI-OSer: dung 'xuong AI' cho mot repo bat ky — 9 ghe agent nhieu bac model, luat giao viec, thuoc do quota, toggle doi bac theo goi (co Fable / khong Fable / goi 20$).",
-      "version": "1.0.0",
+      "description": "NNC OSER: installer · updater · migrator · doctor cho control plane Claude Code cua mot repo — mode (setup/build/operate) + capability + assignment + model class; provenance; thuoc do quota.",
+      "version": "2.0.0",
       "author": {
         "name": "NNC Lao Group - Ban R&D AI"
       },

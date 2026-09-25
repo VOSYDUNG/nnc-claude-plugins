@@ -1,7 +1,7 @@
 {
   "name": "nnc",
-  "version": "1.0.0",
-  "description": "Bo skill cua NNC Lao Group. Gom NNC-AI-OSer: dung 'xuong AI' — doi agent nhieu bac model co ky luat token — cho mot repo bat ky, kem thuoc do chi phi va toggle doi bac theo goi.",
+  "version": "2.0.0",
+  "description": "Bo skill cua NNC Lao Group. Gom NNC OSER: control plane tai dung cho repo Claude Code — cai dat, cap nhat, migrate, doctor; mode/capability thay cho ho so theo ten model; provenance cho moi file sinh ra.",
   "author": {
     "name": "NNC Lao Group · Ban R&D AI"
   },

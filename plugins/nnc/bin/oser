@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# NNC OSER launcher. Claude Code puts a plugin's bin/ on PATH, so `oser doctor` works in any session.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys' >/dev/null 2>&1; then PY=python3; else PY=python; fi
+exec "$PY" "$HERE/../oser/oser.py" "$@"
