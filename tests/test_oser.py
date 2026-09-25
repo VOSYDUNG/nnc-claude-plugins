@@ -22,7 +22,9 @@ FIX = os.path.join(HERE, "fixtures", "v1")
 sys.path.insert(0, OSER_HOME)
 
 from oser_core import doctor, engine, ledger, metrics  # noqa: E402
-from oser_core.util import sha, transcript_slug  # noqa: E402
+from oser_core.util import load_catalog, sha, transcript_slug  # noqa: E402
+
+SIGNALS = load_catalog("operating-model.json")["routing_signals"]
 
 
 def w(path, text):
@@ -111,13 +113,14 @@ class Base(unittest.TestCase):
 
     def manifest(self, **over):
         m = {
-            "schema": "nnc-oser/project@3",
+            "schema": "nnc-oser/project@4",
             "project": {"name": "proj", "language": "vi"},
             "phase": {"id": "pre-build", "label": "PRE-BUILD SETUP", "since": "2026-09-25", "summary": ["x"]},
             "mode": "setup",
             "authority": {"repo": "o/strategy", "ref": "main", "baseline": self.base, "entry": "docs/HANDOFF.md",
                           "local_path_hints": ["../strategy"]},
-            "operating_model": {"root": {"model": "inherit"}, "governor": {"preferred_model": "claude-fable-5-1"},
+            "operating_model": {"root": {"model": "inherit", "expected_family": "opus"},
+                                "governor": {"required_family": "fable", "fallback": "none", "preferred_model": "claude-fable-5-1"},
                                 "workers": {"assignment": "per-packet"}},
             "build": {"admission": "not_admitted"},
             "workspace": {"state_file": "workspace/TRANG-THAI.md", "dir": "workspace", "current": ["TRANG-THAI.md"]},
@@ -176,6 +179,7 @@ class TestA_CleanInstall(Base):
         code, out = run_cli("install", "--project", self.proj, "--name", "demo", "--authority-repo", "o/strategy",
                             "--authority-entry", "docs/HANDOFF.md", "--authority-hint", "../strategy",
                             "--baseline", self.base, "--phase-id", "pre-build", "--phase-label", "PRE-BUILD SETUP",
+                            "--governor-family", "opus",
                             env={"NNC_OSER_CLAUDE_HOME": self.home})
         self.assertEqual(code, 0, out)
         rep = doctor.run(self.proj)
@@ -188,14 +192,20 @@ class TestA_CleanInstall(Base):
         m = json.loads(r(self.P(".claude", "oser", "project.json")))
         self.assertEqual(m["build"]["admission"], "not_admitted")
         self.assertNotIn("models", m)
+        self.assertEqual(m["operating_model"]["governor"], {"required_family": "opus", "fallback": "none",
+                                                              "preferred_model": None, "session": "one-per-wave"})
         self.assertIn("CHƯA ADMIT", r(self.P("CLAUDE.md")))
         lock = json.loads(r(self.P(".claude", "oser", "lock.json")))
         self.assertEqual(lock["mode"], "setup")
 
+    def test_install_requires_governor_family(self):
+        with self.assertRaises(engine.Blocked):
+            engine.install(self.proj, "x", "o/s", "docs/HANDOFF.md")
+
     def test_install_refuses_existing_manifest(self):
         self.manifest()
         with self.assertRaises(engine.Blocked):
-            engine.install(self.proj, "x", "o/s", "docs/HANDOFF.md")
+            engine.install(self.proj, "x", "o/s", "docs/HANDOFF.md", governor_family="fable")
 
     def test_build_mode_requires_admission(self):
         self.manifest(mode="build")
@@ -234,11 +244,14 @@ class TestB_Migration(Base):
         seat = [a for a in lock["migrations"][0]["actions"] if a["path"] == ".claude/agents/tho-dung.md"][0]
         self.assertTrue(seat["git_blob"], "retired roster must name the git blob that keeps it")
 
-    def test_migrate_v2_to_v3(self):
+    def test_migrate_v2_to_v4(self):
         self.v2_project()
-        engine.migrate(self.proj)
+        with self.assertRaises(engine.Blocked):
+            engine.migrate(self.proj)          # no Governor family declared anywhere -> refuse, write nothing
+        engine.migrate(self.proj, governor_family="opus")
         m = json.loads(r(self.P(".claude", "oser", "project.json")))
-        self.assertEqual(m["schema"], "nnc-oser/project@3")
+        self.assertEqual(m["schema"], "nnc-oser/project@4")
+        self.assertEqual(m["operating_model"]["governor"]["required_family"], "opus")
         for k in ("models", "capabilities"):
             self.assertNotIn(k, m)
         self.assertNotIn("inactivate", m["control_plane"])
@@ -254,8 +267,9 @@ class TestB_Migration(Base):
         self.v2_project()
         w(self.P(".claude", "oser", "inactive", "agents", "tho-dung.md"), "---\nname: tho-dung\nlocal edit\n---\n")
         before = snapshot(self.proj)
-        with self.assertRaises(engine.Blocked):
-            engine.migrate(self.proj)
+        with self.assertRaises(engine.Blocked) as cm:
+            engine.migrate(self.proj, governor_family="opus")
+        self.assertIn("not committed", str(cm.exception))
         self.assertEqual(snapshot(self.proj), before)
 
     def test_modified_legacy_tool_blocks_without_writing(self):
@@ -345,7 +359,7 @@ class TestD_Idempotence(Base):
 
     def test_v2_migration_is_idempotent(self):
         self.v2_project()
-        engine.migrate(self.proj)
+        engine.migrate(self.proj, governor_family="opus")
         first = snapshot(self.proj)
         self.assertEqual(engine.migrate(self.proj).actions, [])
         self.assertEqual(engine.update(self.proj).actions, [])
@@ -397,13 +411,12 @@ class TestF_LedgerMetrics(Base):
         for a, (mdl, i, o) in U.items():
             self.turn(G, mdl, "2026-09-26T10:20:00Z", agent=a, i=i, o=o)
         ctx = {"must_read": ["docs/x.md"], "may_read": [], "must_not_load": ["workspace/lich-su/"], "output_budget": "40 lines"}
-        sig = {s: "medium" for s in ("complexity", "ambiguity", "blast_radius", "reversibility", "testability",
-                                     "context_load", "independence", "dependency_count", "prior_rework")}
+        sig = {x: "medium" for x in SIGNALS}
         mf = {"considered": True, "tools": ["npm run kiem"]}
 
         def att(pid, n, role, model, effort, agent, outcome, defects=0):
             return {"event": "attempt", "packetId": pid, "attempt": n, "role": role, "outcome": outcome, "defects": defects,
-                    "plan": {"model": model, "effort": effort, "mode": "fresh_session"},
+                    "plan": {"capability": "fixture " + role, "model": model, "effort": effort, "mode": "fresh_session"},
                     "execution": {"sessionId": G, "agentId": agent}}
 
         evs = [{"event": "wave_open", "waveId": "W1", "rootSessionId": R, "scope": "fixture", "at": "2026-09-26T10:05:00Z",
@@ -418,11 +431,11 @@ class TestF_LedgerMetrics(Base):
                 att("P2", 4, "review", "claude-opus-5-5", "high", "v2", "pass"),
                 att("P3", 1, "implement", "claude-haiku-4-5-20251001", "low", "w4", "escalate"),
                 att("P3", 2, "implement", "claude-sonnet-5", "high", "w5", "pass")]
-        for pid, states in (("P1", ["EXECUTED", "MACHINE_VERIFIED", "FABLE_ACCEPTED"]),
-                            ("P2", ["EXECUTED", "MACHINE_VERIFIED", "INDEPENDENT_REVIEWED", "FABLE_ACCEPTED"]),
-                            ("P3", ["EXECUTED", "MACHINE_VERIFIED", "FABLE_ACCEPTED"])):
+        for pid, states in (("P1", ["EXECUTED", "MACHINE_VERIFIED", "GOVERNOR_ACCEPTED"]),
+                            ("P2", ["EXECUTED", "MACHINE_VERIFIED", "INDEPENDENT_REVIEWED", "GOVERNOR_ACCEPTED"]),
+                            ("P3", ["EXECUTED", "MACHINE_VERIFIED", "GOVERNOR_ACCEPTED"])):
             evs += [{"event": "packet_state", "packetId": pid, "state": s} for s in states]
-        evs += [{"event": "wave_state", "waveId": "W1", "state": s} for s in ("PACKETS_ACCEPTED", "FABLE_CONSOLIDATED", "ROOT_REVIEW")]
+        evs += [{"event": "wave_state", "waveId": "W1", "state": s} for s in ("PACKETS_ACCEPTED", "GOVERNOR_CONSOLIDATED", "ROOT_REVIEW")]
         evs += [{"event": "wave_state", "waveId": "W1", "state": "ROOT_ACCEPTED", "at": "2026-09-26T12:30:00Z", "clean_result_chars": 4000},
                 {"event": "defect", "waveId": "W1", "phase": "after_acceptance", "severity": "minor"},
                 {"event": "root_handoff", "fromSessionId": R, "toSessionId": "root-2", "reason": "context growth",
@@ -442,7 +455,11 @@ class TestF_LedgerMetrics(Base):
         self.assertEqual(m["ROOT_CONTEXT_GROWTH"]["root_handoffs"], 1)
         self.assertAlmostEqual(m["CONTEXT_ISOLATION_GAIN"], 7.5)
         self.assertEqual(m["DEFECT_CONTAINMENT"], {"before_integration": 2, "after_acceptance": 1, "rate": 2 / 3})
-        self.assertAlmostEqual(m["FABLE_LEVERAGE"]["accepted_packets_per_M_fable_work"], 1500.0)
+        self.assertAlmostEqual(m["GOVERNOR_LEVERAGE"]["accepted_packets_per_M_governor_work"], 1500.0)
+        self.assertEqual(m["GOVERNOR_LEVERAGE"]["governor_families_observed"], {"fable": 2000})
+        self.assertEqual(m["FABLE_WORK_TOTAL"], 2000)
+        self.assertEqual(m["USAGE_BY_ROLE_FAMILY"]["verifier"], {"opus": 2000})
+        self.assertEqual(m["ESCALATION_EFFICIENCY"]["accepted_plans"], ["claude-sonnet-5 · high"])
         self.assertEqual((m["ESCALATION_EFFICIENCY"]["escalated"], m["ESCALATION_EFFICIENCY"]["resolved"]), (1, 1))
         plans = {tuple(p["key"]): p for p in m["plans"]}
         self.assertEqual(plans[("claude-sonnet-5", "high")]["final_accepted"], 2)
@@ -458,22 +475,21 @@ class TestF_LedgerMetrics(Base):
         self.assertTrue(ledger.append(self.proj, {"event": "wave_state", "waveId": "W1", "state": "ROOT_REVIEW"}))
         self.manifest()
         evs = [{"event": "wave_open", "waveId": "W2", "rootSessionId": "r", "scope": "s",
-                "governor": {"sessionId": "g", "model": "m", "effort": "high"}},
+                "governor": {"sessionId": "g", "model": "claude-fable-5-1", "effort": "high"}},
                {"event": "packet_open", "packetId": "Q1", "waveId": "W2", "taskClass": "c",
-                "signals": {s: "unknown" for s in ("complexity", "ambiguity", "blast_radius", "reversibility", "testability",
-                                                   "context_load", "independence", "dependency_count", "prior_rework")},
+                "signals": {x: "unknown" for x in SIGNALS},
                 "context": {"must_read": [], "may_read": [], "must_not_load": [], "output_budget": "x"},
                 "verification_depth": "machine", "machine_first": {"considered": True}}]
         for ev in evs:
             self.assertEqual(ledger.append(self.proj, ev), [])
-        self.assertTrue(ledger.append(self.proj, {"event": "packet_state", "packetId": "Q1", "state": "FABLE_ACCEPTED"}),
-                        "FABLE_ACCEPTED without MACHINE_VERIFIED must be rejected")
+        self.assertTrue(ledger.append(self.proj, {"event": "packet_state", "packetId": "Q1", "state": "GOVERNOR_ACCEPTED"}),
+                        "GOVERNOR_ACCEPTED without MACHINE_VERIFIED must be rejected")
         self.assertTrue(ledger.append(self.proj, {"event": "wave_state", "waveId": "W2", "state": "PACKETS_ACCEPTED"}),
                         "a wave cannot accept while a packet is open")
         bad = {"event": "attempt", "packetId": "Q1", "attempt": 1, "role": "implement", "outcome": "pass",
-               "plan": {"model": "m", "effort": "ultra", "mode": "fresh_session"}, "execution": {"sessionId": "s"}}
+               "plan": {"capability": "x", "model": "m", "effort": "ultra", "mode": "fresh_session"}, "execution": {"sessionId": "s"}}
         self.assertTrue(any("not a runtime effort" in e for e in ledger.append(self.proj, bad)))
-        ok = dict(bad, plan={"model": "m", "effort": "low", "mode": "fresh_session"})
+        ok = dict(bad, plan={"capability": "x", "model": "m", "effort": "low", "mode": "fresh_session"})
         self.assertEqual(ledger.append(self.proj, ok), [], "every runtime effort is a valid candidate")
 
     def test_sovereignty_boundary(self):
@@ -504,6 +520,54 @@ class TestF_LedgerMetrics(Base):
         with io.open(ledger.path(self.proj), "a", encoding="utf-8") as f:   # a hand-edited bad record
             f.write(json.dumps(green_escalated) + "\n")
         self.assertTrue(any(f["id"] == "OSR-103" and f["severity"] == "critical" for f in doctor.run(self.proj).findings))
+
+    def test_governor_slot_fail_closed_and_profiles(self):
+        self.manifest()
+        opus_gov = {"event": "wave_open", "waveId": "G1", "rootSessionId": "r", "scope": "s",
+                    "governor": {"sessionId": "gov-x", "model": "claude-opus-5-5", "effort": "high"}}
+        errs = ledger.append(self.proj, opus_gov, json.loads(r(self.P(".claude", "oser", "project.json"))))
+        self.assertTrue(any("FAIL CLOSED" in e for e in errs), errs)
+        self.manifest(operating_model={"root": {"model": "inherit"},
+                                       "governor": {"required_family": "opus", "fallback": "none"}})
+        self.assertEqual(ledger.append(self.proj, opus_gov, json.loads(r(self.P(".claude", "oser", "project.json")))), [],
+                         "a profile may require opus for the Governor slot")
+
+    def test_observed_governor_family_mismatch_is_critical(self):
+        self.manifest()
+        self.turn("gov-y", "claude-opus-5-5", "2026-09-26T10:10:00Z")          # declared fable, ran opus
+        ledger.append(self.proj, {"event": "wave_open", "waveId": "G2", "rootSessionId": "r", "scope": "s",
+                                  "governor": {"sessionId": "gov-y", "model": "claude-fable-5-1", "effort": "high"}},
+                      json.loads(r(self.P(".claude", "oser", "project.json"))))
+        crit = [f for f in doctor.run(self.proj).findings if f["id"] == "OSR-104" and f["severity"] == "critical"]
+        self.assertEqual(len(crit), 1, crit)
+
+    def test_v3_ledger_state_names_migrate_explicitly(self):
+        self.wave()
+        p = ledger.path(self.proj)
+        legacy = r(p).replace("GOVERNOR_ACCEPTED", "FABLE_ACCEPTED").replace("GOVERNOR_CONSOLIDATED", "FABLE_CONSOLIDATED")
+        w(p, legacy)
+        m = json.loads(r(self.P(".claude", "oser", "project.json")))
+        m["schema"] = "nnc-oser/project@3"
+        m["operating_model"]["governor"] = {"preferred_model": "claude-fable-5-1", "session": "one-per-wave"}
+        w(self.P(".claude", "oser", "project.json"), json.dumps(m, ensure_ascii=False, indent=2) + "\n")
+        w(self.P("workspace", "TRANG-THAI.md"), "**PRE-BUILD SETUP**\n")
+        self.assertTrue(any(f["id"] == "OSR-001" for f in doctor.run(self.proj).findings))
+        engine.migrate(self.proj)
+        self.assertNotIn("FABLE_", r(p))
+        m2 = json.loads(r(self.P(".claude", "oser", "project.json")))
+        self.assertEqual(m2["operating_model"]["governor"]["required_family"], "fable", "derived from preferred model")
+        lock = json.loads(r(self.P(".claude", "oser", "lock.json")))
+        self.assertTrue(any(a["action"] == "ledger-rename-states" for mg in lock["migrations"] for a in mg["actions"]))
+        self.assertEqual(metrics.compute(self.proj)["packets_accepted"], 3)
+
+    def test_founder_deploy_wording_and_execution_approval(self):
+        self.wave()
+        with io.open(self.P("CLAUDE.md"), "a", encoding="utf-8") as f:
+            f.write("Founder owns cloud/billing/deploy gates.\n")
+        self.assertTrue(any(f["id"] == "OSR-103" and "broadly" in f["message"] for f in doctor.run(self.proj).findings))
+        ev = {"event": "decision", "decisionId": "E1", "zone": "GREEN", "decidedBy": "root", "subject": "deploy order",
+              "rationale": "rules after auth telemetry", "execution_approval_by": "founder"}
+        self.assertEqual(ledger.append(self.proj, ev), [], "approval to execute is not decision ownership")
 
     def test_cli_metrics_and_root(self):
         self.wave()
