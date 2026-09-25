@@ -5,8 +5,11 @@
 **WORK PACKET**. Mỗi lượt thử (`attempt`) mang một execution plan:
 
 ```
-Execution Plan = model × effort × context × session strategy × parallelism × verification (+ escalation path)
+Execution Plan = capability (việc cần làm) × model × effort × mode/session × context × verification (+ fallback/escalation)
 ```
+
+Ledger bắt buộc `plan.capability · plan.model · plan.effort · plan.mode` ở mỗi lượt thử; họ model được suy từ
+model id và đo lại từ transcript.
 
 Model là **phân bổ tài nguyên tính toán**, không phải chức danh. Không có bảng "vai → model" trong plugin
 hay trong dự án.
@@ -15,7 +18,7 @@ hay trong dự án.
 
 **Kế hoạch VERIFIED tốn ít tài nguyên nhất mà vẫn giữ biên an toàn cần thiết** — tức cực tiểu
 `ExpectedTotalResourceToVerifiedResult`: lượt đầu + review + retry + escalation + rework + tích hợp + replay
-context + verification. Lượt đầu rẻ mà gây làm lại có thể đắt hơn. Không đẩy một packet ra sát mép năng lực
+context + verification. Lượt đầu rẻ mà gây làm lại có thể đắt hơn. Một lượt 0,4 tài nguyên gây làm lại nhiều lần có thể tệ hơn một lượt 0,9 đạt ngay. Không đẩy một packet ra sát mép năng lực
 đã quan sát của một kế hoạch khi kế hoạch khác giảm đáng kể rework/blast risk.
 
 ## Effort là một chiều lập lịch độc lập
@@ -31,7 +34,7 @@ context + verification. Lượt đầu rẻ mà gây làm lại có thể đắt
 ## Tín hiệu (bằng chứng, không phải ngưỡng cứng)
 
 `complexity · ambiguity · blast_radius · reversibility · testability · context_load · independence ·
-dependency_count · prior_rework` — mức `low|medium|high|unknown`, ghi ở `packet_open.signals`; cộng lịch sử
+dependency_count · prior_rework · prior_first_pass · prior_verification_defects` — mức `low|medium|high|unknown`, ghi ở `packet_open.signals`; cộng lịch sử
 đo được của lớp việc: **first-pass rate** và **rework** theo `(taskClass, model, effort)` và **chi phí
 verification** (`oser metrics › PLAN BENCHMARK`). Không có ngưỡng số toàn cục khi chưa có bằng chứng.
 

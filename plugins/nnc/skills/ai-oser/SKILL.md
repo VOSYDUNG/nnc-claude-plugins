@@ -11,8 +11,8 @@ có dấu `NNC-OSER:GENERATED` / `NNC-OSER:BEGIN…END` và ghi provenance ở `
 
 ## Mô hình
 
-Founder + Strategy → **Root** (trạng thái toàn cục, admit wave, tích hợp kết quả sạch) → **Governor** (một phiên
-mới cho mỗi wave) → **phiên thực thi mới** → **verification độc lập** → kết quả wave sạch → Root.
+Founder + Strategy → **Root** (trạng thái toàn cục, admit wave, tích hợp kết quả sạch) → **Governor** (slot cố định,
+một phiên mới cho mỗi wave; họ model = cấu hình profile, lệch họ = FAIL CLOSED) → **phiên thực thi mới** → **verification độc lập** → kết quả wave sạch → Root.
 Đơn vị lập lịch là **work packet**; mỗi lượt thử có execution plan riêng:
 model × effort × context × session × song song × verification. **Không có model cố định theo vai.**
 Effort là một chiều lập lịch: mọi mức runtime hỗ trợ (`low · medium · high · xhigh · max`) đều là candidate
@@ -45,5 +45,7 @@ Plugin đặt `bin/` lên PATH khi đã cài: `oser <lệnh>`; ngoài phiên: `p
 - **Founder giải xung đột sản phẩm; AI giải bất định kỹ thuật.** Không đưa lựa chọn kỹ thuật lên Founder: xem bằng
   chứng → so phương án → thử → chọn winner → ghi rationale (`decision` GREEN/AMBER) → đi tiếp. Chỉ RED
   (nghĩa nghiệp vụ · thẩm quyền · quyền · vòng đời · HIFI · metric · nguồn sự thật · phạm vi/chi phí lớn · go-live) lên Founder.
+- Cloud/deploy HOW là việc của engineering; Founder chỉ giữ hệ quả RED. Phê duyệt thực thi ≠ quyền quyết định.
+- OSER có version và thích nghi — không tạo "lock" mới cho OSER/routing/model/effort.
 - Không chép canon của authority vào repo.
 - Không nói cap thuê bao từ token: cap tuần (tổng và Fable lồng trong) là UI-only — ghi `quota_reading`.

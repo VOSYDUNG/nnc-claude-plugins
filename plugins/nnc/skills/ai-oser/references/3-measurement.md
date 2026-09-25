@@ -22,20 +22,22 @@ phiên bản), không bao giờ là chi phí thuê bao hay kinh tế lập lịc
 
 | Metric | Định nghĩa |
 |---|---|
-| **VERIFIED_RESULT_COST** | work của mọi lượt (mọi vai) từ khi mở packet tới khi `FABLE_ACCEPTED`; mức wave = + governor |
+| **VERIFIED_RESULT_COST** | work của mọi lượt (mọi vai) từ khi mở packet tới khi `GOVERNOR_ACCEPTED`; mức wave = + governor |
 | **FIRST_PASS_ACCEPT_RATE** | packet được nhận với đúng một lượt implement và lượt đó `pass` / packet đã kết |
 | **REWORK_AMPLIFICATION** | work mọi lượt / work lượt implement đầu tiên |
 | **ROOT_CONTEXT_GROWTH** | prompt_size Root lúc `ROOT_ACCEPTED` − lúc `wave_open`, trung bình theo wave; kèm số `root_handoff` |
 | **CONTEXT_ISOLATION_GAIN** | (work + cache_read) dưới Root / tăng trưởng context Root (dự phòng: `clean_result_chars/4`) |
 | **DEFECT_CONTAINMENT** | lỗi verifier + sự kiện `before_integration` / (trước + `after_acceptance`) |
-| **FABLE_LEVERAGE** | packet được nhận / triệu work token của model họ Fable **đo được** (không theo plan khai) |
-| **ESCALATION_EFFICIENCY** | packet có lượt `escalate`: tỉ lệ cuối cùng được nhận + work trung bình |
+| **GOVERNOR_LEVERAGE** | packet được nhận / triệu work token của slot Governor; kèm họ model Governor **quan sát được** |
+| **USAGE BY ROLE × FAMILY** | work token của governor · worker · verifier theo họ model đo được; `FABLE_WORK_TOTAL` cho tài khoản quota Fable |
+| **ESCALATION_EFFICIENCY** | packet có lượt `escalate`: tỉ lệ cuối cùng được nhận + work trung bình + kế hoạch cuối được nhận |
 | **PLAN BENCHMARK** | theo `(model, effort)` và `(taskClass, model, effort)`: lượt · first-pass · rework · lỗi verifier · work · thinking · prompt TB · wall · kết quả cuối được nhận · lệch model khai/quan sát |
 
 Cái không thấy được ghi vào `unknown` — không bịa.
 
 ## Tài nguyên thuê bao
 
+`weekly_fable` là **kế toán tài nguyên** (sub-cap thật của một họ model), không phải tên vai.
 `oser quota` cho usage thô theo model · effort · vùng (root/subagent) · tuần ISO, tách **tất cả model** và
 **Fable (lồng bên trong)** + tỉ trọng Fable. Cap tuần (tổng và Fable) **chỉ có trên UI** — không suy từ token.
 Ghi số đọc UI bằng `quota_reading` (`weekly_all_models_pct`, `weekly_fable_pct`, `source: "ui"`); khi đủ
