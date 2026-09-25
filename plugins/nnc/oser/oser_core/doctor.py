@@ -15,9 +15,11 @@ import re
 
 from . import render
 from .engine import CONTROL_PLANE_DOC, SETTINGS, detect_legacy
-from .manifest import INACTIVE_DIR, LOCK, MANIFEST, get, load, mode_spec, ref_exists, resolve_authority
+from . import ledger
+from .manifest import (LOCK, MANIFEST, build_state, get, legacy_keys, load, mode_spec, ref_exists,
+                       resolve_authority, root_model)
 from .transcripts import observed_models
-from .util import (OSER_HOME, claude_home, git, load_json, match_any, model_generation, plugin_version,
+from .util import (OSER_HOME, claude_home, git, load_catalog, load_json, match_any, model_generation, plugin_version,
                    read_text, rel, sha, MODEL_RE)
 
 SEV_ORDER = {"critical": 0, "warning": 1, "info": 2}
@@ -74,6 +76,9 @@ def run(root, manifest_override=None):
         _workspace(r, root, m)
         _generated(r, root, m, version)
         _firebase(r, root, m)
+        _build(r, root, m)
+        _ledger(r, root, m)
+    _org_model(r, root, m)
     _branch_pointers(r, root, m if valid else None)
     _models(r, root, m if valid else None)
     _legacy(r, root, m if valid else None)
@@ -184,7 +189,7 @@ def _phase(r, root, m):
 
 def _models(r, root, m):
     obs = observed_models(root)
-    expected = (get(m, "models.root") or "inherit") if m else "(no manifest)"
+    expected = root_model(m) if m else "(no manifest)"
     configured = {}
     for label, p in (("project", os.path.join(root, SETTINGS)), ("project-local", os.path.join(root, ".claude", "settings.local.json")),
                      ("user", os.path.join(claude_home(), "settings.json"))):
@@ -200,6 +205,9 @@ def _models(r, root, m):
     r.facts["observed_models"] = {"root": obs["root"], "subagent": obs["sub"]}
     if observed is None:
         r.add("info", "OSR-030", "no transcript for this project path — observed ROOT model unknown")
+    fam = get(m, "operating_model.root.expected_family") if m else None
+    if fam and observed and (model_generation(observed[0]) or ("?",))[0] != fam:
+        r.add("warning", "OSR-030", "Root expected family %s, observed %s" % (fam, observed[0]))
     pin = configured.get("project-local") or configured.get("project")
     if expected == "inherit" and pin:
         extra = ""
@@ -247,8 +255,6 @@ def _mode(r, root, m):
     if agents and spec["subagents"] == "forbidden":
         r.add("critical", "OSR-040", "%d agent definition(s) registered in .claude/agents while mode %r forbids subagents"
               % (len(agents), m["mode"]), ".claude/agents/")
-    if spec["audit"] == "disabled" and get(m, "capabilities.audit.enabled"):
-        r.add("critical", "OSR-040", "audit (Fable) capability enabled in mode %r where audit is disabled" % m["mode"], MANIFEST)
     try:
         s = load_json(os.path.join(root, SETTINGS)) or {}
     except ValueError:
@@ -259,10 +265,62 @@ def _mode(r, root, m):
 
 
 def _legacy(r, root, m):
+    what = {"doi-bac": "model-profile switching", "do-quota": "quota measurement", "bac-dang-dung": "model state"}
     for x in detect_legacy(root, m):
-        what = {"doi-bac": "model-profile switching", "do-quota": "quota measurement", "bac-dang-dung": "model state"}[x["key"]]
-        r.add("critical", "OSR-050", "second owner of %s: NNC-AI-OSer 1.0 %s (%s) alongside the plugin implementation"
-              % (what, "generated file" if x["state"] == "generated" else "copy", x["state"]), x["path"])
+        if x["key"] in what:
+            r.add("critical", "OSR-050", "second owner of %s: legacy %s (%s) alongside the plugin implementation"
+                  % (what[x["key"]], "generated file" if x["state"] == "generated" else "copy", x["state"]), x["path"])
+        else:
+            r.add("critical", "OSR-100", "legacy organisation model still in the current tree (%s) — two operating models "
+                  "compete; `oser migrate` retires it (git keeps history)" % x["key"], x["path"])
+
+
+FIXED_ROLE_RE = re.compile(r"\b(worker|mechanical|lead|audit|thợ|cơ khí|tech lead)\b[^\n|]{0,6}(=|→|:)\s*`?(claude-)?(sonnet|haiku|opus|fable)", re.I)
+
+
+def _org_model(r, root, m):
+    """OSR-100 — exactly one current operating model: no fixed model-per-role config, no 1.x roster as current."""
+    for k in (legacy_keys(m) if m else []):
+        r.add("critical", "OSR-100", "manifest keeps 2.0 fixed model/role configuration %r — retired" % k, MANIFEST)
+    cat = load_catalog("legacy-v1.json")
+    roster = cat["v1_roster"]
+    seat_re = re.compile(r"`(%s)`" % "|".join(re.escape(x) for x in roster))
+    for f in _current_files(root, m if m and not legacy_keys(m) else None):
+        text = read_text(os.path.join(root, f)) or ""
+        body = text.replace(render.extract_block(text) or "\0", "")
+        seats = sorted(set(seat_re.findall(body)))
+        if seats:
+            r.add("warning", "OSR-100", "current file names 1.x seats as if current: %s" % ", ".join(seats), f)
+        for loc in (cat["v2_inactive_dir"], cat["v1_team_doc"]):
+            if loc in body:
+                r.add("warning", "OSR-100", "current file points at a retired roster location %s" % loc, f)
+        if FIXED_ROLE_RE.search(body):
+            r.add("warning", "OSR-100", "current file maps a role to a fixed model (%s) — model is per packet"
+                  % FIXED_ROLE_RE.search(body).group(0).strip(), f)
+
+
+def _build(r, root, m):
+    st = build_state(m)
+    r.facts["build"] = st
+    if m["mode"] == "build" and st != "admitted":
+        r.add("critical", "OSR-101", "mode build without admission", MANIFEST)
+    if st == "configured_not_admitted":
+        r.add("info", "OSR-101", "BUILD configured, NOT admitted — no governor/worker may run", MANIFEST)
+    if m["mode"] == "setup" and st == "admitted":
+        r.add("warning", "OSR-101", "build.admission=admitted but mode is still setup", MANIFEST)
+
+
+def _ledger(r, root, m):
+    recs = ledger.read(root)
+    if not recs:
+        return
+    st = ledger.fold(recs, m)
+    r.facts["ledger"] = {"waves": len(st["waves"]), "packets": len(st["packets"])}
+    for e in st["errors"][:20]:
+        r.add("critical", "OSR-102", "ledger: " + e, ledger.path(root).replace(root, "").lstrip("\\/"))
+    for pid, p in st["packets"].items():
+        if not (p["open"].get("machine_first") or {}).get("considered"):
+            r.add("warning", "OSR-102", "packet %s opened without machine-first consideration" % pid)
 
 
 def _workspace(r, root, m):
@@ -293,9 +351,6 @@ def _workspace(r, root, m):
                 if not re.search(banner, head):
                     r.add("warning", "OSR-060", "historical file has no historical banner in its head", rel(root, f),
                           basis="declared")
-    inactive = os.path.join(root, INACTIVE_DIR)
-    if os.path.isdir(inactive) and not os.path.isfile(os.path.join(inactive, "README.md")):
-        r.add("warning", "OSR-060", "inactive definitions without README — may be mistaken for current", INACTIVE_DIR + "/")
 
 
 def _generated(r, root, m, version):

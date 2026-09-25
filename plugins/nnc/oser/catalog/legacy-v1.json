@@ -1,12 +1,12 @@
 {
-  "catalog": "nnc-oser/legacy@1",
-  "summary": "Fingerprints of files that NNC-AI-OSer 1.0.0 copied into projects. A project copy whose LF-normalised sha256 matches is plugin-owned and may be replaced by a generated wrapper. Any other content is project-modified and is never overwritten.",
+  "catalog": "nnc-oser/legacy@2",
+  "summary": "MIGRATION-ONLY. Fingerprints and names of what NNC-AI-OSer 1.x and NNC OSER 2.0 put into projects, so `oser migrate` can remove them safely and `oser doctor` can detect a legacy model living next to the current one. Nothing here is a current roster or policy.",
   "tools": {
     "doi-bac": {
       "default_path": "cong-cu/doi-bac.py",
       "sha256": ["a1d378af1be7a52893ea1d244a3a9551f536f4aa690302a00487ed56ee86d1ac"],
       "signature": "HO_SO = {",
-      "replacement": "wrapper-doi-bac"
+      "replacement": "retire"
     },
     "do-quota": {
       "default_path": "cong-cu/do-quota.py",
@@ -21,5 +21,11 @@
       "signature": "Sinh bởi `python cong-cu/doi-bac.py",
       "action": "retire"
     }
-  }
+  },
+  "v1_roster": ["nghiep-vu", "do-duong", "chia-lo", "tho-dung", "kiem-luat", "kiem-giao-dien", "nguoi-thu",
+                "nghien-cuu", "truong-ky-thuat"],
+  "v1_team_doc": ".claude/CO-CAU-NHAN-SU.md",
+  "v2_inactive_dir": ".claude/oser/inactive",
+  "v2_wrapper_templates": { "wrapper-doi-bac@2": "retire" },
+  "v2_manifest_keys": ["models.classes", "capabilities", "assignments", "control_plane.inactivate"]
 }

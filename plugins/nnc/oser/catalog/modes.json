@@ -1,31 +1,27 @@
 {
-  "catalog": "nnc-oser/modes@2",
+  "catalog": "nnc-oser/modes@3",
   "modes": {
     "setup": {
       "status": "active",
-      "summary": "Founder + Strategy Session + ROOT investigator. No subagents, no build crew, no audit model.",
-      "actors": ["founder", "strategy-session", "root-investigator"],
-      "active_capabilities": ["investigate"],
+      "summary": "Founder + Strategy Session + Root only. No governor, no workers, no subagents.",
+      "active_roles": ["founder", "strategy-session", "root"],
       "subagents": "forbidden",
-      "audit": "disabled",
-      "settings": {
-        "permissions.deny": ["Agent", "Task", "Workflow"]
-      }
+      "settings": { "permissions.deny": ["Agent", "Task", "Workflow"] }
     },
     "build": {
-      "status": "contract-only",
-      "summary": "Contract only in OSER 2.0: the build roster is NOT defined by the plugin. A project enables BUILD by declaring assignments after its own engineering architecture is decided.",
-      "requires": ["assignments"],
-      "subagents": "per-assignment",
-      "audit": "gate-only",
+      "status": "admission-gated",
+      "summary": "Root admits waves; one governor session per wave schedules fresh execution sessions; independent verification; only ROOT_ACCEPTED advances a milestone.",
+      "active_roles": ["founder", "strategy-session", "root", "governor", "worker", "verifier"],
+      "requires": ["operating_model", "build.admission=admitted"],
+      "subagents": "per-packet",
       "settings": {}
     },
     "operate": {
       "status": "contract-only",
-      "summary": "Contract only in OSER 2.0: operations roster and gates are declared by the project when it goes live.",
-      "requires": ["assignments"],
-      "subagents": "per-assignment",
-      "audit": "gate-only",
+      "summary": "Contract only: the operating roster and gates are declared by the project when it goes live.",
+      "active_roles": [],
+      "requires": ["operating_model", "operate"],
+      "subagents": "per-packet",
       "settings": {}
     }
   }

@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
-"""The project declaration: `.claude/oser/project.json` (PROJECT-OWNED, never rewritten by OSER)."""
+"""The project declaration: `.claude/oser/project.json` (PROJECT-OWNED; only `oser migrate` may rewrite it)."""
 import os
 
 from .util import git, load_catalog, load_json
 
-SCHEMA_ID = "nnc-oser/project@2"
+SCHEMA_ID = "nnc-oser/project@3"
+LEGACY_SCHEMAS = ("nnc-oser/project@2",)
 MANIFEST = ".claude/oser/project.json"
 LOCK = ".claude/oser/lock.json"
-INACTIVE_DIR = ".claude/oser/inactive"
+LEDGER_DIR = ".claude/oser/ledger"
 
-
-class ManifestError(Exception):
-    pass
+ADMISSION = ("not_admitted", "admitted")
 
 
 def manifest_path(root, override=None):
@@ -30,32 +29,6 @@ def load(root, override=None):
     return m, validate(m)
 
 
-def validate(m):
-    errors = []
-    if m.get("schema") != SCHEMA_ID:
-        errors.append("schema must be %r (found %r)" % (SCHEMA_ID, m.get("schema")))
-    for path in ("project.name", "phase.id", "phase.label", "mode", "authority.repo", "authority.ref",
-                 "authority.entry", "workspace.state_file"):
-        if get(m, path) in (None, ""):
-            errors.append("missing required field %s" % path)
-    modes = load_catalog("modes.json")["modes"]
-    mode = m.get("mode")
-    if mode and mode not in modes:
-        errors.append("unknown mode %r (known: %s)" % (mode, ", ".join(sorted(modes))))
-    elif mode:
-        spec = modes[mode]
-        if spec["status"] != "active" and not m.get("assignments"):
-            errors.append("mode %r is contract-only in this OSER version and requires 'assignments'" % mode)
-    caps = load_catalog("capabilities.json")["capabilities"]
-    for name in (m.get("capabilities") or {}):
-        if name not in caps:
-            errors.append("unknown capability %r" % name)
-    root_model = get(m, "models.root") or "inherit"
-    if root_model != "inherit" and not str(root_model).startswith("claude-"):
-        errors.append("models.root must be 'inherit' or an explicit claude-* id")
-    return errors
-
-
 def get(m, dotted, default=None):
     cur = m
     for part in dotted.split("."):
@@ -65,37 +38,60 @@ def get(m, dotted, default=None):
     return cur
 
 
+def legacy_keys(m):
+    """Keys of the 2.0 organisational model still present (fixed model classes, capability catalog, …)."""
+    found = []
+    for k in load_catalog("legacy-v1.json")["v2_manifest_keys"]:
+        if get(m, k) is not None:
+            found.append(k)
+    return found
+
+
+def validate(m):
+    errors = []
+    if m.get("schema") in LEGACY_SCHEMAS:
+        return ["schema %r is the 2.0 layout — run `oser migrate`" % m.get("schema")]
+    if m.get("schema") != SCHEMA_ID:
+        errors.append("schema must be %r (found %r)" % (SCHEMA_ID, m.get("schema")))
+    for path in ("project.name", "phase.id", "phase.label", "mode", "authority.repo", "authority.ref",
+                 "authority.entry", "workspace.state_file", "operating_model.root.model"):
+        if get(m, path) in (None, ""):
+            errors.append("missing required field %s" % path)
+    for k in legacy_keys(m):
+        errors.append("legacy 2.0 key %r present — fixed model/role configuration is retired (run `oser migrate`)" % k)
+    modes = load_catalog("modes.json")["modes"]
+    mode = m.get("mode")
+    if mode and mode not in modes:
+        errors.append("unknown mode %r (known: %s)" % (mode, ", ".join(sorted(modes))))
+    elif mode == "build" and get(m, "build.admission") != "admitted":
+        errors.append("mode 'build' requires build.admission = 'admitted' (BUILD ADMISSION REVIEW first)")
+    elif mode == "operate":
+        errors.append("mode 'operate' is contract-only in this OSER version")
+    adm = get(m, "build.admission")
+    if adm is not None and adm not in ADMISSION:
+        errors.append("build.admission must be one of %s" % ", ".join(ADMISSION))
+    if get(m, "build.effort_policy") is not None:
+        errors.append("build.effort_policy is not allowed: effort is a per-packet scheduling dimension chosen from "
+                      "the runtime set, never a fixed policy")
+    root_model = get(m, "operating_model.root.model")
+    if root_model and root_model != "inherit" and not str(root_model).startswith("claude-"):
+        errors.append("operating_model.root.model must be 'inherit' or an explicit claude-* id")
+    return errors
+
+
 def mode_spec(m):
     return load_catalog("modes.json")["modes"][m["mode"]]
 
 
-def capability_state(m):
-    """{capability: 'active'|'configured'|'disabled'} — configured ≠ running."""
-    caps = load_catalog("capabilities.json")["capabilities"]
-    spec = mode_spec(m)
-    declared = m.get("capabilities") or {}
-    out = {}
-    for name, c in caps.items():
-        enabled = declared.get(name, {}).get("enabled", c.get("default_enabled", True))
-        if name in spec.get("active_capabilities", []):
-            out[name] = "active"
-        elif c["runs_as"] == "gate" and spec.get("audit") == "disabled":
-            out[name] = "disabled"
-        elif not enabled:
-            out[name] = "disabled"
-        elif c["runs_as"] == "external":
-            out[name] = "external"
-        else:
-            out[name] = "configured"
-    return out
+def build_state(m):
+    """'not_configured' | 'configured_not_admitted' | 'admitted' — BUILD configuration is not BUILD start."""
+    if not m.get("build"):
+        return "not_configured"
+    return "admitted" if get(m, "build.admission") == "admitted" else "configured_not_admitted"
 
 
-def model_mapping(m):
-    classes = load_catalog("capabilities.json")["model_classes"]
-    declared = get(m, "models.classes") or {}
-    out = {k: declared.get(k, v["default"]) for k, v in classes.items()}
-    out["root"] = get(m, "models.root") or "inherit"
-    return out
+def root_model(m):
+    return get(m, "operating_model.root.model") or "inherit"
 
 
 def resolve_authority(root, m):

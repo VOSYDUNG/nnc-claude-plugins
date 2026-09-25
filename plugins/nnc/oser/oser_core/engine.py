@@ -2,21 +2,22 @@
 """install / update / migrate. Every command is a plan of actions; `dry_run` prints the plan only.
 
 Ownership rules enforced here:
-  * `.claude/oser/project.json` and every file outside a GENERATED marker are PROJECT-OWNED: never rewritten
-    (install writes one-time scaffolds only when the file does not exist).
+  * `.claude/oser/project.json` and every file outside a GENERATED marker are PROJECT-OWNED: `update` never
+    rewrites them; `install` writes one-time scaffolds; only the explicit `migrate` upgrades the manifest schema.
   * GENERATED artifacts are rewritten only when their content changes, and never when the file on disk was
     hand-edited since the last update (reported instead) or is listed in `overrides`.
-  * Legacy (NNC-AI-OSer 1.0) files are replaced only when their fingerprint proves they are unmodified copies.
+  * Legacy files (NNC-AI-OSer 1.x, NNC OSER 2.0) are removed only when provably recoverable: an unmodified
+    fingerprinted copy, an unmodified generated file recorded in the lock, or a file git holds unmodified.
 """
 import glob
 import os
 
 from . import render
-from .manifest import INACTIVE_DIR, LOCK, MANIFEST, SCHEMA_ID, load, mode_spec
-from .util import dump_json, load_catalog, load_json, now_iso, read_text, rel, sha, template, write_text
+from .manifest import LEGACY_SCHEMAS, LOCK, MANIFEST, SCHEMA_ID, load, mode_spec
+from .util import (dump_json, git, load_catalog, load_json, now_iso, plugin_version, read_text, rel, sha, template,
+                   write_text)
 
 CONTROL_PLANE_DOC = ".claude/oser/CONTROL-PLANE.md"
-INACTIVE_README = INACTIVE_DIR + "/README.md"
 SETTINGS = ".claude/settings.json"
 
 
@@ -64,6 +65,10 @@ class Plan:
         self.actions.append(("remove", relpath, why))
         if not self.dry_run:
             os.remove(self.p(relpath))
+            d = os.path.dirname(self.p(relpath))
+            while d and os.path.isdir(d) and not os.listdir(d) and os.path.abspath(d) != os.path.abspath(self.root):
+                os.rmdir(d)
+                d = os.path.dirname(d)
         return True
 
 
@@ -78,11 +83,20 @@ def _require_manifest(root):
     return m
 
 
+def git_preserved(root, relpath):
+    """True when git tracks the file and the working copy equals HEAD (history can restore it exactly)."""
+    if git(root, "ls-files", "--error-unmatch", relpath)[0] != 0:
+        return False
+    rc, out = git(root, "status", "--porcelain", "--", relpath)
+    return rc == 0 and out == ""
+
+
 # ------------------------------------------------------------------------------------------ legacy
 
-def detect_legacy(root, m=None):
-    """Return a list of legacy (1.0) findings: dicts with key, path, state ('pristine'|'modified'|'generated')."""
+def detect_legacy(root, m=None, lock=None):
+    """Legacy organisational/control-plane artefacts. Each finding: key, path, state, action."""
     cat = load_catalog("legacy-v1.json")
+    lock = lock if lock is not None else _load_lock(root)
     found = []
     wrappers = dict(((m or {}).get("compat") or {}).get("wrappers") or {})
     for key, t in cat["tools"].items():
@@ -91,23 +105,67 @@ def detect_legacy(root, m=None):
             text = read_text(os.path.join(root, p))
             if text is None or "NNC-OSER:GENERATED" in text[:400]:
                 continue
-            if sha(text) in t["sha256"]:
-                found.append({"key": key, "path": p, "state": "pristine", "replacement": t["replacement"]})
-            elif t["signature"] in text:
-                found.append({"key": key, "path": p, "state": "modified", "replacement": t["replacement"]})
+            state = "pristine" if sha(text) in t["sha256"] else ("modified" if t["signature"] in text else None)
+            if state:
+                found.append({"key": key, "path": p, "state": state, "action": t["replacement"]})
     for key, g in cat["generated"].items():
         text = read_text(os.path.join(root, g["path"]))
         if text is not None and g["signature"] in text:
-            found.append({"key": key, "path": g["path"], "state": "generated"})
+            found.append({"key": key, "path": g["path"], "state": "generated", "action": "retire"})
+    for key, a in (lock.get("artifacts") or {}).items():
+        if a.get("kind") == "wrapper" and cat["v2_wrapper_templates"].get(a.get("template")) == "retire":
+            text = read_text(os.path.join(root, a["path"]))
+            if text is not None:
+                found.append({"key": "v2-wrapper", "path": a["path"], "action": "retire",
+                              "state": "generated" if sha(text) == a.get("sha256") else "modified"})
+    roster = set(cat["v1_roster"])
+    for f in sorted(glob.glob(os.path.join(root, ".claude", "agents", "*.md"))):
+        if os.path.basename(f)[:-3] in roster:
+            found.append({"key": "v1-seat", "path": rel(root, f), "state": "roster", "action": "retire"})
+    team = cat["v1_team_doc"]
+    if os.path.isfile(os.path.join(root, team)):
+        found.append({"key": "v1-team-doc", "path": team, "state": "roster", "action": "retire"})
+    inactive = os.path.join(root, cat["v2_inactive_dir"])
+    for d, _, files in os.walk(inactive):
+        for fn in sorted(files):
+            found.append({"key": "v2-inactive", "path": rel(root, os.path.join(d, fn)), "state": "roster", "action": "retire"})
     return found
+
+
+def upgrade_manifest(m):
+    """2.0 → 3.0 manifest: drop fixed model classes / capability catalog / assignments; add operating model."""
+    out = {}
+    for k, v in m.items():
+        if k in ("models", "capabilities", "assignments"):
+            continue
+        out[k] = v
+        if k == "authority":
+            out["operating_model"] = {
+                "root": {"model": (m.get("models") or {}).get("root") or "inherit"},
+                "governor": {"preferred_model": None, "session": "one-per-wave"},
+                "workers": {"assignment": "per-packet"},
+            }
+            out["build"] = {"admission": "not_admitted"}
+            out["resources"] = {"weekly_all_models": {"cap": "ui-only"},
+                                "weekly_fable": {"cap": "ui-only", "nested_in": "weekly_all_models"}}
+    out["schema"] = SCHEMA_ID
+    cp = dict(out.get("control_plane") or {})
+    cp.pop("inactivate", None)
+    out["control_plane"] = cp
+    w = dict((out.get("compat") or {}).get("wrappers") or {})
+    for p in [p for p, k in w.items() if k == "doi-bac"]:
+        w.pop(p)
+    if "compat" in out:
+        out["compat"] = dict(out["compat"], wrappers=w)
+    return out
 
 
 # ------------------------------------------------------------------------------------------ update
 
 def _wrappers(m, lock):
-    w = dict(((m.get("compat") or {}).get("wrappers")) or {})
+    w = {p: k for p, k in (((m.get("compat") or {}).get("wrappers")) or {}).items() if k in render.WRAPPERS}
     for key, a in (lock.get("artifacts") or {}).items():
-        if a.get("kind") == "wrapper" and key not in w:
+        if a.get("kind") == "wrapper" and key not in w and a.get("wrapper") in render.WRAPPERS:
             w[key] = a["wrapper"]
     return w
 
@@ -117,9 +175,8 @@ def update(root, dry_run=False, force=False, _skip_legacy_check=False, _extra_wr
     if not _skip_legacy_check:
         legacy = detect_legacy(root, m)
         if legacy:
-            raise Blocked("legacy NNC-AI-OSer 1.0 artifacts present (%s) — run: oser migrate"
+            raise Blocked("legacy organisational/control-plane artefacts present (%s) — run: oser migrate"
                           % ", ".join(x["path"] for x in legacy))
-    from .util import plugin_version
     version = plugin_version()
     plan = Plan(root, dry_run)
     lock = _load_lock(root)
@@ -160,47 +217,39 @@ def update(root, dry_run=False, force=False, _skip_legacy_check=False, _extra_wr
     for relpath, kind in sorted(wrappers.items()):
         emit(relpath, relpath, render.wrapper(kind, relpath, m, version), "wrapper",
              render.WRAPPERS[kind][0], {"wrapper": kind})
-    if os.path.isdir(os.path.join(root, INACTIVE_DIR)):
-        emit(INACTIVE_README, INACTIVE_README, render.inactive_readme(m, version), "file", "inactive-readme@2")
     generated_paths = sorted(set((k if a.get("kind") == "block" else a["path"]) for k, a in new_art.items()
                                  if a.get("path")) | {CONTROL_PLANE_DOC})
     emit(CONTROL_PLANE_DOC, CONTROL_PLANE_DOC, render.control_plane_doc(m, version, generated_paths), "file",
-         "control-plane@2")
+         "control-plane@3")
 
-    # settings.json — only the managed keys
     managed = render.managed_settings(m)
     prev_deny = (old_art.get(SETTINGS + "#managed") or {}).get("deny", [])
     sp = os.path.join(root, SETTINGS)
     cur_settings = load_json(sp) if os.path.isfile(sp) else {}
     new_settings = render.apply_settings(cur_settings, managed, prev_deny)
-    if new_settings != cur_settings:
-        if new_settings or os.path.isfile(sp):
-            plan.write(SETTINGS, dump_json(new_settings), "managed keys: model=%s deny=%s"
-                       % (managed["model"] or "(inherit)", managed["deny"]))
+    if new_settings != cur_settings and (new_settings or os.path.isfile(sp)):
+        plan.write(SETTINGS, dump_json(new_settings), "managed keys: model=%s deny=%s"
+                   % (managed["model"] or "(inherit)", managed["deny"]))
     prev_s = old_art.get(SETTINGS + "#managed") or {}
     same = prev_s.get("deny") == managed["deny"] and prev_s.get("model") == managed["model"]
-    new_art[SETTINGS + "#managed"] = {"kind": "managed-keys", "path": SETTINGS, "template": "settings@2",
+    new_art[SETTINGS + "#managed"] = {"kind": "managed-keys", "path": SETTINGS, "template": "settings@3",
                                       "model": managed["model"], "deny": managed["deny"], "oser_version": version,
                                       "mode": m["mode"],
                                       "generated_at": prev_s.get("generated_at") if same and prev_s else stamp}
 
-    manifest_text = read_text(os.path.join(root, MANIFEST))
     new_lock = {
         "lock_schema": "nnc-oser/lock@1",
         "manifest_schema": SCHEMA_ID,
         "oser_version": version,
         "mode": m["mode"],
         "phase": m["phase"]["id"],
-        "manifest_sha256": sha(manifest_text),
+        "manifest_sha256": sha(read_text(os.path.join(root, MANIFEST))),
         "artifacts": dict(sorted(new_art.items())),
         "migrations": lock.get("migrations") or [],
         "retired": lock.get("retired") or [],
     }
     comparable = {k: v for k, v in lock.items() if k != "updated_at"}
-    if comparable != new_lock:
-        new_lock["updated_at"] = stamp
-    else:
-        new_lock["updated_at"] = lock.get("updated_at", stamp)
+    new_lock["updated_at"] = stamp if comparable != new_lock else lock.get("updated_at", stamp)
     plan.write(LOCK, dump_json(new_lock), "provenance")
     return plan
 
@@ -208,59 +257,80 @@ def update(root, dry_run=False, force=False, _skip_legacy_check=False, _extra_wr
 # ------------------------------------------------------------------------------------------ migrate
 
 def migrate(root, dry_run=False, force=False):
-    m, errors = load(root)
-    if m is None:
+    mp = os.path.join(root, MANIFEST)
+    raw = load_json(mp)
+    if raw is None:
         raise Blocked("no %s — run `oser install` for a new project, or author the manifest first "
                       "(template: plugins/nnc/oser/templates/project.example.json)" % MANIFEST)
+    plan = Plan(root, dry_run)
+    record = []
+    source = "nnc-ai-oser-1.0"
+    if raw.get("schema") in LEGACY_SCHEMAS:
+        source = "nnc-oser-2.0"
+        new = upgrade_manifest(raw)
+        record.append({"action": "manifest-upgrade", "path": MANIFEST, "from_schema": raw["schema"],
+                       "to_schema": SCHEMA_ID, "from_sha256": sha(read_text(mp))})
+        m = new
+    else:
+        m = raw
+    from .manifest import validate
+    errors = validate(m)
     if errors:
         raise Blocked("manifest invalid: " + "; ".join(errors))
     lock = _load_lock(root)
-    plan = Plan(root, dry_run)
     overrides = set(m.get("overrides") or [])
-    record = []
     extra_wrappers = {}
 
-    for x in detect_legacy(root, m):
-        if x["state"] == "generated":
-            text = read_text(os.path.join(root, x["path"]))
-            plan.remove(x["path"], "retired 1.0 generated file (superseded by CLAUDE.md OSER block)")
-            record.append({"action": "retire", "path": x["path"], "sha256": sha(text)})
-        elif x["state"] == "pristine":
-            kind = {"wrapper-quota": "quota", "wrapper-doi-bac": "doi-bac"}[x["replacement"]]
-            extra_wrappers[x["path"]] = kind
-            record.append({"action": "wrap", "path": x["path"], "from_sha256": sha(read_text(os.path.join(root, x["path"]))),
-                           "canonical": "oser " + render.WRAPPERS[kind][1]})
-        elif x["path"] not in overrides:
-            raise Blocked("%s is a MODIFIED copy of the 1.0 %s tool — project-owned content, not replaced. "
+    findings = detect_legacy(root, m, lock)
+    for x in findings:  # verify every removal is recoverable BEFORE touching anything
+        if x["path"] in overrides:
+            continue
+        if x["state"] == "modified":
+            raise Blocked("%s is a MODIFIED legacy file (%s) — project-owned content, not removed. "
                           "Reconcile by hand or list it in overrides." % (x["path"], x["key"]))
+        if x["state"] == "roster" and not git_preserved(root, x["path"]):
+            raise Blocked("%s (%s) is not committed unmodified in git — commit it first so history keeps it, "
+                          "then re-run migrate" % (x["path"], x["key"]))
+    if source == "nnc-oser-2.0":  # only after every removal is proven recoverable
+        plan.write(MANIFEST, dump_json(m), "manifest %s → %s (fixed model classes / capability catalog removed)"
+                   % (raw["schema"], SCHEMA_ID))
+    for x in findings:
+        if x["path"] in overrides:
+            continue
+        text = read_text(os.path.join(root, x["path"]))
+        if x["action"] == "wrapper-quota":
+            extra_wrappers[x["path"]] = "quota"
+            record.append({"action": "wrap", "path": x["path"], "from_sha256": sha(text), "canonical": "oser quota"})
+            continue
+        why = {"v1-seat": "1.x seat — current model is Root/Governor/per-packet plans; git keeps it",
+               "v1-team-doc": "1.x team doc — superseded by operating model; git keeps it",
+               "v2-inactive": "2.0 inactive roster evidence — git keeps it",
+               "v2-wrapper": "2.0 model-profile wrapper retired",
+               "doi-bac": "1.x model-profile tool retired",
+               "bac-dang-dung": "1.x generated model state retired"}.get(x["key"], "legacy retired")
+        plan.remove(x["path"], why)
+        blob = git(root, "rev-parse", "HEAD:" + x["path"])[1] if x["state"] == "roster" else None
+        record.append({"action": "retire", "path": x["path"], "sha256": sha(text or ""), "git_blob": blob})
 
     sp = os.path.join(root, SETTINGS)
     settings = load_json(sp) if os.path.isfile(sp) else {}
     if settings.get("model") and render.managed_settings(m)["model"] is None:
         record.append({"action": "unpin-root-model", "path": SETTINGS, "was": settings["model"],
-                       "why": "models.root=inherit — client session model is authoritative"})
-
-    if mode_spec(m)["subagents"] == "forbidden":
-        for f in sorted(glob.glob(os.path.join(root, ".claude", "agents", "*.md"))):
-            r = rel(root, f)
-            dst = INACTIVE_DIR + "/agents/" + os.path.basename(f)
-            if plan.move(r, dst, "mode %s forbids subagents — definition kept, not registered" % m["mode"]):
-                record.append({"action": "inactivate", "path": r, "to": dst})
-    for r in ((m.get("control_plane") or {}).get("inactivate") or []):
-        dst = INACTIVE_DIR + "/" + os.path.basename(r)
-        if plan.move(r, dst, "declared inactive in manifest"):
-            record.append({"action": "inactivate", "path": r, "to": dst})
+                       "why": "operating_model.root.model=inherit — client session model is authoritative"})
     for mv in ((m.get("migrate") or {}).get("moves") or []):
         if plan.move(mv["from"], mv["to"], mv.get("why", "declared move")):
             record.append({"action": "move", "path": mv["from"], "to": mv["to"]})
 
     if not dry_run and record:
         lock = _load_lock(root)
-        from .util import plugin_version
-        lock.setdefault("migrations", []).append({"from": "nnc-ai-oser-1.0", "oser_version": plugin_version(),
+        lock.setdefault("migrations", []).append({"from": source, "oser_version": plugin_version(),
                                                   "at": now_iso(), "actions": record})
-        lock["retired"] = sorted(set(lock.get("retired") or []) | {r["path"] for r in record if r["action"] == "retire"})
+        retired = {r["path"] for r in record if r["action"] == "retire"}
+        lock["retired"] = sorted(set(lock.get("retired") or []) | retired)
+        lock["artifacts"] = {k: a for k, a in (lock.get("artifacts") or {}).items() if a.get("path") not in retired}
         write_text(os.path.join(root, LOCK), dump_json(lock))
+    if dry_run and source == "nnc-oser-2.0":
+        return plan
     up = update(root, dry_run=dry_run, force=force, _skip_legacy_check=True, _extra_wrappers=extra_wrappers)
     plan.actions += up.actions
     plan.notes += up.notes
@@ -273,9 +343,9 @@ def install(root, name, authority_repo, authority_entry, authority_ref="main", a
             baseline=None, phase_id="setup", phase_label="SETUP", language="vi", dry_run=False):
     mp = os.path.join(root, MANIFEST)
     if os.path.exists(mp):
-        raise Blocked("%s already exists — use `oser update` (or `oser migrate` for a 1.0 project)" % MANIFEST)
-    if detect_legacy(root):
-        raise Blocked("NNC-AI-OSer 1.0 artifacts found — author the manifest, then run `oser migrate`")
+        raise Blocked("%s already exists — use `oser update` (or `oser migrate` for an older layout)" % MANIFEST)
+    if detect_legacy(root, None, {}):
+        raise Blocked("legacy NNC-AI-OSer artefacts found — author the manifest, then run `oser migrate`")
     plan = Plan(root, dry_run)
     manifest = {
         "schema": SCHEMA_ID,
@@ -284,17 +354,19 @@ def install(root, name, authority_repo, authority_entry, authority_ref="main", a
         "mode": "setup",
         "authority": {"repo": authority_repo, "ref": authority_ref, "entry": authority_entry,
                       "local_path_hints": [authority_hint] if authority_hint else []},
-        "models": {"root": "inherit"},
-        "capabilities": {"audit": {"enabled": False}},
+        "operating_model": {"root": {"model": "inherit"},
+                            "governor": {"preferred_model": None, "session": "one-per-wave"},
+                            "workers": {"assignment": "per-packet"}},
+        "build": {"admission": "not_admitted"},
+        "resources": {"weekly_all_models": {"cap": "ui-only"},
+                      "weekly_fable": {"cap": "ui-only", "nested_in": "weekly_all_models"}},
         "workspace": {"state_file": "workspace/TRANG-THAI.md", "dir": "workspace", "current": ["TRANG-THAI.md"]},
-        "control_plane": {"current": ["CLAUDE.md", "workspace/TRANG-THAI.md"], "historical": [],
-                          "stale_markers": []},
+        "control_plane": {"current": ["CLAUDE.md", "workspace/TRANG-THAI.md"], "historical": [], "stale_markers": []},
     }
     if baseline:
         manifest["authority"]["baseline"] = baseline
     plan.write(MANIFEST, dump_json(manifest), "project declaration (PROJECT-OWNED scaffold)")
-    state = os.path.join(root, "workspace", "TRANG-THAI.md")
-    if not os.path.exists(state):
+    if not os.path.exists(os.path.join(root, "workspace", "TRANG-THAI.md")):
         plan.write("workspace/TRANG-THAI.md", template("TRANG-THAI.md").replace("{{NAME}}", name)
                    .replace("{{PHASE_LABEL}}", phase_label), "live state (PROJECT-OWNED scaffold)")
     if dry_run:

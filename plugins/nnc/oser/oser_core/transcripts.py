@@ -1,34 +1,45 @@
 # -*- coding: utf-8 -*-
-"""Read Claude Code transcripts: OBSERVED models for doctor, and the quota report (`oser quota`).
+"""Read Claude Code transcripts as RAW usage evidence.
 
-The quota report is the NNC-AI-OSer 1.0 `do-quota.py` moved here unchanged in method: weights follow
-API list-price ratios (Opus/Fable 15/75 · Sonnet 3/15 · Haiku 0.8/4 $/MTok; cache read 0.1x input,
-cache write 1.25x). On a subscription the absolute number is not money — comparisons on one ruler are.
+Primary unit is raw tokens straight from the transcript (`runtime.json › units`). An API-price-weighted
+figure exists only behind `--api-reference` and is never subscription cost.
 """
 import datetime
 import glob
 import io
 import json
 import os
-import subprocess
-from collections import Counter, defaultdict
+from collections import defaultdict
 
-from .util import claude_home, transcript_slug
+from .util import claude_home, load_catalog, model_generation, transcript_slug
 
-GIA = {"opus": (15.0, 75.0), "fable": (15.0, 75.0), "sonnet": (3.0, 15.0), "haiku": (0.8, 4.0)}
-
-
-def bac(model):
-    m = (model or "").lower()
-    for k in GIA:
-        if k in m:
-            return k
-    return "sonnet"
+FIELDS = ("input", "output", "thinking", "cache_read", "cache_creation")
+_API = {"opus": (15.0, 75.0), "fable": (15.0, 75.0), "sonnet": (3.0, 15.0), "haiku": (0.8, 4.0)}
 
 
-def diem(model, vao, ra, cr, cw):
-    gv, gr = GIA[bac(model)]
-    return (vao * gv + ra * gr + cr * gv * 0.1 + cw * gv * 1.25) / 1_000_000
+def zero():
+    return {k: 0 for k in FIELDS + ("turns", "work")}
+
+
+def add(acc, v):
+    for k in FIELDS + ("turns", "work"):
+        acc[k] += v.get(k, 0)
+    return acc
+
+
+def vec(usage):
+    u = usage or {}
+    v = {"input": u.get("input_tokens", 0) or 0, "output": u.get("output_tokens", 0) or 0,
+         "thinking": (u.get("output_tokens_details") or {}).get("thinking_tokens", 0) or 0,
+         "cache_read": u.get("cache_read_input_tokens", 0) or 0,
+         "cache_creation": u.get("cache_creation_input_tokens", 0) or 0, "turns": 1}
+    v["work"] = v["input"] + v["cache_creation"] + v["output"]
+    return v
+
+
+def family(model):
+    g = model_generation(model or "")
+    return g[0] if g else "other"
 
 
 def project_transcript_dirs(project_root, all_machines=False):
@@ -36,8 +47,8 @@ def project_transcript_dirs(project_root, all_machines=False):
     own = os.path.join(base, transcript_slug(project_root))
     if not os.path.isdir(base):
         return []
-    name = os.path.basename(os.path.abspath(project_root))
-    siblings = [os.path.join(base, d) for d in os.listdir(base) if d.endswith("-" + transcript_slug(name))]
+    name = transcript_slug(os.path.basename(os.path.abspath(project_root)))
+    siblings = [os.path.join(base, d) for d in os.listdir(base) if d.endswith("-" + name)]
     if all_machines:
         return sorted(set(siblings + ([own] if os.path.isdir(own) else [])))
     if os.path.isdir(own):
@@ -45,7 +56,8 @@ def project_transcript_dirs(project_root, all_machines=False):
     return siblings[:1] if len(siblings) == 1 else []
 
 
-def _events(dirs):
+def events(dirs):
+    """Every assistant turn with usage: dict(ts, session, agent, side, model, effort, branch, v)."""
     for d in dirs:
         for f in glob.glob(os.path.join(d, "**", "*.jsonl"), recursive=True):
             try:
@@ -57,157 +69,151 @@ def _events(dirs):
                             ev = json.loads(line)
                         except ValueError:
                             continue
-                        if ev.get("type") == "assistant":
-                            yield ev
+                        if ev.get("type") != "assistant":
+                            continue
+                        msg = ev.get("message") or {}
+                        model = msg.get("model") or "?"
+                        if model.startswith("<") or not msg.get("usage"):
+                            continue
+                        yield {"ts": ev.get("timestamp") or "", "session": ev.get("sessionId") or "?",
+                               "agent": ev.get("agentId") or "", "side": bool(ev.get("isSidechain")),
+                               "model": model, "effort": ev.get("effort") or "", "branch": ev.get("gitBranch") or "",
+                               "v": vec(msg["usage"])}
             except OSError:
                 continue
 
 
+class Index:
+    """Usage indexed by execution identity (sessionId, agentId); agentId '' = the session's main thread."""
+
+    def __init__(self, dirs):
+        self.dirs = dirs
+        self.by_exec = defaultdict(list)
+        for e in events(dirs):
+            self.by_exec[(e["session"], e["agent"] if e["side"] else "")].append(e)
+        for k in self.by_exec:
+            self.by_exec[k].sort(key=lambda e: e["ts"])
+
+    def usage(self, session, agent="", since=None, until=None):
+        acc = zero()
+        models, efforts = defaultdict(int), defaultdict(int)
+        for e in self.by_exec.get((session, agent or ""), []):
+            if (since and e["ts"] < since) or (until and e["ts"] > until):
+                continue
+            add(acc, e["v"])
+            models[e["model"]] += e["v"]["work"]
+            efforts[e["effort"]] += 1
+        acc["models"] = dict(models)
+        acc["efforts"] = dict(efforts)
+        return acc
+
+    def known(self, session, agent=""):
+        return (session, agent or "") in self.by_exec
+
+    def prompt_size_at(self, session, ts):
+        """Context the Root received on its last main-thread turn at or before `ts` (prompt_size proxy)."""
+        best = None
+        for e in self.by_exec.get((session, ""), []):
+            if e["ts"] <= ts:
+                best = e
+        if best is None:
+            return None
+        v = best["v"]
+        return v["input"] + v["cache_read"] + v["cache_creation"]
+
+    def series(self, session):
+        return [(e["ts"], e["v"]["input"] + e["v"]["cache_read"] + e["v"]["cache_creation"])
+                for e in self.by_exec.get((session, ""), [])]
+
+
 def observed_models(project_root):
-    """What actually ran. ROOT = newest main-thread (non-sidechain) assistant turn."""
+    """What actually ran. ROOT = newest main-thread turn."""
     dirs = project_transcript_dirs(project_root)
-    root_last = None
-    root, sub = Counter(), Counter()
-    for ev in _events(dirs):
-        model = (ev.get("message") or {}).get("model")
-        if not model or model.startswith("<"):
-            continue
-        ts = ev.get("timestamp") or ""
-        if ev.get("isSidechain"):
-            sub[model] += 1
+    root_last, root, sub = None, defaultdict(int), defaultdict(int)
+    for e in events(dirs):
+        if e["side"]:
+            sub[e["model"]] += 1
         else:
-            root[model] += 1
-            if root_last is None or ts > root_last[1]:
-                root_last = (model, ts, (ev.get("sessionId") or "?")[:8])
+            root[e["model"]] += 1
+            if root_last is None or e["ts"] > root_last[1]:
+                root_last = (e["model"], e["ts"], e["session"][:8])
     return {"dirs": dirs, "root_last": root_last, "root": dict(root), "sub": dict(sub),
             "all": sorted(set(root) | set(sub))}
 
 
-# ---------------------------------------------------------------- quota report (`oser quota`)
-
-class O:
-    __slots__ = ("luot", "vao", "ra", "cr", "cw", "nghi", "d")
-
-    def __init__(self):
-        self.luot = self.vao = self.ra = self.cr = self.cw = self.nghi = 0
-        self.d = 0.0
-
-    def cong(self, model, u):
-        self.luot += 1
-        self.vao += u.get("input_tokens", 0)
-        self.ra += u.get("output_tokens", 0)
-        self.cr += u.get("cache_read_input_tokens", 0)
-        self.cw += u.get("cache_creation_input_tokens", 0)
-        self.nghi += (u.get("output_tokens_details") or {}).get("thinking_tokens", 0)
-        self.d += diem(model, u.get("input_tokens", 0), u.get("output_tokens", 0),
-                       u.get("cache_read_input_tokens", 0), u.get("cache_creation_input_tokens", 0))
+def api_reference(model, v):
+    gi, go = _API.get(family(model), _API["sonnet"])
+    return (v["input"] * gi + v["output"] * go + v["cache_read"] * gi * 0.1 + v["cache_creation"] * gi * 1.25) / 1e6
 
 
-def quet(dirs, tu=None, den=None):
-    theo = {k: defaultdict(O) for k in ("model", "ngay", "effort", "vung", "nhanh", "phien")}
-    hai_chieu = defaultdict(O)
-    la = set()
-    for d in _events(dirs):
-        m = d.get("message") or {}
-        u = m.get("usage") or {}
-        if not u:
-            continue
-        model = m.get("model") or "?"
-        ngay = (d.get("timestamp") or "")[:10]
-        if tu and ngay and ngay < tu:
-            continue
-        if den and ngay and ngay > den:
-            continue
-        if bac(model) == "sonnet" and "sonnet" not in (model or "").lower():
-            la.add(model)
-        eff = d.get("effort") or "(khong ghi)"
-        vung = "subagent" if d.get("isSidechain") else "phien-chinh"
-        for khoa, gia_tri in (("model", model), ("ngay", ngay or "?"), ("effort", eff), ("vung", vung),
-                              ("nhanh", d.get("gitBranch") or "(khong nhanh)"),
-                              ("phien", (d.get("sessionId") or "?")[:8])):
-            theo[khoa][gia_tri].cong(model, u)
-        hai_chieu[(eff, bac(model))].cong(model, u)
-    return theo, hai_chieu, la
-
-
-def bang(tieu_de, oo, cot1="", sap_theo_diem=True, tran=None):
-    if not oo:
-        return
-    print("\n=== %s ===" % tieu_de)
-    print("  %-24s %8s %12s %12s %10s %9s" % (cot1, "luot", "DIEM", "diem/luot", "token nghi", "% nghi"))
-    muc = sorted(oo.items(), key=(lambda kv: -kv[1].d) if sap_theo_diem else (lambda kv: kv[0]))
-    for ten, o in muc[:tran] if tran else muc:
-        pn = (100.0 * o.nghi / o.ra) if o.ra else 0.0
-        print("  %-24s %8d %12.1f %12.4f %10s %8.1f%%"
-              % (str(ten)[:24], o.luot, o.d, (o.d / o.luot if o.luot else 0), "{:,}".format(o.nghi), pn))
+def iso_week(ts):
+    try:
+        d = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return "?"
+    y, w, _ = d.isocalendar()
+    return "%d-W%02d" % (y, w)
 
 
 def quota_main(args, project_root):
-    tu = den = None
-    ngay_gan = None
-    goc = None
-    tat_ca = False
+    """`oser quota` — raw usage: per model, per effort, per region (root/sub), per ISO week (all models vs Fable)."""
+    since = until = None
+    tat_ca = api = False
     i = 0
     while i < len(args):
         a = args[i]
-        if a == "--tu":
-            tu = args[i + 1]; i += 2
+        if a == "--ngay":
+            since = (datetime.date.today() - datetime.timedelta(days=int(args[i + 1]) - 1)).isoformat(); i += 2
+        elif a == "--tu":
+            since = args[i + 1]; i += 2
         elif a == "--den":
-            den = args[i + 1]; i += 2
-        elif a == "--ngay":
-            ngay_gan = int(args[i + 1]); i += 2
+            until = args[i + 1] + "T99"; i += 2
         elif a == "--tat-ca":
             tat_ca = True; i += 1
+        elif a == "--api-reference":
+            api = True; i += 1
         else:
-            goc = a; i += 1
-    dirs = [goc] if goc else project_transcript_dirs(project_root, all_machines=tat_ca)
-    dirs = [d for d in dirs if os.path.isdir(d)]
+            i += 1
+    dirs = project_transcript_dirs(project_root, all_machines=tat_ca)
     if not dirs:
-        print("Khong thay thu muc transcript cho", project_root)
+        print("No transcript folder for", project_root)
         return 1
-    if ngay_gan:
-        tu = (datetime.date.today() - datetime.timedelta(days=ngay_gan - 1)).isoformat()
-    print("Nguon:", " + ".join(os.path.basename(g) for g in dirs),
-          ("| tu %s" % tu if tu else ""), ("| den %s" % den if den else ""))
-    theo, hai_chieu, la = quet(dirs, tu, den)
-    tong = sum(o.d for o in theo["model"].values())
-    tong_luot = sum(o.luot for o in theo["model"].values())
-    tong_nghi = sum(o.nghi for o in theo["model"].values())
-    tong_ra = sum(o.ra for o in theo["model"].values())
-    if not tong_luot:
-        print("Khong co du lieu trong khoang nay.")
-        return 0
-    bang("THEO MODEL", theo["model"], "model")
-    bang("THEO VUNG", theo["vung"], "vung")
-    bang("THEO MUC TU DUY (effort)", theo["effort"], "effort")
-    bang("THEO NGAY (moi nhat truoc)", theo["ngay"], "ngay", sap_theo_diem=False)
-    bang("THEO NHANH GIT (top 12)", theo["nhanh"], "nhanh", tran=12)
-    bang("THEO PHIEN (top 10)", theo["phien"], "sessionId", tran=10)
-    print("\n=== TUONG QUAN: MUC TU DUY x BAC MODEL ===")
-    print("  %-14s %-8s %8s %12s %12s %9s" % ("effort", "bac", "luot", "DIEM", "diem/luot", "% nghi"))
-    for (eff, b), o in sorted(hai_chieu.items(), key=lambda kv: -kv[1].d):
-        pn = (100.0 * o.nghi / o.ra) if o.ra else 0.0
-        print("  %-14s %-8s %8d %12.1f %12.4f %8.1f%%"
-              % (str(eff)[:14], b, o.luot, o.d, o.d / o.luot if o.luot else 0, pn))
-    print("\n=== TONG ===")
-    print("  luot goi        : %s" % "{:,}".format(tong_luot))
-    print("  DIEM quota      : %.1f" % tong)
-    print("  token nghi      : %s / %s token ra = %.1f%%"
-          % ("{:,}".format(tong_nghi), "{:,}".format(tong_ra), 100.0 * tong_nghi / tong_ra if tong_ra else 0))
-    sub = theo["vung"].get("subagent")
-    if sub:
-        print("  subagent chiem  : %.1f%% quota" % (100.0 * sub.d / tong))
-    if la:
-        print("  Model chua nhan ra bac (xep tam sonnet):", ", ".join(sorted(la)))
-    try:
-        r = subprocess.run(["git", "log", "--format=%ad", "--date=format:%Y-%m-%d", "--all"],
-                           cwd=project_root, capture_output=True, text=True, timeout=20)
-        ngay_git = set(x for x in r.stdout.split() if x[:2] == "20")
-        thieu = sorted(d for d in ngay_git - set(theo["ngay"].keys())
-                       if (not tu or d >= tu) and (not den or d <= den))
-        if thieu:
-            print("  (!) %d ngay CO COMMIT ma KHONG co transcript o day: %s" % (len(thieu), ", ".join(thieu[-8:])))
-            print("      => phien do chay o MAY KHAC. Chay --tat-ca, hoac chep thu muc transcript may kia sang.")
-    except (OSError, subprocess.SubprocessError):
-        pass
+    by = {k: defaultdict(zero) for k in ("model", "effort", "region", "week_all", "week_fable")}
+    ref = defaultdict(float)
+    n = 0
+    for e in events(dirs):
+        if (since and e["ts"][:10] < since) or (until and e["ts"] > until):
+            continue
+        n += 1
+        add(by["model"][e["model"]], e["v"])
+        add(by["effort"][e["effort"] or "(none)"], e["v"])
+        add(by["region"]["subagent" if e["side"] else "root"], e["v"])
+        wk = iso_week(e["ts"])
+        add(by["week_all"][wk], e["v"])
+        if family(e["model"]) == "fable":
+            add(by["week_fable"][wk], e["v"])
+        if api:
+            ref[e["model"]] += api_reference(e["model"], e["v"])
+    print("Source:", " + ".join(os.path.basename(d) for d in dirs), "| turns", n,
+          ("| since %s" % since) if since else "")
+    print("Units: raw tokens from transcripts (%s)." % load_catalog("runtime.json")["units"]["work_tokens"])
+    hdr = "  %-26s %7s %13s %11s %11s %13s %12s"
+    row = "  %-26s %7d %13s %11s %11s %13s %12s"
+    f = "{:,}".format
+    for title, key in (("BY MODEL", "model"), ("BY EFFORT", "effort"), ("BY REGION", "region"),
+                       ("WEEKLY · ALL MODELS", "week_all"), ("WEEKLY · FABLE (nested in all-models)", "week_fable")):
+        print("\n=== %s ===" % title)
+        print(hdr % ("", "turns", "work", "output", "thinking", "cache_read", "cache_write"))
+        for k, v in sorted(by[key].items(), key=lambda kv: (-kv[1]["work"]) if key in ("model", "effort", "region") else kv[0]):
+            print(row % (str(k)[:26], v["turns"], f(v["work"]), f(v["output"]), f(v["thinking"]), f(v["cache_read"]),
+                         f(v["cache_creation"])))
+    for wk, v in sorted(by["week_all"].items()):
+        fv = by["week_fable"].get(wk, zero())
+        if v["work"]:
+            print("  %s Fable share of work tokens: %.1f%%" % (wk, 100.0 * fv["work"] / v["work"]))
+    print("\nSubscription caps (weekly all-models / nested Fable) are UI-only: not derivable from tokens.")
+    if api:
+        print("\n=== API-PRICE REFERENCE (%s) — not subscription cost ===" % load_catalog("runtime.json")["api_reference"]["table"])
+        for k, v in sorted(ref.items(), key=lambda kv: -kv[1]):
+            print("  %-26s %10.2f" % (k[:26], v))
     return 0

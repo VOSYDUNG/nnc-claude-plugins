@@ -1,7 +1,7 @@
 {
   "name": "nnc-claude-plugins",
   "description": "Bo skill dung chung cua NNC Lao Group cho Claude Code.",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "owner": {
     "name": "NNC Lao Group - Ban R&D AI"
   },
@@ -10,8 +10,8 @@
       "name": "nnc",
       "source": "./plugins/nnc",
       "displayName": "NNC — bo skill dung chung",
-      "description": "NNC OSER: installer · updater · migrator · doctor cho control plane Claude Code cua mot repo — mode (setup/build/operate) + capability + assignment + model class; provenance; thuoc do quota.",
-      "version": "2.0.0",
+      "description": "NNC OSER: he dieu hanh agentic cho repo Claude Code — Root · Governor/wave · execution plan theo work packet; install · update · migrate · doctor · ledger · metrics · quota tho.",
+      "version": "3.0.0",
       "author": {
         "name": "NNC Lao Group - Ban R&D AI"
       },

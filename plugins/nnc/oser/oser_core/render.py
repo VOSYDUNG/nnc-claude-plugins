@@ -2,14 +2,18 @@
 """Pure rendering: manifest + OSER version -> generated artifacts. No I/O, fully deterministic."""
 import re
 
-from .manifest import INACTIVE_DIR, LOCK, MANIFEST, capability_state, get, mode_spec, model_mapping
+from .manifest import LEDGER_DIR, LOCK, MANIFEST, build_state, get, mode_spec, root_model
+from .util import load_catalog
 
 BLOCK = "status"
-BLOCK_TEMPLATE = "claude-status@2"
+BLOCK_TEMPLATE = "claude-status@3"
 BEGIN_RE = re.compile(r"<!-- NNC-OSER:BEGIN block=%s\b[^>]*-->" % BLOCK)
 END_MARK = "<!-- NNC-OSER:END block=%s -->" % BLOCK
 
-ACTOR_LABEL = {"founder": "Founder", "strategy-session": "Strategy Session", "root-investigator": "ROOT (investigator)"}
+ROLE_LABEL = {"founder": "Founder", "strategy-session": "Strategy Session", "root": "Root",
+              "governor": "Governor (1 phiên/wave)", "worker": "Worker (theo packet)", "verifier": "Verifier độc lập"}
+BUILD_LABEL = {"not_configured": "chưa cấu hình", "configured_not_admitted": "đã cấu hình · **CHƯA ADMIT — không chạy**",
+               "admitted": "ADMITTED"}
 
 
 def md_header(template, version, mode):
@@ -17,11 +21,16 @@ def md_header(template, version, mode):
             "sửa project.json rồi chạy: oser update -->\n" % (template, version, mode, MANIFEST))
 
 
+def _governor(m):
+    g = get(m, "operating_model.governor") or {}
+    pref = g.get("preferred_model") or "chưa khai"
+    return "%s — mỗi wave một phiên mới, đóng khi trả kết quả sạch" % pref
+
+
 def claude_block(m, version):
     spec = mode_spec(m)
-    caps = capability_state(m)
-    models = model_mapping(m)
     a = m["authority"]
+    rm = root_model(m)
     lines = [
         "<!-- NNC-OSER:BEGIN block=%s template=%s oser=%s mode=%s — GENERATED từ %s; sửa file đó rồi chạy: oser update -->"
         % (BLOCK, BLOCK_TEMPLATE, version, m["mode"], MANIFEST),
@@ -34,21 +43,18 @@ def claude_block(m, version):
     for s in m["phase"].get("summary") or []:
         lines.append("| | %s |" % s)
     lines += [
-        "| **MODE** | `%s` — %s |" % (m["mode"], " · ".join(ACTOR_LABEL.get(x, x) for x in spec.get("actors", []))
-                                      or spec["summary"]),
-        "| Subagent | **%s** |" % {"forbidden": "CẤM — không gọi agent, không build crew",
-                                   "per-assignment": "chỉ theo assignment đã khai"}.get(spec["subagents"], spec["subagents"]),
-        "| Audit (Fable) | **%s** |" % {"disabled": "TẮT", "gate-only": "chỉ tại audit gate tường minh"}.get(
-            spec["audit"], spec["audit"]),
+        "| **MODE** | `%s` — %s |" % (m["mode"], " · ".join(ROLE_LABEL.get(x, x) for x in spec.get("active_roles", [])) or spec["summary"]),
+        "| Subagent | **%s** |" % {"forbidden": "CẤM — không governor, không worker",
+                                   "per-packet": "theo execution plan của từng packet"}.get(spec["subagents"], spec["subagents"]),
+        "| **BUILD** | %s |" % BUILD_LABEL[build_state(m)],
         "| **AUTHORITY** | `%s` @ `%s`%s → `%s` — đọc file đó trước; không chép canon vào repo này |"
         % (a["repo"], a["ref"], (" (baseline `%s`)" % a["baseline"]) if a.get("baseline") else "", a["entry"]),
-        "| ROOT model | `%s` — %s |" % (
-            models["root"],
-            "theo model của phiên đang mở (client chọn); repo KHÔNG ghim" if models["root"] == "inherit"
-            else "ghim tường minh trong .claude/settings.json"),
-        "| Capability | %s |" % " · ".join("%s=%s" % (k, v) for k, v in sorted(caps.items())),
-        "| Live state | `%s` |" % m["workspace"]["state_file"],
-        "| Kiểm | `oser doctor` · bản đồ sở hữu: `.claude/oser/CONTROL-PLANE.md` |",
+        "| Root | `%s` — %s |" % (rm, "model của phiên đang mở (client chọn); repo KHÔNG ghim" if rm == "inherit"
+                               else "ghim tường minh trong .claude/settings.json"),
+        "| Governor | %s |" % _governor(m),
+        "| Worker/Verifier | model × effort × context × session × song song × verification **chọn theo từng packet**; không map model cố định theo vai |",
+        "| Live state | `%s` · ledger `%s/` |" % (m["workspace"]["state_file"], LEDGER_DIR),
+        "| Kiểm | `oser doctor` · `oser metrics` · bản đồ: `.claude/oser/CONTROL-PLANE.md` |",
         END_MARK,
     ]
     return "\n".join(lines) + "\n"
@@ -82,22 +88,28 @@ def extract_block(text):
 
 def control_plane_doc(m, version, generated_paths):
     spec = mode_spec(m)
-    caps = capability_state(m)
-    models = model_mapping(m)
+    om = load_catalog("operating-model.json")
     cp = m.get("control_plane") or {}
-    out = [md_header("control-plane@2", version, m["mode"]),
+    out = [md_header("control-plane@3", version, m["mode"]),
            "# Control plane — %s" % m["project"]["name"], "",
            "Một chủ cho mỗi mối quan tâm. Bảng này sinh từ `%s`; lịch sử nằm trong git." % MANIFEST, "",
-           "## Mode `%s` (%s)" % (m["mode"], spec["status"]), "", spec["summary"], "",
-           "| Capability | Trạng thái | Model class | Model mapping |", "|---|---|---|---|"]
-    from .util import load_catalog
-    catalog = load_catalog("capabilities.json")["capabilities"]
-    for name in sorted(caps):
-        mc = catalog[name]["model_class"]
-        out.append("| `%s` | %s | `%s` | `%s` |" % (name, caps[name], mc, models.get(mc, "?")))
-    out += ["", "`configured` = đã khai, **không chạy**. Chỉ `active` mới được dùng trong mode này.", "",
+           "## Mode `%s` (%s) · BUILD: %s" % (m["mode"], spec["status"], BUILD_LABEL[build_state(m)].replace("*", "")), "",
+           spec["summary"], "",
+           "## Mô hình vận hành", "",
+           "Founder + Strategy → **Root** (điều khiển toàn cục, admit wave, tích hợp kết quả sạch) → **Governor** (một phiên",
+           "mới cho mỗi wave: chia packet, chọn execution plan, yêu cầu verification, gom bằng chứng) → **phiên thực thi",
+           "mới** → **verification độc lập** → kết quả wave sạch → Root. Chỉ `ROOT_ACCEPTED` đẩy milestone.", "",
+           "| Vai | Sở hữu | Không được |", "|---|---|---|"]
+    for name, r in om["roles"].items():
+        out.append("| %s | %s | %s |" % (ROLE_LABEL.get(name, name), "; ".join(r.get("owns", [])), "; ".join(r.get("must_not", [])) or "—"))
+    out += ["", "Đơn vị lập lịch: **work packet**. Mỗi lượt thử mang execution plan riêng: model × effort × context"
+            " (must read / may read / must not load / output budget) × session (same/fresh/parallel/independent) ×"
+            " verifier × escalation. Mục tiêu: kế hoạch **verified** tốn ít tài nguyên nhất mà vẫn giữ biên an toàn.", "",
+            "Packet: %s. Wave: %s." % (" → ".join(om["packet_states"][:-1]) + " (| REJECTED)",
+                                       " → ".join(om["wave_states"][:-1]) + " | ROOT_REJECTED"), "",
             "## Ai sở hữu file nào", "", "| Lớp | Đường dẫn | Luật |", "|---|---|---|"]
-    rows = [("PROJECT-OWNED", MANIFEST, "khai báo hiệu lực của dự án; OSER không bao giờ ghi đè")]
+    rows = [("PROJECT-OWNED", MANIFEST, "khai báo hiệu lực của dự án; chỉ `oser migrate` được đổi schema"),
+            ("PROJECT-OWNED", LEDGER_DIR + "/", "ledger wave/packet — chỉ ghi thêm, qua `oser ledger add`")]
     for p in cp.get("current") or []:
         rows.append(("PROJECT-OWNED", p, "sự thật hiện hành do dự án viết"))
     for p in cp.get("project_tools") or []:
@@ -108,31 +120,21 @@ def control_plane_doc(m, version, generated_paths):
         else:
             rows.append(("PLUGIN-GENERATED", p, "sinh bởi `oser update`; sửa tay = drift"))
     rows.append(("PLUGIN-GENERATED", ".claude/settings.json#managed",
-                 "chỉ key `model` (bỏ khi ROOT=inherit) và giá trị `permissions.deny` của mode; key khác là PROJECT-OWNED"))
+                 "chỉ key `model` (bỏ khi Root=inherit) và giá trị `permissions.deny` của mode; key khác là PROJECT-OWNED"))
     rows.append(("PLUGIN-GENERATED", LOCK, "provenance: version · mode · template · sha256"))
     for p in m.get("overrides") or []:
         rows.append(("PROJECT-OVERRIDE", p, "dự án tự giữ; `oser update` bỏ qua"))
-    rows.append(("INACTIVE", INACTIVE_DIR + "/", "định nghĩa đã khai nhưng không chạy trong mode này"))
     for p in cp.get("historical") or []:
         rows.append(("HISTORICAL", p, "bằng chứng; không đọc để quyết việc hiện hành"))
     for cls, p, rule in rows:
         out.append("| %s | `%s` | %s |" % (cls, p, rule))
     out += ["", "## Lệnh", "", "```bash",
-            "oser doctor   # drift: authority · phase · model EXPECTED/CONFIGURED/OBSERVED · provenance · target",
-            "oser update   # sinh lại phần GENERATED từ project.json (idempotent)",
-            "oser status   # mode · capability · model", "oser quota --ngay 7", "```", ""]
+            "oser doctor            # drift: authority · phase · model EXPECTED/CONFIGURED/OBSERVED · ledger · legacy",
+            "oser update            # sinh lại phần GENERATED từ project.json (idempotent)",
+            "oser ledger add F.json # ghi một sự kiện wave/packet/attempt (kiểm schema + lifecycle)",
+            "oser metrics           # verified-result cost · first-pass · rework · Root growth · isolation · defects · Fable leverage",
+            "oser quota --ngay 7    # usage thô: model · effort · tuần (tất cả model / Fable)", "```", ""]
     return "\n".join(out)
-
-
-def inactive_readme(m, version):
-    return "\n".join([
-        md_header("inactive-readme@2", version, m["mode"]),
-        "# INACTIVE — không chạy trong mode `%s`" % m["mode"], "",
-        "Thư mục này giữ nguyên byte các định nghĩa agent/đội thời trước (ví dụ ghế build crew) để làm",
-        "**bằng chứng thiết kế** cho mode BUILD sau này. Claude Code **không** nạp agent từ đây.", "",
-        "- Không gọi, không sửa để \"bật lại\" từng ghế.",
-        "- Mở BUILD = dự án khai `mode` + `assignments` trong `%s` sau khi kiến trúc kỹ thuật chốt, rồi `oser update`." % MANIFEST,
-        "- Con trỏ authority/model bên trong các file này là của thời đó — có thể đã chết.", ""])
 
 
 WRAPPER = r'''# -*- coding: utf-8 -*-
@@ -168,48 +170,32 @@ def find_oser():
 
 
 def main():
-%(body)s
+    oser = find_oser()
+    if not oser:
+        print("NNC OSER not found. Install: /plugin install nnc@nnc-claude-plugins (or set NNC_OSER_HOME).")
+        return 3
+    return subprocess.call([sys.executable, oser, %(command)r, "--project", ROOT] + sys.argv[1:])
 
 
 if __name__ == "__main__":
     sys.exit(main())
 '''
 
-BODY_QUOTA = '''    oser = find_oser()
-    if not oser:
-        print("NNC OSER not found. Install: /plugin install nnc@nnc-claude-plugins (or set NNC_OSER_HOME).")
-        return 3
-    return subprocess.call([sys.executable, oser, "quota", "--project", ROOT] + sys.argv[1:])'''
-
-BODY_DOI_BAC = '''    if len(sys.argv) > 1:
-        print("RETIRED (NNC OSER 2): model-name profiles (fable|opus|sonnet) no longer drive the team.")
-        print("  Change mode / capability / model class in .claude/oser/project.json, then run: oser update")
-        print("  ROOT model follows the active session; see: oser status")
-        return 2
-    oser = find_oser()
-    if not oser:
-        print("NNC OSER not found. Install: /plugin install nnc@nnc-claude-plugins (or set NNC_OSER_HOME).")
-        return 3
-    return subprocess.call([sys.executable, oser, "status", "--project", ROOT])'''
-
-WRAPPERS = {
-    "quota": ("wrapper-quota@2", "quota", BODY_QUOTA),
-    "doi-bac": ("wrapper-doi-bac@2", "status", BODY_DOI_BAC),
-}
+WRAPPERS = {"quota": ("wrapper-quota@3", "quota")}
 
 
 def wrapper(kind, relpath, m, version):
-    template, command, body = WRAPPERS[kind]
+    template, command = WRAPPERS[kind]
     depth = relpath.count("/")
     return WRAPPER % {"template": template, "version": version, "mode": m["mode"], "command": command,
-                      "up": "/".join([".."] * depth) or ".", "body": body}
+                      "up": "/".join([".."] * depth) or "."}
 
 
 def managed_settings(m):
     """Keys of .claude/settings.json that OSER owns for this mode: {'model': id|None, 'deny': [...]}."""
-    root = model_mapping(m)["root"]
+    rm = root_model(m)
     deny = list(mode_spec(m).get("settings", {}).get("permissions.deny", []))
-    return {"model": None if root == "inherit" else root, "deny": deny}
+    return {"model": None if rm == "inherit" else rm, "deny": deny}
 
 
 def apply_settings(settings, managed, previously_managed_deny):
@@ -238,7 +224,3 @@ def apply_settings(settings, managed, previously_managed_deny):
 def get_block_phase(block):
     m = re.search(r"\| \*\*PHASE\*\* \| \*\*(.+?)\*\*", block or "")
     return m.group(1) if m else None
-
-
-__all__ = ["claude_block", "splice_block", "extract_block", "control_plane_doc", "inactive_readme", "wrapper",
-           "managed_settings", "apply_settings", "get_block_phase", "get", "BEGIN_RE", "END_MARK"]

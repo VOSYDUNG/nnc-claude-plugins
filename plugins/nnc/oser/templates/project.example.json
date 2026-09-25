@@ -1,9 +1,9 @@
 {
-  "schema": "nnc-oser/project@2",
+  "schema": "nnc-oser/project@3",
   "project": { "name": "my-project", "language": "vi" },
   "phase": {
-    "id": "pre-build-setup",
-    "label": "PRE-BUILD SETUP",
+    "id": "pre-build",
+    "label": "PRE-BUILD",
     "since": "2026-01-01",
     "summary": ["One line per fact a fresh session must know about the phase."]
   },
@@ -15,12 +15,16 @@
     "entry": "docs/HANDOFF.md",
     "local_path_hints": ["../strategy-repo"]
   },
-  "models": {
-    "root": "inherit",
-    "classes": { "frontier-audit": "fable", "lead": "opus", "worker": "sonnet", "mechanical": "haiku" }
+  "operating_model": {
+    "root": { "model": "inherit", "expected_family": "opus" },
+    "governor": { "preferred_model": "claude-fable-5-1", "session": "one-per-wave" },
+    "workers": { "assignment": "per-packet" }
   },
-  "capabilities": { "audit": { "enabled": false } },
-  "assignments": null,
+  "build": { "admission": "not_admitted" },
+  "resources": {
+    "weekly_all_models": { "cap": "ui-only" },
+    "weekly_fable": { "cap": "ui-only", "nested_in": "weekly_all_models" }
+  },
   "workspace": {
     "state_file": "workspace/TRANG-THAI.md",
     "dir": "workspace",
@@ -30,7 +34,6 @@
   "control_plane": {
     "current": ["CLAUDE.md", "README.md", "workspace/TRANG-THAI.md"],
     "project_tools": [],
-    "inactivate": [],
     "historical": ["workspace/lich-su/"],
     "historical_banner": "LỊCH SỬ|HISTORICAL",
     "stale_markers": [{ "pattern": "text that must no longer appear as current", "why": "reason" }]
