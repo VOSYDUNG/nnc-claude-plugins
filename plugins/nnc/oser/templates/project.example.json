@@ -1,11 +1,16 @@
 {
-  "schema": "nnc-oser/project@3",
-  "project": { "name": "my-project", "language": "vi" },
+  "schema": "nnc-oser/project@4",
+  "project": {
+    "name": "my-project",
+    "language": "vi"
+  },
   "phase": {
     "id": "pre-build",
     "label": "PRE-BUILD",
     "since": "2026-01-01",
-    "summary": ["One line per fact a fresh session must know about the phase."]
+    "summary": [
+      "One line per fact a fresh session must know about the phase."
+    ]
   },
   "mode": "setup",
   "authority": {
@@ -13,42 +18,88 @@
     "ref": "main",
     "baseline": "abc1234",
     "entry": "docs/HANDOFF.md",
-    "local_path_hints": ["../strategy-repo"]
+    "local_path_hints": [
+      "../strategy-repo"
+    ]
   },
   "operating_model": {
-    "root": { "model": "inherit", "expected_family": "opus" },
-    "governor": { "preferred_model": "claude-fable-5-1", "session": "one-per-wave" },
-    "workers": { "assignment": "per-packet" }
+    "root": {
+      "model": "inherit",
+      "expected_family": "opus"
+    },
+    "governor": {
+      "required_family": "fable",
+      "fallback": "none",
+      "preferred_model": "claude-fable-5-1",
+      "session": "one-per-wave"
+    },
+    "workers": {
+      "assignment": "per-packet"
+    }
   },
-  "build": { "admission": "not_admitted" },
+  "build": {
+    "admission": "not_admitted"
+  },
   "resources": {
-    "weekly_all_models": { "cap": "ui-only" },
-    "weekly_fable": { "cap": "ui-only", "nested_in": "weekly_all_models" }
+    "weekly_all_models": {
+      "cap": "ui-only"
+    },
+    "weekly_fable": {
+      "cap": "ui-only",
+      "nested_in": "weekly_all_models"
+    }
   },
   "workspace": {
     "state_file": "workspace/TRANG-THAI.md",
     "dir": "workspace",
-    "current": ["TRANG-THAI.md"],
+    "current": [
+      "TRANG-THAI.md"
+    ],
     "templates": []
   },
   "control_plane": {
-    "current": ["CLAUDE.md", "README.md", "workspace/TRANG-THAI.md"],
+    "current": [
+      "CLAUDE.md",
+      "README.md",
+      "workspace/TRANG-THAI.md"
+    ],
     "project_tools": [],
-    "historical": ["workspace/lich-su/"],
+    "historical": [
+      "workspace/lich-su/"
+    ],
     "historical_banner": "LỊCH SỬ|HISTORICAL",
-    "stale_markers": [{ "pattern": "text that must no longer appear as current", "why": "reason" }]
+    "stale_markers": [
+      {
+        "pattern": "text that must no longer appear as current",
+        "why": "reason"
+      }
+    ]
   },
-  "compat": { "wrappers": { "cong-cu/do-quota.py": "quota" } },
-  "migrate": { "moves": [] },
+  "compat": {
+    "wrappers": {
+      "cong-cu/do-quota.py": "quota"
+    }
+  },
+  "migrate": {
+    "moves": []
+  },
   "overrides": [],
-  "git": { "main": "main" },
+  "git": {
+    "main": "main"
+  },
   "checks": {
     "firebase": {
       "data_project": "my-firebase-project",
-      "forbidden_defaults": ["some-other-project"],
-      "hosting_sites": { "my-site": "my-firebase-project" },
+      "forbidden_defaults": [
+        "some-other-project"
+      ],
+      "hosting_sites": {
+        "my-site": "my-firebase-project"
+      },
       "protected_sites": [],
-      "admin_script_globs": ["scripts/*.mjs"]
+      "admin_script_globs": [
+        "scripts/*.mjs"
+      ]
     }
   }
 }

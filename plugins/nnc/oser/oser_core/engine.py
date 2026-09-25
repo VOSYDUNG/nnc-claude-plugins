@@ -12,7 +12,8 @@ Ownership rules enforced here:
 import glob
 import os
 
-from . import render
+from . import ledger, render
+from .transcripts import family
 from .manifest import LEGACY_SCHEMAS, LOCK, MANIFEST, SCHEMA_ID, load, mode_spec
 from .util import (dump_json, git, load_catalog, load_json, now_iso, plugin_version, read_text, rel, sha, template,
                    write_text)
@@ -132,8 +133,19 @@ def detect_legacy(root, m=None, lock=None):
     return found
 
 
-def upgrade_manifest(m):
-    """2.0 → 3.0 manifest: drop fixed model classes / capability catalog / assignments; add operating model."""
+def upgrade_manifest(m, governor_family=None):
+    """2.0/3.x → 4.0 manifest. 2.0: drop fixed model classes / capability catalog / assignments. 3.x: the
+    Governor slot gains an explicit required_family (from the declared preferred model, or --governor-family)."""
+    if m.get("schema") == "nnc-oser/project@3":
+        out = dict(m)
+        om = dict(out.get("operating_model") or {})
+        g = dict(om.get("governor") or {})
+        g.setdefault("required_family", governor_family or (family(g["preferred_model"]) if g.get("preferred_model") else None))
+        g.setdefault("fallback", "none")
+        om["governor"] = g
+        out["operating_model"] = om
+        out["schema"] = SCHEMA_ID
+        return out
     out = {}
     for k, v in m.items():
         if k in ("models", "capabilities", "assignments"):
@@ -142,7 +154,8 @@ def upgrade_manifest(m):
         if k == "authority":
             out["operating_model"] = {
                 "root": {"model": (m.get("models") or {}).get("root") or "inherit"},
-                "governor": {"preferred_model": None, "session": "one-per-wave"},
+                "governor": {"required_family": governor_family, "fallback": "none", "preferred_model": None,
+                             "session": "one-per-wave"},
                 "workers": {"assignment": "per-packet"},
             }
             out["build"] = {"admission": "not_admitted"}
@@ -220,7 +233,7 @@ def update(root, dry_run=False, force=False, _skip_legacy_check=False, _extra_wr
     generated_paths = sorted(set((k if a.get("kind") == "block" else a["path"]) for k, a in new_art.items()
                                  if a.get("path")) | {CONTROL_PLANE_DOC})
     emit(CONTROL_PLANE_DOC, CONTROL_PLANE_DOC, render.control_plane_doc(m, version, generated_paths), "file",
-         "control-plane@3")
+         "control-plane@4")
 
     managed = render.managed_settings(m)
     prev_deny = (old_art.get(SETTINGS + "#managed") or {}).get("deny", [])
@@ -232,7 +245,7 @@ def update(root, dry_run=False, force=False, _skip_legacy_check=False, _extra_wr
                    % (managed["model"] or "(inherit)", managed["deny"]))
     prev_s = old_art.get(SETTINGS + "#managed") or {}
     same = prev_s.get("deny") == managed["deny"] and prev_s.get("model") == managed["model"]
-    new_art[SETTINGS + "#managed"] = {"kind": "managed-keys", "path": SETTINGS, "template": "settings@3",
+    new_art[SETTINGS + "#managed"] = {"kind": "managed-keys", "path": SETTINGS, "template": "settings@4",
                                       "model": managed["model"], "deny": managed["deny"], "oser_version": version,
                                       "mode": m["mode"],
                                       "generated_at": prev_s.get("generated_at") if same and prev_s else stamp}
@@ -256,7 +269,7 @@ def update(root, dry_run=False, force=False, _skip_legacy_check=False, _extra_wr
 
 # ------------------------------------------------------------------------------------------ migrate
 
-def migrate(root, dry_run=False, force=False):
+def migrate(root, dry_run=False, force=False, governor_family=None):
     mp = os.path.join(root, MANIFEST)
     raw = load_json(mp)
     if raw is None:
@@ -266,8 +279,8 @@ def migrate(root, dry_run=False, force=False):
     record = []
     source = "nnc-ai-oser-1.0"
     if raw.get("schema") in LEGACY_SCHEMAS:
-        source = "nnc-oser-2.0"
-        new = upgrade_manifest(raw)
+        source = {"nnc-oser/project@2": "nnc-oser-2.0", "nnc-oser/project@3": "nnc-oser-3.x"}[raw["schema"]]
+        new = upgrade_manifest(raw, governor_family)
         record.append({"action": "manifest-upgrade", "path": MANIFEST, "from_schema": raw["schema"],
                        "to_schema": SCHEMA_ID, "from_sha256": sha(read_text(mp))})
         m = new
@@ -276,7 +289,8 @@ def migrate(root, dry_run=False, force=False):
     from .manifest import validate
     errors = validate(m)
     if errors:
-        raise Blocked("manifest invalid: " + "; ".join(errors))
+        hint = " (declare it, or pass --governor-family)" if any("governor.required_family" in e for e in errors) else ""
+        raise Blocked("manifest invalid: " + "; ".join(errors) + hint)
     lock = _load_lock(root)
     overrides = set(m.get("overrides") or [])
     extra_wrappers = {}
@@ -291,9 +305,14 @@ def migrate(root, dry_run=False, force=False):
         if x["state"] == "roster" and not git_preserved(root, x["path"]):
             raise Blocked("%s (%s) is not committed unmodified in git — commit it first so history keeps it, "
                           "then re-run migrate" % (x["path"], x["key"]))
-    if source == "nnc-oser-2.0":  # only after every removal is proven recoverable
-        plan.write(MANIFEST, dump_json(m), "manifest %s → %s (fixed model classes / capability catalog removed)"
+    if source in ("nnc-oser-2.0", "nnc-oser-3.x"):  # only after every removal is proven recoverable
+        plan.write(MANIFEST, dump_json(m), "manifest %s → %s (Governor slot family explicit; no fixed model per role)"
                    % (raw["schema"], SCHEMA_ID))
+    renamed = 0 if dry_run else ledger.migrate_file(root)
+    if renamed:
+        plan.actions.append(("write", ledger.LEDGER_DIR if hasattr(ledger, "LEDGER_DIR") else "ledger",
+                             "renamed %d legacy lifecycle state(s) FABLE_* → GOVERNOR_*" % renamed))
+        record.append({"action": "ledger-rename-states", "path": ".claude/oser/ledger/ledger.jsonl", "count": renamed})
     for x in findings:
         if x["path"] in overrides:
             continue
@@ -329,7 +348,7 @@ def migrate(root, dry_run=False, force=False):
         lock["retired"] = sorted(set(lock.get("retired") or []) | retired)
         lock["artifacts"] = {k: a for k, a in (lock.get("artifacts") or {}).items() if a.get("path") not in retired}
         write_text(os.path.join(root, LOCK), dump_json(lock))
-    if dry_run and source == "nnc-oser-2.0":
+    if dry_run and source in ("nnc-oser-2.0", "nnc-oser-3.x"):
         return plan
     up = update(root, dry_run=dry_run, force=force, _skip_legacy_check=True, _extra_wrappers=extra_wrappers)
     plan.actions += up.actions
@@ -340,7 +359,10 @@ def migrate(root, dry_run=False, force=False):
 # ------------------------------------------------------------------------------------------ install
 
 def install(root, name, authority_repo, authority_entry, authority_ref="main", authority_hint=None,
-            baseline=None, phase_id="setup", phase_label="SETUP", language="vi", dry_run=False):
+            baseline=None, phase_id="setup", phase_label="SETUP", language="vi", dry_run=False, governor_family=None):
+    if not governor_family:
+        raise Blocked("install needs --governor-family: the Governor slot's model family is profile configuration "
+                      "(e.g. fable where the plan includes it, opus otherwise)")
     mp = os.path.join(root, MANIFEST)
     if os.path.exists(mp):
         raise Blocked("%s already exists — use `oser update` (or `oser migrate` for an older layout)" % MANIFEST)
@@ -355,7 +377,8 @@ def install(root, name, authority_repo, authority_entry, authority_ref="main", a
         "authority": {"repo": authority_repo, "ref": authority_ref, "entry": authority_entry,
                       "local_path_hints": [authority_hint] if authority_hint else []},
         "operating_model": {"root": {"model": "inherit"},
-                            "governor": {"preferred_model": None, "session": "one-per-wave"},
+                            "governor": {"required_family": governor_family, "fallback": "none", "preferred_model": None,
+                                         "session": "one-per-wave"},
                             "workers": {"assignment": "per-packet"}},
         "build": {"admission": "not_admitted"},
         "resources": {"weekly_all_models": {"cap": "ui-only"},

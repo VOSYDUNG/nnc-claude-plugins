@@ -4,8 +4,8 @@ import os
 
 from .util import git, load_catalog, load_json
 
-SCHEMA_ID = "nnc-oser/project@3"
-LEGACY_SCHEMAS = ("nnc-oser/project@2",)
+SCHEMA_ID = "nnc-oser/project@4"
+LEGACY_SCHEMAS = ("nnc-oser/project@2", "nnc-oser/project@3")
 MANIFEST = ".claude/oser/project.json"
 LOCK = ".claude/oser/lock.json"
 LEDGER_DIR = ".claude/oser/ledger"
@@ -50,11 +50,12 @@ def legacy_keys(m):
 def validate(m):
     errors = []
     if m.get("schema") in LEGACY_SCHEMAS:
-        return ["schema %r is the 2.0 layout — run `oser migrate`" % m.get("schema")]
+        return ["schema %r is an older layout — run `oser migrate`" % m.get("schema")]
     if m.get("schema") != SCHEMA_ID:
         errors.append("schema must be %r (found %r)" % (SCHEMA_ID, m.get("schema")))
     for path in ("project.name", "phase.id", "phase.label", "mode", "authority.repo", "authority.ref",
-                 "authority.entry", "workspace.state_file", "operating_model.root.model"):
+                 "authority.entry", "workspace.state_file", "operating_model.root.model",
+                 "operating_model.governor.required_family"):
         if get(m, path) in (None, ""):
             errors.append("missing required field %s" % path)
     for k in legacy_keys(m):
@@ -73,6 +74,14 @@ def validate(m):
     if get(m, "build.effort_policy") is not None:
         errors.append("build.effort_policy is not allowed: effort is a per-packet scheduling dimension chosen from "
                       "the runtime set, never a fixed policy")
+    fams = load_catalog("runtime.json")["model_families"]["values"]
+    for path in ("operating_model.governor.required_family", "operating_model.root.expected_family"):
+        v = get(m, path)
+        if v is not None and v not in fams:
+            errors.append("%s %r is not a model family (%s)" % (path, v, ", ".join(fams)))
+    fb = get(m, "operating_model.governor.fallback", "none")
+    if fb != "none" and not (isinstance(fb, list) and all(x in fams for x in fb)):
+        errors.append("operating_model.governor.fallback must be 'none' or a list of model families")
     root_model = get(m, "operating_model.root.model")
     if root_model and root_model != "inherit" and not str(root_model).startswith("claude-"):
         errors.append("operating_model.root.model must be 'inherit' or an explicit claude-* id")
@@ -88,6 +97,12 @@ def build_state(m):
     if not m.get("build"):
         return "not_configured"
     return "admitted" if get(m, "build.admission") == "admitted" else "configured_not_admitted"
+
+
+def governor_families(m):
+    """Families allowed in the Governor slot: required_family + explicit fallback list (never implicit)."""
+    fb = get(m, "operating_model.governor.fallback", "none")
+    return [get(m, "operating_model.governor.required_family")] + (fb if isinstance(fb, list) else [])
 
 
 def root_model(m):

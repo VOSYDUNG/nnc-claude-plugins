@@ -5,15 +5,16 @@ The ledger stores control-plane facts only: ids, states, execution identities, c
 stores prompts, customer data or worker reasoning — usage is joined from transcripts by execution id.
 
 Lifecycle (catalog `operating-model.json`):
-  packet  ASSIGNED → EXECUTED → MACHINE_VERIFIED → [INDEPENDENT_REVIEWED] → FABLE_ACCEPTED   (REJECTED any time)
-  wave    OPEN → PACKETS_ACCEPTED → FABLE_CONSOLIDATED → ROOT_REVIEW → ROOT_ACCEPTED | ROOT_REJECTED
+  packet  ASSIGNED → EXECUTED → MACHINE_VERIFIED → [INDEPENDENT_REVIEWED] → GOVERNOR_ACCEPTED   (REJECTED any time)
+  wave    OPEN → PACKETS_ACCEPTED → GOVERNOR_CONSOLIDATED → ROOT_REVIEW → ROOT_ACCEPTED | ROOT_REJECTED
 Worker done ≠ packet done; only ROOT_ACCEPTED advances a milestone.
 """
 import io
 import json
 import os
 
-from .manifest import LEDGER_DIR
+from .manifest import LEDGER_DIR, governor_families
+from .transcripts import family
 from .util import load_catalog, now_iso
 
 LEDGER_FILE = "ledger.jsonl"
@@ -57,6 +58,12 @@ def validate_event(ev, manifest=None):
         for key in ("model", "effort"):
             if not g.get(key):
                 errs.append("wave_open: governor.%s required" % key)
+        if manifest and g.get("model"):
+            allowed = governor_families(manifest)
+            if family(g["model"]) not in allowed:
+                errs.append("wave_open: governor model %s (family %s) not allowed by the profile (required_family=%s, "
+                            "fallback=%s) — FAIL CLOSED" % (g["model"], family(g["model"]), allowed[0],
+                                                           allowed[1:] or "none"))
         if g.get("effort") and g["effort"] not in efforts:
             errs.append("wave_open: governor.effort %r not a runtime effort" % g["effort"])
     elif kind == "packet_open":
@@ -81,7 +88,7 @@ def validate_event(ev, manifest=None):
         _in(ev, "role", om["attempt_roles"], errs)
         _in(ev, "outcome", om["attempt_outcomes"], errs)
         plan = ev.get("plan") or {}
-        for k in ("model", "effort", "mode"):
+        for k in ("capability", "model", "effort", "mode"):
             if not plan.get(k):
                 errs.append("attempt: plan.%s required (model and effort are per attempt, never per role)" % k)
         if plan.get("effort") and plan["effort"] not in efforts:
@@ -90,9 +97,15 @@ def validate_event(ev, manifest=None):
             errs.append("attempt: plan.mode %r not in %s" % (plan["mode"], "/".join(om["attempt_modes"])))
     elif kind == "packet_state":
         _need(ev, ["packetId", "state"], errs)
+        if ev.get("state") in om["legacy_state_names"]:
+            errs.append("packet_state: legacy state name %s — run `oser migrate` (renames to %s)"
+                        % (ev["state"], om["legacy_state_names"][ev["state"]]))
         _in(ev, "state", om["packet_states"], errs)
     elif kind == "wave_state":
         _need(ev, ["waveId", "state"], errs)
+        if ev.get("state") in om["legacy_state_names"]:
+            errs.append("wave_state: legacy state name %s — run `oser migrate` (renames to %s)"
+                        % (ev["state"], om["legacy_state_names"][ev["state"]]))
         _in(ev, "state", om["wave_states"], errs)
     elif kind == "defect":
         _need(ev, ["waveId", "phase"], errs)
@@ -111,7 +124,8 @@ def validate_event(ev, manifest=None):
                 errs.append("decision: engineering uncertainty (%s) must not be escalated to Founder — "
                             "inspect evidence, compare, test, choose a winner, record rationale, continue" % zone)
             if ev.get("decidedBy") == "founder":
-                errs.append("decision: %s decisions belong to Root/Governor, not Founder" % zone)
+                errs.append("decision: %s decisions belong to Root/Governor, not Founder (execution approval is "
+                            "recorded as execution_approval_by, not as decision ownership)" % zone)
         if zone == "AMBER" and (not ev.get("alternatives") or not ev.get("winner")):
             errs.append("decision: AMBER requires alternatives[] and winner")
         if zone == "RED":
@@ -127,6 +141,31 @@ def validate_event(ev, manifest=None):
     else:
         errs.append("unknown event %r" % kind)
     return errs
+
+
+def migrate_file(root):
+    """Explicit rename of legacy lifecycle state names (3.x) — returns number of rewritten lines, 0 when clean."""
+    p = path(root)
+    if not os.path.isfile(p):
+        return 0
+    legacy = _om()["legacy_state_names"]
+    out, n = [], 0
+    with io.open(p, encoding="utf-8") as f:
+        for line in f:
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                out.append(line)
+                continue
+            if ev.get("state") in legacy:
+                ev["state"] = legacy[ev["state"]]
+                n += 1
+                line = json.dumps(ev, ensure_ascii=False, sort_keys=True) + "\n"
+            out.append(line)
+    if n:
+        with io.open(p, "w", encoding="utf-8", newline="\n") as f:
+            f.writelines(out)
+    return n
 
 
 def read(root):
@@ -199,14 +238,14 @@ def fold(records, manifest=None):
             s = ev.get("state")
             if p is None:
                 errs.append("packet_state: unknown packet %s" % ev.get("packetId"))
-            elif p["states"][-1] in ("FABLE_ACCEPTED", "REJECTED"):
+            elif p["states"][-1] in ("GOVERNOR_ACCEPTED", "REJECTED"):
                 errs.append("packet %s already terminal (%s)" % (ev["packetId"], p["states"][-1]))
             elif s != "REJECTED" and s in P and P.index(s) <= P.index(p["states"][-1]):
                 errs.append("packet %s: %s cannot follow %s" % (ev["packetId"], s, p["states"][-1]))
             else:
-                if s == "FABLE_ACCEPTED":
+                if s == "GOVERNOR_ACCEPTED":
                     if "MACHINE_VERIFIED" not in p["states"]:
-                        errs.append("packet %s: FABLE_ACCEPTED without MACHINE_VERIFIED" % ev["packetId"])
+                        errs.append("packet %s: GOVERNOR_ACCEPTED without MACHINE_VERIFIED" % ev["packetId"])
                     if p["open"].get("verification_depth") != "machine" and "INDEPENDENT_REVIEWED" not in p["states"]:
                         errs.append("packet %s: depth %s requires INDEPENDENT_REVIEWED before acceptance"
                                     % (ev["packetId"], p["open"].get("verification_depth")))
@@ -224,7 +263,7 @@ def fold(records, manifest=None):
                 errs.append("wave %s: %s cannot follow %s" % (ev["waveId"], s, w["states"][-1]))
             else:
                 if s in ("PACKETS_ACCEPTED", "ROOT_ACCEPTED"):
-                    open_p = [pid for pid in w["packets"] if packets[pid]["states"][-1] not in ("FABLE_ACCEPTED", "REJECTED")]
+                    open_p = [pid for pid in w["packets"] if packets[pid]["states"][-1] not in ("GOVERNOR_ACCEPTED", "REJECTED")]
                     if open_p:
                         errs.append("wave %s: %s with packets not terminal: %s" % (ev["waveId"], s, ", ".join(open_p)))
                 if not errs:

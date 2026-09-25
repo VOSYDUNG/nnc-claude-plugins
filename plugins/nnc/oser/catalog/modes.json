@@ -1,5 +1,5 @@
 {
-  "catalog": "nnc-oser/modes@3",
+  "catalog": "nnc-oser/modes@4",
   "modes": {
     "setup": {
       "status": "active",
@@ -10,7 +10,7 @@
     },
     "build": {
       "status": "admission-gated",
-      "summary": "Root admits waves; one governor session per wave schedules fresh execution sessions; independent verification; only ROOT_ACCEPTED advances a milestone.",
+      "summary": "Root admits waves; one Governor session per wave (model family = profile) schedules fresh execution sessions; independent verification as required; only ROOT_ACCEPTED advances a milestone.",
       "active_roles": ["founder", "strategy-session", "root", "governor", "worker", "verifier"],
       "requires": ["operating_model", "build.admission=admitted"],
       "subagents": "per-packet",

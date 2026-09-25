@@ -50,7 +50,9 @@ def cmd_status(root):
     print("BUILD: %s" % build_state(m))
     obs = observed_models(root)
     print("Root: EXPECTED=%s OBSERVED=%s" % (root_model(m), obs["root_last"][0] if obs["root_last"] else "(no transcript)"))
-    print("Governor: preferred=%s · one fresh session per wave" % (get(m, "operating_model.governor.preferred_model") or "(not declared)"))
+    g = get(m, "operating_model.governor") or {}
+    print("Governor slot: required_family=%s · fallback=%s · preferred=%s · one fresh session per wave · mismatch = FAIL CLOSED"
+          % (g.get("required_family"), g.get("fallback", "none"), g.get("preferred_model") or "-"))
     print("Workers/verifiers: execution plan per packet (model × effort × context × session × parallelism × verification)")
     return 0
 
@@ -96,9 +98,11 @@ def cmd_metrics(root, wave, as_json):
     print("E CONTEXT_ISOLATION_GAIN %s× below-Root tokens per Root token" % fmt(r["CONTEXT_ISOLATION_GAIN"]))
     d = r["DEFECT_CONTAINMENT"]
     print("F DEFECT_CONTAINMENT     %s (before=%d after=%d)" % (fmt(d["rate"]), d["before_integration"], d["after_acceptance"]))
-    print("G FABLE_LEVERAGE         %s accepted packets / M Fable work tokens" % fmt(r["FABLE_LEVERAGE"]["accepted_packets_per_M_fable_work"]))
+    print("G GOVERNOR_LEVERAGE      %s accepted packets / M Governor work tokens · Governor families observed %s"
+          % (fmt(r["GOVERNOR_LEVERAGE"]["accepted_packets_per_M_governor_work"]), r["GOVERNOR_LEVERAGE"]["governor_families_observed"]))
     e = r["ESCALATION_EFFICIENCY"]
     print("H ESCALATION_EFFICIENCY  %s (%d/%d resolved, work mean %s)" % (fmt(e["rate"]), e["resolved"], e["escalated"], fmt(e["work_mean"])))
+    print("  usage by role × family %s · Fable work total %s" % (r["USAGE_BY_ROLE_FAMILY"], r["FABLE_WORK_TOTAL"]))
     print("  DECISIONS %s · Founder escalations %d" % (r["DECISIONS"], r["FOUNDER_ESCALATIONS"]))
     print("\nPLAN BENCHMARK (declared model × effort; verified-result outcomes)")
     print("  %-44s %4s %6s %6s %6s %10s %9s %9s %6s" % ("plan", "att", "1stPass", "rework", "vDefect", "work", "thinking", "wall_s", "final"))
@@ -138,6 +142,8 @@ def main(argv=None):
             p.add_argument("--dry-run", action="store_true")
         if name in ("update", "migrate"):
             p.add_argument("--force", action="store_true", help="rewrite hand-edited generated artifacts")
+        if name in ("migrate", "install"):
+            p.add_argument("--governor-family", help="model family of the Governor slot (profile configuration)")
         if name == "doctor":
             p.add_argument("--manifest", help="evaluate the tree against this manifest instead of the project's own")
             p.add_argument("--json", action="store_true")
@@ -175,11 +181,12 @@ def main(argv=None):
         if args.cmd == "update":
             _print_plan(engine.update(root, dry_run=args.dry_run, force=args.force), args.dry_run)
         elif args.cmd == "migrate":
-            _print_plan(engine.migrate(root, dry_run=args.dry_run, force=args.force), args.dry_run)
+            _print_plan(engine.migrate(root, dry_run=args.dry_run, force=args.force,
+                                       governor_family=args.governor_family), args.dry_run)
         elif args.cmd == "install":
             _print_plan(engine.install(root, args.name, args.authority_repo, args.authority_entry, args.authority_ref,
                                        args.authority_hint, args.baseline, args.phase_id, args.phase_label,
-                                       args.language, dry_run=args.dry_run), args.dry_run)
+                                       args.language, dry_run=args.dry_run, governor_family=args.governor_family), args.dry_run)
         elif args.cmd == "status":
             return cmd_status(root)
         elif args.cmd == "metrics":

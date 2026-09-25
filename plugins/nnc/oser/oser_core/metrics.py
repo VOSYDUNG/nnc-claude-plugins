@@ -50,8 +50,8 @@ def compute(root, manifest=None, wave=None):
             add(acc, usage_att[(pid, a["attempt"], a["role"])])
         return acc
 
-    terminal = [pid for pid, p in packets.items() if p["states"][-1] in ("FABLE_ACCEPTED", "REJECTED")]
-    accepted = [pid for pid in terminal if packets[pid]["states"][-1] == "FABLE_ACCEPTED"]
+    terminal = [pid for pid, p in packets.items() if p["states"][-1] in ("GOVERNOR_ACCEPTED", "REJECTED")]
+    accepted = [pid for pid in terminal if packets[pid]["states"][-1] == "GOVERNOR_ACCEPTED"]
 
     def impl(pid):
         return [a for a in packets[pid]["attempts"] if a["role"] in ("implement", "solve_independent")]
@@ -91,12 +91,18 @@ def compute(root, manifest=None, wave=None):
     before += sum(1 for d in st["defects"] if d.get("phase") == "before_integration" and (wave is None or d.get("waveId") == wave))
     after = sum(1 for d in st["defects"] if d.get("phase") == "after_acceptance" and (wave is None or d.get("waveId") == wave))
 
-    # G · FABLE_LEVERAGE — measured family, not declared plan
-    fable_work = 0
+    # G · GOVERNOR_LEVERAGE — governor resource and families as MEASURED, not as declared
+    gov_work = sum(gu["work"] for gu in gov.values())
+    gov_fam = {}
     for gu in gov.values():
-        fable_work += sum(v for mdl, v in gu["models"].items() if family(mdl) == "fable")
-    for u in usage_att.values():
-        fable_work += sum(v for mdl, v in u["models"].items() if family(mdl) == "fable")
+        for mdl, v in gu["models"].items():
+            gov_fam[family(mdl)] = gov_fam.get(family(mdl), 0) + v
+    role_fam = {"governor": dict(gov_fam), "worker": {}, "verifier": {}}
+    for (pid, n, role), u in usage_att.items():
+        bucket = role_fam["verifier" if role in ("verify", "review") else "worker"]
+        for mdl, v in u["models"].items():
+            bucket[family(mdl)] = bucket.get(family(mdl), 0) + v
+    fable_work = sum(b.get("fable", 0) for b in role_fam.values())
 
     # H · ESCALATION_EFFICIENCY
     esc = [pid for pid in terminal if any(a["outcome"] == "escalate" for a in packets[pid]["attempts"])]
@@ -117,10 +123,14 @@ def compute(root, manifest=None, wave=None):
                                 "waves_measured": len(growth), "root_handoffs": len(st["handoffs"])},
         "CONTEXT_ISOLATION_GAIN": ratio(isolation_below, isolation_up),
         "DEFECT_CONTAINMENT": {"before_integration": before, "after_acceptance": after, "rate": ratio(before, before + after)},
-        "FABLE_LEVERAGE": {"accepted_packets_per_M_fable_work": ratio(len(accepted), fable_work / 1e6) if fable_work else None,
-                           "fable_work": fable_work},
+        "GOVERNOR_LEVERAGE": {"accepted_packets_per_M_governor_work": ratio(len(accepted), gov_work / 1e6) if gov_work else None,
+                              "governor_work": gov_work, "governor_families_observed": gov_fam},
+        "USAGE_BY_ROLE_FAMILY": role_fam, "FABLE_WORK_TOTAL": fable_work,
         "ESCALATION_EFFICIENCY": {"escalated": len(esc), "resolved": len(esc_ok), "rate": ratio(len(esc_ok), len(esc)),
-                                  "work_mean": ratio(sum(ptotal(p)["work"] for p in esc), len(esc))},
+                                  "work_mean": ratio(sum(ptotal(p)["work"] for p in esc), len(esc)),
+                                  "accepted_plans": sorted({"%s · %s" % ((impl(p)[-1].get("plan") or {}).get("model"),
+                                                                          (impl(p)[-1].get("plan") or {}).get("effort"))
+                                                            for p in esc_ok if impl(p)})},
         "DECISIONS": {z: sum(1 for d in st["decisions"] if d.get("zone") == z) for z in ("GREEN", "AMBER", "RED")},
         "FOUNDER_ESCALATIONS": sum(1 for d in st["decisions"] if d.get("escalated_to_founder")),
         "plans": plan_benchmark(packets, usage_att, accepted),

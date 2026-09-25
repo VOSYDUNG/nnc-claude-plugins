@@ -6,7 +6,7 @@ from .manifest import LEDGER_DIR, LOCK, MANIFEST, build_state, get, mode_spec, r
 from .util import load_catalog
 
 BLOCK = "status"
-BLOCK_TEMPLATE = "claude-status@3"
+BLOCK_TEMPLATE = "claude-status@4"
 BEGIN_RE = re.compile(r"<!-- NNC-OSER:BEGIN block=%s\b[^>]*-->" % BLOCK)
 END_MARK = "<!-- NNC-OSER:END block=%s -->" % BLOCK
 
@@ -23,8 +23,10 @@ def md_header(template, version, mode):
 
 def _governor(m):
     g = get(m, "operating_model.governor") or {}
-    pref = g.get("preferred_model") or "chưa khai"
-    return "%s — mỗi wave một phiên mới, đóng khi trả kết quả sạch" % pref
+    fb = g.get("fallback", "none")
+    return ("slot cố định · họ model **%s** (fallback %s)%s — mỗi wave một phiên mới, đóng khi trả kết quả sạch; lệch họ = FAIL CLOSED"
+            % (g.get("required_family"), "không" if fb == "none" else ", ".join(fb),
+               (" · ưu tiên `%s`" % g["preferred_model"]) if g.get("preferred_model") else ""))
 
 
 def claude_block(m, version):
@@ -90,7 +92,7 @@ def control_plane_doc(m, version, generated_paths):
     spec = mode_spec(m)
     om = load_catalog("operating-model.json")
     cp = m.get("control_plane") or {}
-    out = [md_header("control-plane@3", version, m["mode"]),
+    out = [md_header("control-plane@4", version, m["mode"]),
            "# Control plane — %s" % m["project"]["name"], "",
            "Một chủ cho mỗi mối quan tâm. Bảng này sinh từ `%s`; lịch sử nằm trong git." % MANIFEST, "",
            "## Mode `%s` (%s) · BUILD: %s" % (m["mode"], spec["status"], BUILD_LABEL[build_state(m)].replace("*", "")), "",
@@ -181,7 +183,7 @@ if __name__ == "__main__":
     sys.exit(main())
 '''
 
-WRAPPERS = {"quota": ("wrapper-quota@3", "quota")}
+WRAPPERS = {"quota": ("wrapper-quota@4", "quota")}
 
 
 def wrapper(kind, relpath, m, version):

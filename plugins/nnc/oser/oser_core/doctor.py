@@ -16,8 +16,9 @@ import re
 from . import render
 from .engine import CONTROL_PLANE_DOC, SETTINGS, detect_legacy
 from . import ledger
+from .transcripts import Index, family, project_transcript_dirs
 from .manifest import (LOCK, MANIFEST, build_state, get, legacy_keys, load, mode_spec, ref_exists,
-                       resolve_authority, root_model)
+                       resolve_authority, root_model, governor_families)
 from .transcripts import observed_models
 from .util import (OSER_HOME, claude_home, git, load_catalog, load_json, match_any, model_generation, plugin_version,
                    read_text, rel, sha, MODEL_RE)
@@ -78,6 +79,7 @@ def run(root, manifest_override=None):
         _firebase(r, root, m)
         _build(r, root, m)
         _ledger(r, root, m)
+        _governor_slot(r, root, m)
     _org_model(r, root, m)
     _branch_pointers(r, root, m if valid else None)
     _models(r, root, m if valid else None)
@@ -294,9 +296,36 @@ def _org_model(r, root, m):
         for loc in (cat["v2_inactive_dir"], cat["v1_team_doc"]):
             if loc in body:
                 r.add("warning", "OSR-100", "current file points at a retired roster location %s" % loc, f)
+        if BROAD_FOUNDER_RE.search(body):
+            r.add("warning", "OSR-103", "current file assigns cloud/deploy decisions to Founder broadly (%s) — Founder owns "
+                  "only the RED consequence; execution approval is not decision ownership"
+                  % BROAD_FOUNDER_RE.search(body).group(0), f)
         if FIXED_ROLE_RE.search(body):
             r.add("warning", "OSR-100", "current file maps a role to a fixed model (%s) — model is per packet"
                   % FIXED_ROLE_RE.search(body).group(0).strip(), f)
+
+
+BROAD_FOUNDER_RE = re.compile(r"cloud/billing/deploy gates|Founder (owns|giữ)[^|]{0,30}(cloud|deploy|billing)", re.I)
+
+
+def _governor_slot(r, root, m):
+    """OSR-104 — the Governor slot's OBSERVED family must be the profile's family (fallback only if declared)."""
+    allowed = governor_families(m)
+    r.facts["governor"] = {"required_family": allowed[0], "fallback": allowed[1:] or "none"}
+    st = ledger.fold(ledger.read(root), m)
+    if not st["waves"]:
+        return
+    idx = Index(project_transcript_dirs(root, all_machines=True))
+    for wid, w in st["waves"].items():
+        g = w["open"].get("governor") or {}
+        u = idx.usage(g.get("sessionId"), g.get("agentId") or "")
+        seen = sorted({family(x) for x in u["models"]})
+        bad = [f for f in seen if f not in allowed]
+        if bad:
+            r.add("critical", "OSR-104", "wave %s: observed Governor family %s not allowed (required %s, fallback %s) — "
+                  "FAIL CLOSED" % (wid, "/".join(bad), allowed[0], allowed[1:] or "none"))
+        elif not seen:
+            r.add("info", "OSR-104", "wave %s: Governor usage not observed in transcripts yet" % wid)
 
 
 def _build(r, root, m):
