@@ -1,4 +1,4 @@
-# Bảy luật tiết kiệm token — kèm bằng chứng đo được
+# Chín luật tiết kiệm token — kèm bằng chứng đo được
 
 > Đo thời NNC-AI-OSer 1.0 (đội 9 ghế). Luật vẫn áp khi một mode có assignment chạy subagent; mode
 > `setup` không chạy subagent nên luật 1, 3, 5, 6 chưa áp. Thước đo hiện hành: `oser quota`.
@@ -51,14 +51,14 @@ Số đo chỉ ra chỗ cháy là **bậc model sai và thói quen gọi**, khô
 **không cắt hai ghế soi, không cắt ghế thử, không bỏ đo** để tiết kiệm. Cắt kiểm để tiết kiệm vài
 trăm điểm rồi đổi lấy một lô hỏng phải làm lại là lỗ kép.
 
-## Luật 6 — Workflow phải ghim bậc (đo 14/09/2026)
+## Luật 8 — Workflow phải ghim bậc (đo 14/09/2026)
 
 Ghế `.claude/agents/*.md` chỉ ghim model cho đường **`Agent`**. Đường **`Workflow`** (`agent()` trong script) **kế thừa model của phiên chính**.
 Đo trên một dự án đang chạy sản xuất, một ngày: **1.242 / 1.484 lượt Opus** nằm trong ba lần Workflow — **34% quota ngày** — trong khi việc là việc thợ.
 **Luật:** mọi `agent(prompt, {model: "claude-sonnet-5", ...})` — bắt buộc ghi `model`; dò đường `claude-haiku-4-5-20251001`. R0 không được để trống.
-`do-quota.py` tách cột phiên `wf_*` để bắt lại (cột "vùng": subagent · phiên chính · **workflow**).
+Thước đo: `oser quota` hiện chỉ tách hai vùng (phiên chính · subagent) — bản `do-quota.py` trong plugin 1.x cũng vậy; tách riêng vùng **workflow** là việc đo tiếp. Mode `setup` cấm `Workflow` bằng `permissions.deny`.
 
-## Luật 7 — File trạng thái ≤ 15 KB
+## Luật 9 — File trạng thái ≤ 15 KB (doctor kiểm: `OSR-061`)
 
 File R0 đọc đầu mỗi phiên là **thuế mỗi lượt**. Đo 14/09: `TRANG-THAI.md` 157 KB ≈ 60k token ⇒ R0 **1,46 điểm/lượt**, gấp 3 Opus subagent.
 Giữ ≤ 15 KB: mục tiêu đang chạy + 3 mốc gần nhất + đang vướng + chờ Founder. Mốc cũ dời `workspace/lich-su/<khoảng ngày>.md`.

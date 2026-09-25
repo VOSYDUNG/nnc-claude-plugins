@@ -21,6 +21,7 @@ from .util import (OSER_HOME, claude_home, git, load_json, match_any, model_gene
                    read_text, rel, sha, MODEL_RE)
 
 SEV_ORDER = {"critical": 0, "warning": 1, "info": 2}
+STATE_MAX_BYTES = 15 * 1024   # measured rule (references/3-luat-tiet-kiem.md, luật 9): 157 KB state ≈ 60k tokens/turn
 BRANCH_RE = re.compile(r"\bbranch\W{0,6}`([A-Za-z0-9._/-]+)`", re.I)
 PHASE_CLAIM_RE = re.compile(r"current phase", re.I)
 FAMILY_CLAIM_RE = re.compile(r"\b(fable|opus|sonnet|haiku)\s+\d", re.I)   # "Opus 5" = the seat claims a tier
@@ -266,6 +267,11 @@ def _legacy(r, root, m):
 
 def _workspace(r, root, m):
     ws = m["workspace"]
+    state = os.path.join(root, ws["state_file"])
+    limit = ws.get("state_max_bytes", STATE_MAX_BYTES)
+    if os.path.isfile(state) and os.path.getsize(state) > limit:
+        r.add("warning", "OSR-061", "state file is %d KB (> %d KB): every session pays it on every turn — move old "
+              "milestones to history" % (os.path.getsize(state) // 1024, limit // 1024), ws["state_file"])
     d = ws.get("dir")
     cp = m.get("control_plane") or {}
     hist = cp.get("historical") or []

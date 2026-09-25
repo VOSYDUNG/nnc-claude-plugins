@@ -237,6 +237,11 @@ class TestC_DoctorBeforeAfter(Base):
         c = after.counts()
         self.assertEqual((c["critical"], c["warning"]), (0, 0), [f for f in after.findings if f["severity"] != "info"])
 
+    def test_oversized_state_file_warns(self):
+        self.manifest()
+        w(self.P("workspace", "TRANG-THAI.md"), "**PRE-BUILD SETUP**\n" + "x" * (16 * 1024))
+        self.assertTrue(any(f["id"] == "OSR-061" for f in doctor.run(self.proj).findings))
+
     def test_firebase_forbidden_default_is_critical(self):
         self.manifest(checks={"firebase": {"data_project": "kho-data", "forbidden_defaults": ["driver"],
                                            "hosting_sites": {"kho": "driver"}, "protected_sites": ["hifi"]}})
