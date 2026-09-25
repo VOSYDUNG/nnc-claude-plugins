@@ -1,93 +1,68 @@
 ---
 name: ai-oser
-description: Khởi tạo và vận hành "xưởng AI" — đội agent nhiều bậc model có kỷ luật token — cho MỘT repo bất kỳ. Dùng khi người dùng muốn dựng đội agent cho dự án mới, chuẩn hoá cách giao việc cho agent, giảm quota hao phí, đo chi phí phiên, hoặc nói "init dự án", "dựng đội agent", "xưởng AI", "NNC-AI-OSer", "khởi tạo đội", "giao việc cho agent sao cho rẻ". Tự dò gói Claude đang dùng (có Fable hay cao nhất là Opus) để ghim model an toàn, không phát sinh phí ngoài gói.
+description: NNC OSER — control plane tái dùng cho một repo Claude Code. Cài (install), cập nhật (update), chuyển từ bố cục NNC-AI-OSer 1.0 (migrate), và khám drift (doctor) cho cấu hình hiệu lực của dự án — phase/mode, authority, capability, model class, provenance, Firebase target. Dùng khi người dùng nói "init dự án", "dựng đội agent", "xưởng AI", "NNC OSER", "doctor", "kiểm control plane", "đổi mode", "migrate OSER", "đo quota", hoặc khi CLAUDE.md/TRANG-THAI/agent của repo có dấu hiệu trỏ sai (branch chết, phase cũ, model cũ).
 ---
 
-# NNC-AI-OSer (`/nnc:ai-oser`) — dựng xưởng AI cho một repo
+# NNC OSER 2 (`/nnc:ai-oser`)
 
-Skill này biến một repo thành **phân xưởng có tổ chức**: một quản đốc điều phối + các ghế thợ chạy
-model rẻ hơn, mỗi ghế ghim sẵn bậc model, có luật giao việc và có thước đo chi phí.
+**Plugin sở hữu framework. Repo sở hữu cấu hình hiệu lực.** Mọi sự thật của dự án nằm trong
+`.claude/oser/project.json` (PROJECT-OWNED). OSER chỉ *sinh* các phần có dấu `NNC-OSER:GENERATED` /
+`NNC-OSER:BEGIN…END`, và ghi provenance vào `.claude/oser/lock.json`. Chi tiết: `references/`.
 
-**Vì sao cần:** đo trên **34.626 lượt gọi thật** của một dự án đang chạy sản xuất — khi mọi ghế chạy
-chung một model mạnh, **77% quota cháy ở subagent**. Ghim bậc cho từng ghế kéo xuống **56%**, và chi
-phí mỗi lượt gọi từ **0,408 xuống 0,133 điểm — giảm 67%** trong khi nhịp việc tăng gấp sáu.
-Chênh lệch nền: **Opus 0,465 điểm/lượt · Sonnet 0,069 — gấp 6,7 lần**. Skill này gói cả cơ cấu lẫn cái phanh.
+## Mô hình tổ chức
 
-## Năm vai — nhớ VAI, không nhớ tên model
+**PHASE/MODE + CAPABILITY + ASSIGNMENT + MODEL CLASS** — không phải "hồ sơ theo tên model".
 
-| Vai | Làm gì | Không làm gì |
+| Mode | Trạng thái trong 2.0 | Nghĩa |
 |---|---|---|
-| **R0 Quản đốc** (phiên chính) | nhận goal · cắt lô · viết đề bài · giữ cổng · báo cáo | không gõ code (sửa 1–2 dòng thì làm) |
-| **R1 Tech Lead** (cửa sổ riêng) | đề bài kỹ thuật lô khó · dựng lô khó nhất · gỡ bế tắc · review kiến trúc cuối sóng | không đổi phạm vi lô, không làm việc thợ làm được |
-| **R1b Nghiên cứu** | đo khả thi · khảo sát phương án kèm đánh đổi · kiểm kê nguồn dữ liệu thật — **dọn bàn cho R1** | không quyết kiến trúc, không sửa mã sản phẩm, không bịa số |
-| **R2 Kỹ sư/QA/BA** (nhiều ghế) | gõ code · soi lỗi · chạy test · đọc tài liệu nghiệp vụ | không đổi đề bài — kẹt thì báo lên |
-| **R3 Cơ khí** | tra cứu · chạy suite/seed · dò mã nguồn | không quyết gì |
+| `setup` | **active** | Founder + Strategy Session + ROOT (investigator). **Không subagent, không build crew, audit TẮT.** OSER ép bằng `permissions.deny` (Agent · Task · Workflow). |
+| `build` | contract-only | Plugin **không** định sẵn đội build. Dự án khai `assignments` sau khi kiến trúc kỹ thuật chốt. |
+| `operate` | contract-only | Như trên, cho vận hành. |
 
-Model nào ứng với vai nào **tuỳ gói, và gói đổi theo thời điểm** — nên skill cài sẵn **toggle**:
-`python cong-cu/doi-bac.py fable|opus|sonnet` đổi cả xưởng trong một lệnh và ghi ra
-`.claude/BAC-DANG-DUNG.md`. Chi tiết + số đo ở `references/1-bac-model.md`. Đây là chỗ tránh trừ tiền
-ngoài gói: **ghim nhầm model gói không có là phát sinh phí không kiểm soát**.
+Capability **đã khai ≠ đang chạy**: `configured` nghĩa là có định nghĩa, không được gọi trong mode này.
 
-## Quy trình INIT (chạy khi được gọi lần đầu trong một repo)
+## ROOT model và Fable
 
-**Bước 1 — hỏi đúng 5 câu, không đoán:**
-1. Repo này làm gì, ai là người dùng cuối? (một câu)
-2. **Gói Claude đang dùng:** trong bảng chọn model của bạn, model cao nhất là gì — có **Fable** không?
-3. Tài liệu nguồn (spec/PRD) nằm ở đâu — cùng repo hay repo khác? (đường dẫn tuyệt đối)
-4. Bốn chỗ nào **agent không được tự quyết** ở dự án này? (mặc định gợi ý ở `mau/CO-CAU-NHAN-SU.md`)
-5. Dự án có test suite / lệnh kiểm chưa? Lệnh gì?
+- **ROOT = `inherit`.** Model phiên chính do client chọn (bảng chọn model của Claude Desktop, cờ CLI).
+  Đo trên dự án pilot: `settings.json` ghim `claude-opus-5` trong khi phiên thật chạy `claude-fable-5-1`
+  (13/09) và `claude-opus-5-5` (25/09) — file không điều khiển ROOT ở Desktop. OSER không ghim ROOT,
+  và `oser doctor` báo **EXPECTED / CONFIGURED / OBSERVED** (OBSERVED đọc từ transcript thật).
+- **Fable = capability `audit`**, model class `frontier-audit`, chỉ bật tại audit gate tường minh; mode
+  `setup` luôn TẮT. Không có "hồ sơ ROOT Fable".
+- Model class dùng alias họ model (`opus`/`sonnet`/`haiku`) để không mục theo thế hệ; id cứng nào cũ
+  hơn thế hệ đã quan sát trên máy → doctor cảnh báo.
 
-**Bước 2 — chọn hồ sơ bậc model** theo câu 2 (`references/1-bac-model.md` có bảng ba hồ sơ):
-`fable` (gói có Fable) · `opus` (không Fable, Opus cao nhất) · `sonnet` (gói 20$ / Opus eo hẹp).
-Chép `references/doi-bac.py` vào `cong-cu/` rồi chạy `python cong-cu/doi-bac.py <hồ sơ>` — nó ghim
-`.claude/settings.json` + mọi ghế + sinh `.claude/BAC-DANG-DUNG.md` trong một lệnh.
-**Chỉ ghim model gói THẬT SỰ có** — và mọi tài liệu trỏ vào `BAC-DANG-DUNG.md`, đừng viết tên model
-vào văn bản: gói bật/tắt theo thời điểm, đổi hồ sơ phải là một lệnh chứ không phải sửa 9 file.
+## Gọi CLI
 
-**Bước 3 — dựng khung** từ `mau/`, thay chỗ `{{...}}`:
-```
-.claude/settings.json      ghim model cho phiên chính (R0)
-.claude/agents/*.md        các ghế, mỗi ghế một dòng model:
-.claude/CO-CAU-NHAN-SU.md  luật đội: 4 chỗ dừng · luật nâng-hạ · vệ sinh context
-CLAUDE.md                  vai + guardrail + đường dẫn tài liệu (ngắn, đọc mỗi phiên)
-workspace/TRANG-THAI.md    bộ nhớ giữa các phiên (chỉ R0 ghi)
-workspace/quyet-dinh.md    nhật ký quyết định đảo được
-cong-cu/do-quota.py        thước đo chi phí
-cong-cu/doi-bac.py         toggle đổi bậc cả xưởng một lệnh
-.claude/BAC-DANG-DUNG.md   bậc đang dùng (sinh tự động — tài liệu trỏ vào đây)
-```
-Chỉ tạo ghế **thật sự cần** — dự án nhỏ có thể chỉ cần R0 + `tho-dung` + một ghế soi.
+Plugin đặt `bin/` lên PATH của phiên Claude Code khi đã cài: `oser <lệnh>`. Chưa cài / ngoài phiên:
+`python <thư-mục-skill>/../../oser/oser.py <lệnh>`.
 
-**Bước 4 — chốt số nền:** chạy `python cong-cu/do-quota.py`, ghi con số vào TRANG-THAI làm mốc so sánh.
+| Lệnh | Việc |
+|---|---|
+| `oser doctor [--manifest F]` | khám drift; exit 2 = critical, 1 = warning, 0 = sạch |
+| `oser install --name … --authority-repo … --authority-entry … [--authority-hint ../repo] [--baseline sha]` | dự án mới, mode `setup` |
+| `oser migrate [--dry-run]` | dự án NNC-AI-OSer 1.0 → 2.x (cần `project.json` trước) |
+| `oser update [--dry-run]` | sinh lại phần GENERATED; chạy lần hai không đổi gì |
+| `oser status` · `oser quota --ngay 7` | mode/capability/model · thước đo quota (thay `do-quota.py`) |
 
-**Bước 5 — bàn giao:** in ra cho người dùng ① bảng ghế + model đã ghim ② lệnh kích hoạt goal mẫu
-③ mốc quota nền ④ bốn chỗ dừng của họ.
+## Quy trình
 
-## Quy trình mỗi ĐỢT (sau khi đã init)
+**Dự án mới:** hỏi người dùng đúng ba điều — repo authority (WHAT/WHY) ở đâu và file entry nào;
+đường clone local tương đối; lệnh kiểm test. Rồi `oser install …` → `oser doctor` phải 0 critical 0 warning.
 
-`INIT-<đợt>.md` (người chọn cấu hình) → `GOAL-<đợt>.md` (lệnh hành quân cho R0) → R0 cắt lô → mỗi lô:
-đề bài → thợ dựng → **hai ghế soi** → vá → ghế thử → commit+push → cập nhật TRANG-THAI.
-Mẫu ở `mau/INIT.md` và `mau/GOAL.md`.
+**Dự án 1.0 (có `cong-cu/doi-bac.py`, `.claude/BAC-DANG-DUNG.md`, 9 ghế):**
+1. Viết `.claude/oser/project.json` từ `oser/templates/project.example.json` — khai authority, phase,
+   file hiện hành, file lịch sử, stale marker, (tuỳ) Firebase target.
+2. `oser doctor --manifest <file>` trên cây CHƯA đổi → ghi số BEFORE.
+3. Dọn phần PROJECT-OWNED (CLAUDE.md prose, TRANG-THAI) — OSER không tự viết lại văn của dự án.
+4. `oser migrate` → `oser doctor` → `oser migrate` lần hai phải 0 thay đổi.
 
-**Van đo giữa đường:** đóng lô đầu tiên là chạy `do-quota.py` ngay, so với mốc nền. Vượt ngưỡng thì
-**dừng tìm chỗ rò**, đừng đợi cuối sóng.
+Migrate chỉ thay tool 1.0 khi fingerprint chứng minh đó là bản chép nguyên (sửa rồi = dừng, không ghi
+gì); định nghĩa agent chuyển nguyên byte sang `.claude/oser/inactive/`; không xoá mã, không đụng product.
 
-## Tám luật tiết kiệm token (đã đo, không phải cảm giác)
+## Luật khi dùng skill này
 
-Chi tiết + số liệu ở `references/3-luat-tiet-kiem.md`. Tóm tắt:
-
-1. **Ghim bậc trong file ghế**, không chỉnh tay mỗi phiên — cấu hình đi theo git.
-2. **R0/R1 tiêu token vào ĐỀ BÀI, không vào lao động.** Đề bài mơ hồ ném xuống thợ rẻ là mua lại chính cái sai định tiết kiệm.
-3. **Đừng để R0 tự nghiên cứu trong phiên chính** — giao ghế `nghien-cuu`: cùng việc đó rẻ hơn **15,4 lần** (1,088 → 0,070 điểm/lượt) và không nhiễm ngữ cảnh quản đốc.
-4. **Gọi R1 đúng bốn việc đã khai.** Đây là chỗ rò lớn nhất còn lại: R1 chiếm **78,6% chi phí subagent** trong phép đo.
-5. **Mỗi sóng lớn = một phiên mới.** Context dài là trả tiền lại cho cả lịch sử ở MỖI lượt.
-6. **Subagent trả tóm tắt có trần** (≤40 dòng + đường dẫn), không dán nguyên file/log.
-7. **R0 không tự đọc file dài** — giao ghế dò đường; cửa sổ subagent chết cùng subagent.
-8. **Đo, đừng tin.** Mỗi sóng chạy lại `do-quota.py`; số nói, không ai phải tin ai.
-
-## Đọc thêm khi cần
-
-- `references/1-bac-model.md` — hồ sơ bậc model theo gói (có Fable / không Fable), cách dò an toàn
-- `references/2-khung-ghe.md` — mô tả 8 ghế, khi nào gọi, khi nào bỏ bớt
-- `references/3-luat-tiet-kiem.md` — bằng chứng đo được + bảy luật đầy đủ
-- `mau/` — bộ mẫu điền chỗ trống
+- Không sửa tay file GENERATED — sửa `project.json` rồi `oser update`; muốn tự giữ thì khai `overrides`.
+- Không chép canon nghiệp vụ của authority vào repo — trỏ tới nó.
+- Mode `setup`: không gọi subagent, không bật audit, không dựng đội build "cho sẵn".
+- Đo, đừng tin: `oser quota` + `oser doctor` là bằng chứng, không phải cảm giác.

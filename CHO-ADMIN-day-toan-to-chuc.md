@@ -8,15 +8,15 @@ NNC Lao Group: thêm hai khoá vào **managed settings** của tổ chức, mọ
   "extraKnownMarketplaces": {
     "nnc-claude-plugins": {
       "source": {
-        "source": "url",
-        "url": "https://github.com/VOSYDUNG/nnc-claude-plugins"
+        "source": "git",
+        "url": "https://github.com/VOSYDUNG/nnc-claude-plugins.git"
       },
       "autoUpdate": true
     }
   },
-  "enabledPlugins": [
-    "nnc@nnc-claude-plugins"
-  ]
+  "enabledPlugins": {
+    "nnc@nnc-claude-plugins": true
+  }
 }
 ```
 
@@ -26,8 +26,11 @@ NNC Lao Group: thêm hai khoá vào **managed settings** của tổ chức, mọ
   chỉ được cài từ marketplace của công ty.
 
 **Cập nhật về sau:** sửa repo → **tăng `version`** trong `plugins/nnc/.claude-plugin/plugin.json`
-(ví dụ `1.0.0` → `1.1.0`) → mọi người nhận bản mới. Chỉ số version ở **plugin.json** mới kích hoạt cập
+(PATCH sửa lỗi · MINOR thêm tính năng tương thích · MAJOR đổi bố cục dự án, kèm `oser migrate`) → mọi người nhận bản mới. Chỉ số version ở **plugin.json** mới kích hoạt cập
 nhật; version ở `marketplace.json` chỉ để ghi nhãn.
 
 **Repo riêng tư:** Claude Code dùng thẳng `git` của máy — SSH key hoặc credential helper sẵn có là đủ,
 không cần token riêng.
+
+**Sau khi mọi người nhận bản mới:** mỗi dự án chạy `oser update` (hoặc `oser migrate` khi nâng MAJOR);
+`oser doctor` báo `OSR-002` khi dự án được sinh bởi version khác version đang chạy.

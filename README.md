@@ -1,7 +1,6 @@
 # NNC Claude Plugins
 
-Bộ skill dùng chung của **NNC Lao Group** cho [Claude Code](https://claude.com/claude-code).
-Công khai — ai thấy hữu ích thì dùng.
+Bộ plugin dùng chung của **NNC Lao Group** cho [Claude Code](https://claude.com/claude-code). Công khai.
 
 ## Cài (một lần)
 
@@ -10,31 +9,40 @@ Công khai — ai thấy hữu ích thì dùng.
 /plugin install nnc@nnc-claude-plugins
 ```
 
-Mở dự án bất kỳ, gõ `/nnc:ai-oser`.
+Mở dự án bất kỳ, gõ `/nnc:ai-oser`, hoặc gọi thẳng CLI (plugin đặt `bin/` lên PATH của phiên):
+
+```
+oser doctor
+```
 
 ## Trong gói có gì
 
-| Skill | Gọi bằng | Làm gì |
+| Thành phần | Gọi bằng | Làm gì |
 |---|---|---|
-| **NNC-AI-OSer** | `/nnc:ai-oser` | Dựng đội agent nhiều bậc cho một repo: 9 ghế, luật giao việc, thước đo quota, toggle đổi bậc theo gói (có Fable / không Fable / gói Pro) |
+| **NNC OSER** (skill) | `/nnc:ai-oser` | hướng dẫn agent dùng control plane: mode · capability · model class · ownership |
+| **NNC OSER** (CLI) | `oser install · update · migrate · doctor · status · quota` | cài / cập nhật / chuyển đổi / khám drift cấu hình Claude Code của một repo |
 
-## Vì sao có bộ này
+**Plugin sở hữu framework; repo sở hữu cấu hình hiệu lực** (`.claude/oser/project.json`). Mọi file OSER
+sinh ra đều có dấu `NNC-OSER:GENERATED` và provenance trong `.claude/oser/lock.json`.
 
-Đo trên **34.626 lượt gọi thật** của một dự án đang chạy sản xuất: khi mọi ghế agent chạy chung một
-model mạnh, **77% quota cháy ở việc phụ** — dò file, chạy lệnh, tra cứu. Ghim bậc cho từng ghế cộng
-kỷ luật giao việc kéo chi phí mỗi lượt gọi từ **0,408 xuống 0,133 điểm — giảm 67%**, trong khi nhịp
-việc tăng gấp sáu.
+Không cần gì ngoài Python 3.8+ (thư viện chuẩn) và git.
 
-Ba con số đáng nhớ, đều đo được:
+## Nâng từ 1.0 (NNC-AI-OSer — 9 ghế, `doi-bac.py fable|opus|sonnet`)
 
-- **Một lượt ở phiên chính đắt gấp 5,3 lần một lượt ở ghế thợ** — thứ đắt nhất không phải model, là
-  độ dài ngữ cảnh.
-- **Kéo mức tư duy lên gần như không đắt hơn** (−5% đến +4% mỗi lượt) trong khi tỉ lệ token "nghĩ"
-  tăng rõ — nghĩ kỹ rẻ hơn làm lại.
-- **Gói không có model cao nhất vẫn rẻ nhất** — hồ sơ `opus`/`sonnet` đo được rẻ hơn cấu hình cao cấp,
-  vì nó bỏ luôn cái đệm dễ bị lạm dụng.
+2.0 là bản **MAJOR**: hồ sơ theo tên model được thay bằng mode/capability/model class, và bố cục dự án
+đổi. Đường chuyển có sẵn, không mất file của dự án:
 
-Không phải tin — sau khi cài, chạy `python cong-cu/do-quota.py` trong repo của bạn và tự xem.
+1. viết `.claude/oser/project.json` từ `plugins/nnc/oser/templates/project.example.json`;
+2. `oser doctor` (số trước) → dọn phần văn của dự án → `oser migrate` → `oser doctor` (số sau);
+3. `cong-cu/doi-bac.py` và `cong-cu/do-quota.py` bản chép nguyên được thay bằng wrapper gọi `oser`.
+
+Bản 1.0 còn nguyên ở tag `v1.0.0`.
+
+## Kiểm plugin
+
+```
+python -m unittest discover -s tests -v
+```
 
 ## Cập nhật
 
@@ -43,10 +51,11 @@ Không phải tin — sau khi cài, chạy `python cong-cu/do-quota.py` trong re
 /plugin update nnc
 ```
 
+Rồi trong mỗi dự án: `oser update` (idempotent — chạy lần hai không đổi gì).
+
 ## Đẩy cho cả tổ chức
 
-Quản trị viên xem `CHO-ADMIN-day-toan-to-chuc.md` — hai khoá trong managed settings là mọi thành viên
-có sẵn, không ai phải gõ lệnh.
+Quản trị viên xem `CHO-ADMIN-day-toan-to-chuc.md`.
 
 ## Giấy phép
 
