@@ -427,17 +427,17 @@ def _firebase(r, root, m):
 
 def _plugin(r, root, version):
     ip = load_json(os.path.join(claude_home(), "plugins", "installed_plugins.json")) or {}
-    blob = json.dumps(ip)
-    installed = sorted(set(re.findall(r'"(nnc@[A-Za-z0-9_-]+)"', blob)))
-    r.facts["plugin_installed"] = installed or "(no)"
+    table = ip.get("plugins", ip) if isinstance(ip, dict) else {}
+    installed = {k: v for k, v in table.items() if isinstance(k, str) and k.startswith("nnc@")}
+    vers = sorted({e.get("version") for entries in installed.values() for e in (entries if isinstance(entries, list) else [entries])
+                   if isinstance(e, dict) and e.get("version")})
+    r.facts["plugin_installed"] = ("%s %s" % (", ".join(sorted(installed)), "/".join(vers))) if installed else "(no)"
     r.facts["running_from"] = "plugin cache" if os.sep + "cache" + os.sep in OSER_HOME else "checkout " + OSER_HOME
     if not installed:
         r.add("info", "OSR-090", "nnc plugin not installed in Claude on this machine — OSER is running from %s" % OSER_HOME)
-    else:
-        vers = set(re.findall(r'nnc[\\/]+([0-9.]+)[\\/]', blob))
-        if vers and version not in vers:
-            r.add("warning", "OSR-090", "installed nnc plugin version(s) %s differ from running OSER %s"
-                  % (", ".join(sorted(vers)), version))
+    elif vers and version not in vers:
+        r.add("warning", "OSR-090", "installed nnc plugin %s differs from running OSER %s — `oser` on PATH and project "
+              "wrappers resolve to the installed copy (update it: /plugin update nnc)" % ("/".join(vers), version))
 
 
 def _git(r, root, main):

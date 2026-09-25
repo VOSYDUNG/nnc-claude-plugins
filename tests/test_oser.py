@@ -316,6 +316,15 @@ class TestC_DoctorBeforeAfter(Base):
         w(self.P(".firebaserc"), '{"projects": {"kho-data": "kho-data", "review-host": "driver"}}\n')
         self.assertEqual([f["severity"] for f in doctor.run(self.proj).findings if f["id"] == "OSR-080"], ["info"])
 
+    def test_installed_plugin_version_drift_warns(self):
+        self.manifest()
+        w(os.path.join(self.home, "plugins", "installed_plugins.json"), json.dumps({"version": 2, "plugins": {
+            "nnc@nnc-claude-plugins": [{"scope": "user", "version": "2.0.0",
+                                        "installPath": "C:\\x\\.claude\\plugins\\cache\\nnc-claude-plugins\\nnc\\2.0.0"}]}}))
+        f = [x for x in doctor.run(self.proj).findings if x["id"] == "OSR-090"]
+        self.assertEqual([x["severity"] for x in f], ["warning"], f)
+        self.assertIn("2.0.0", f[0]["message"])
+
     def test_oversized_state_file_warns(self):
         self.manifest()
         w(self.P("workspace", "TRANG-THAI.md"), "**PRE-BUILD SETUP**\n" + "x" * (16 * 1024))
