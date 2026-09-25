@@ -99,6 +99,7 @@ def cmd_metrics(root, wave, as_json):
     print("G FABLE_LEVERAGE         %s accepted packets / M Fable work tokens" % fmt(r["FABLE_LEVERAGE"]["accepted_packets_per_M_fable_work"]))
     e = r["ESCALATION_EFFICIENCY"]
     print("H ESCALATION_EFFICIENCY  %s (%d/%d resolved, work mean %s)" % (fmt(e["rate"]), e["resolved"], e["escalated"], fmt(e["work_mean"])))
+    print("  DECISIONS %s · Founder escalations %d" % (r["DECISIONS"], r["FOUNDER_ESCALATIONS"]))
     print("\nPLAN BENCHMARK (declared model × effort; verified-result outcomes)")
     print("  %-44s %4s %6s %6s %6s %10s %9s %9s %6s" % ("plan", "att", "1stPass", "rework", "vDefect", "work", "thinking", "wall_s", "final"))
     for p in r["plans"]:

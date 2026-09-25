@@ -318,6 +318,11 @@ def _ledger(r, root, m):
     r.facts["ledger"] = {"waves": len(st["waves"]), "packets": len(st["packets"])}
     for e in st["errors"][:20]:
         r.add("critical", "OSR-102", "ledger: " + e, ledger.path(root).replace(root, "").lstrip("\\/"))
+    for n, ev in recs:
+        if ev.get("event") == "decision" and ev.get("zone") in ("GREEN", "AMBER") and ev.get("escalated_to_founder"):
+            r.add("critical", "OSR-103", "line %d: %s engineering decision %s escalated to Founder — sovereignty boundary: "
+                  "Founder resolves only RED" % (n, ev.get("zone"), ev.get("decisionId")))
+    r.facts["decisions"] = {z: sum(1 for d in st["decisions"] if d.get("zone") == z) for z in ("GREEN", "AMBER", "RED")}
     for pid, p in st["packets"].items():
         if not (p["open"].get("machine_first") or {}).get("considered"):
             r.add("warning", "OSR-102", "packet %s opened without machine-first consideration" % pid)

@@ -42,5 +42,8 @@ Plugin đặt `bin/` lên PATH khi đã cài: `oser <lệnh>`; ngoài phiên: `p
 - Machine-first: script/test/grep/emulator trước khi cấp worker LLM.
 - Worker done ≠ packet done; chỉ `ROOT_ACCEPTED` đẩy milestone.
 - Không sửa tay file GENERATED — sửa `project.json` rồi `oser update`; tự giữ thì khai `overrides`.
-- Không chép canon của authority vào repo; RED chỉ khi đụng nghĩa nghiệp vụ/quyền/vòng đời/HIFI/metric/nguồn sự thật/chi phí lớn.
+- **Founder giải xung đột sản phẩm; AI giải bất định kỹ thuật.** Không đưa lựa chọn kỹ thuật lên Founder: xem bằng
+  chứng → so phương án → thử → chọn winner → ghi rationale (`decision` GREEN/AMBER) → đi tiếp. Chỉ RED
+  (nghĩa nghiệp vụ · thẩm quyền · quyền · vòng đời · HIFI · metric · nguồn sự thật · phạm vi/chi phí lớn · go-live) lên Founder.
+- Không chép canon của authority vào repo.
 - Không nói cap thuê bao từ token: cap tuần (tổng và Fable lồng trong) là UI-only — ghi `quota_reading`.

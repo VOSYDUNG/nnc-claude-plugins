@@ -2,35 +2,173 @@
   "catalog": "nnc-oser/operating-model@3",
   "summary": "Hierarchy of control, not of model names. The scheduled unit is the WORK PACKET; each attempt carries its own execution plan (model, effort, mode, context policy, verifier, escalation).",
   "roles": {
-    "founder": { "owns": ["business meaning", "RED decisions", "cloud/billing/deploy gates"] },
-    "strategy-session": { "owns": ["product authority", "cross-check of Root at major locks"] },
+    "founder": {
+      "owns": [
+        "business meaning",
+        "RED decisions",
+        "cloud/billing/deploy gates"
+      ]
+    },
+    "strategy-session": {
+      "owns": [
+        "product authority",
+        "cross-check of Root at major locks"
+      ]
+    },
     "root": {
-      "owns": ["global state", "authority + architecture pointers", "work graph", "milestone + wave admission",
-               "clean-result integration", "cross-wave conflicts", "RED escalation", "Founder decision packets",
-               "own context hygiene / rotation"],
-      "must_not": ["implement ordinary packets", "read raw worker logs", "retain worker reasoning",
-                   "schedule low-level actions", "become the long-lived coding monolith"],
+      "owns": [
+        "global state",
+        "authority + architecture pointers",
+        "work graph",
+        "milestone + wave admission",
+        "clean-result integration",
+        "cross-wave conflicts",
+        "RED escalation",
+        "Founder decision packets",
+        "own context hygiene / rotation"
+      ],
+      "must_not": [
+        "implement ordinary packets",
+        "read raw worker logs",
+        "retain worker reasoning",
+        "schedule low-level actions",
+        "become the long-lived coding monolith"
+      ],
       "session": "long-lived logically; rotates physically via root_handoff"
     },
     "governor": {
-      "owns": ["one coherent wave: decomposition, dependency graph, parallelism, same vs fresh session, model + effort per attempt, context packet, verification requests, retry, escalation, rejection, consolidation"],
-      "must_not": ["act as Root", "carry whole-project context", "outlive its wave"],
+      "owns": [
+        "one coherent wave: decomposition, dependency graph, parallelism, same vs fresh session, model + effort per attempt, context packet, verification requests, retry, escalation, rejection, consolidation"
+      ],
+      "must_not": [
+        "act as Root",
+        "carry whole-project context",
+        "outlive its wave"
+      ],
       "session": "one fresh session per wave; closed after the wave result is returned"
     },
-    "worker": { "owns": ["one packet attempt within its context packet"], "session": "fresh by default" },
-    "verifier": { "owns": ["independent verification of a packet or wave; never the author of what it verifies"] }
+    "worker": {
+      "owns": [
+        "one packet attempt within its context packet"
+      ],
+      "session": "fresh by default"
+    },
+    "verifier": {
+      "owns": [
+        "independent verification of a packet or wave; never the author of what it verifies"
+      ]
+    }
   },
-  "packet_states": ["ASSIGNED", "EXECUTED", "MACHINE_VERIFIED", "INDEPENDENT_REVIEWED", "FABLE_ACCEPTED", "REJECTED"],
-  "wave_states": ["OPEN", "PACKETS_ACCEPTED", "FABLE_CONSOLIDATED", "ROOT_REVIEW", "ROOT_ACCEPTED", "ROOT_REJECTED"],
-  "attempt_roles": ["implement", "verify", "review", "solve_independent"],
-  "attempt_modes": ["same_session", "fresh_session", "parallel", "independent"],
-  "attempt_outcomes": ["pass", "fail", "rework_required", "escalate"],
-  "verification_depths": ["machine", "independent_review", "independent_solution"],
-  "routing_signals": ["complexity", "ambiguity", "blast_radius", "reversibility", "testability", "context_load",
-                      "independence", "dependency_count", "prior_rework"],
-  "signal_levels": ["low", "medium", "high", "unknown"],
+  "packet_states": [
+    "ASSIGNED",
+    "EXECUTED",
+    "MACHINE_VERIFIED",
+    "INDEPENDENT_REVIEWED",
+    "FABLE_ACCEPTED",
+    "REJECTED"
+  ],
+  "wave_states": [
+    "OPEN",
+    "PACKETS_ACCEPTED",
+    "FABLE_CONSOLIDATED",
+    "ROOT_REVIEW",
+    "ROOT_ACCEPTED",
+    "ROOT_REJECTED"
+  ],
+  "attempt_roles": [
+    "implement",
+    "verify",
+    "review",
+    "solve_independent"
+  ],
+  "attempt_modes": [
+    "same_session",
+    "fresh_session",
+    "parallel",
+    "independent"
+  ],
+  "attempt_outcomes": [
+    "pass",
+    "fail",
+    "rework_required",
+    "escalate"
+  ],
+  "verification_depths": [
+    "machine",
+    "independent_review",
+    "independent_solution"
+  ],
+  "routing_signals": [
+    "complexity",
+    "ambiguity",
+    "blast_radius",
+    "reversibility",
+    "testability",
+    "context_load",
+    "independence",
+    "dependency_count",
+    "prior_rework"
+  ],
+  "signal_levels": [
+    "low",
+    "medium",
+    "high",
+    "unknown"
+  ],
   "routing_objective": "cheapest VERIFIED execution plan that stays safely above required reliability (expected total resource to a verified result: first attempt + review + retry + escalation + rework + integration + context replay)",
-  "red_zone": ["business meaning", "actor authority", "capability/permission semantics", "lifecycle/completion meaning",
-               "locked HIFI behavior", "product metric meaning", "source-of-truth semantics",
-               "irreversible major cost/scope/release decision"]
+  "red_zone": [
+    "business meaning",
+    "actor authority",
+    "capability/permission semantics",
+    "lifecycle/completion meaning",
+    "locked HIFI behavior",
+    "product metric meaning",
+    "source-of-truth semantics",
+    "irreversible major scope or cost",
+    "release/go-live commitment"
+  ],
+  "sovereignty": {
+    "rule": "Founder resolves product/business conflicts. AI resolves engineering uncertainty. A technical disagreement between agents is NOT a Founder escalation.",
+    "engineering_resolves": [
+      "technical ambiguity",
+      "implementation alternatives",
+      "schema/query/index choices",
+      "module boundaries",
+      "transaction/batch/listener/cache choices",
+      "retry/backoff strategy",
+      "migration mechanics",
+      "test strategy",
+      "observability design",
+      "model selection",
+      "effort selection",
+      "context/session strategy",
+      "parallelism",
+      "worker allocation",
+      "verification depth",
+      "technical sequencing"
+    ],
+    "authority": {
+      "root": "decides and locks GREEN/AMBER technical decisions",
+      "governor": "decides execution details inside an admitted wave"
+    },
+    "resolution_protocol": [
+      "inspect evidence",
+      "compare alternatives",
+      "test where possible",
+      "choose a technical winner",
+      "record rationale",
+      "continue"
+    ],
+    "founder_escalation_only_if": "the unresolved choice would change an item of red_zone",
+    "build_admission_review_surfaces_only": [
+      "RED decisions",
+      "major irreversible business trade-offs",
+      "go-live/release acceptance when applicable"
+    ]
+  },
+  "decision_zones": [
+    "GREEN",
+    "AMBER",
+    "RED"
+  ]
 }

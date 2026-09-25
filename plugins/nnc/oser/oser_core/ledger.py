@@ -99,6 +99,26 @@ def validate_event(ev, manifest=None):
         _in(ev, "phase", ["before_integration", "after_acceptance"], errs)
     elif kind == "root_handoff":
         _need(ev, ["fromSessionId", "toSessionId", "reason", "stateRefs"], errs)
+    elif kind == "decision":
+        _need(ev, ["decisionId", "zone", "decidedBy", "subject"], errs)
+        _in(ev, "zone", om["decision_zones"], errs)
+        _in(ev, "decidedBy", ["root", "governor", "founder"], errs)
+        zone = ev.get("zone")
+        if zone in ("GREEN", "AMBER"):
+            if not ev.get("rationale"):
+                errs.append("decision: %s requires rationale (record rationale, continue)" % zone)
+            if ev.get("escalated_to_founder"):
+                errs.append("decision: engineering uncertainty (%s) must not be escalated to Founder — "
+                            "inspect evidence, compare, test, choose a winner, record rationale, continue" % zone)
+            if ev.get("decidedBy") == "founder":
+                errs.append("decision: %s decisions belong to Root/Governor, not Founder" % zone)
+        if zone == "AMBER" and (not ev.get("alternatives") or not ev.get("winner")):
+            errs.append("decision: AMBER requires alternatives[] and winner")
+        if zone == "RED":
+            if ev.get("red_basis") not in om["red_zone"]:
+                errs.append("decision: RED requires red_basis in red_zone (%s)" % "; ".join(om["red_zone"]))
+            if ev.get("decidedBy") == "governor":
+                errs.append("decision: a governor cannot decide RED")
     elif kind == "quota_reading":
         _need(ev, ["source"], errs)
         for k in ("weekly_all_models_pct", "weekly_fable_pct"):
@@ -144,7 +164,7 @@ def fold(records, manifest=None):
     """Replay events into waves/packets and check lifecycle order. Returns state + errors."""
     om = _om()
     P, W = om["packet_states"], om["wave_states"]
-    waves, packets, defects, handoffs, readings, errors = {}, {}, [], [], [], []
+    waves, packets, defects, handoffs, readings, errors, decisions = {}, {}, [], [], [], [], []
     last_errs = []
     for n, ev in records:
         errs = []
@@ -218,9 +238,17 @@ def fold(records, manifest=None):
             handoffs.append(ev)
         elif k == "quota_reading":
             readings.append(ev)
+        elif k == "decision":
+            if ev.get("decidedBy") == "governor":
+                w = waves.get(ev.get("waveId"))
+                if w is None or w["states"][-1] in ("ROOT_ACCEPTED", "ROOT_REJECTED"):
+                    errs.append("decision %s: governor decisions need an open wave (waveId)" % ev.get("decisionId"))
+            if not errs:
+                decisions.append(ev)
         errs += [] if k == "__invalid_json__" else validate_event(ev, manifest)
         if errs:
             errors += ["line %d: %s" % (n, e) for e in errs]
         last_errs = errs
     return {"waves": waves, "packets": packets, "defects": defects, "handoffs": handoffs, "readings": readings,
+            "decisions": decisions,
             "errors": errors, "errors_last": last_errs}

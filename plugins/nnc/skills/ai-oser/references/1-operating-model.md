@@ -61,11 +61,26 @@ prompt của từng phiên Root (đo được) và `oser metrics` cho ROOT_CONTE
 `machine` = kiểm máy (test/lint/emulator) đủ; `independent_review` = verifier khác phiên; `independent_solution`
 = hai lời giải độc lập đối chiếu.
 
-## RED — chỉ những thứ này lên Founder
+## Chủ quyền Founder / Engineering — ranh giới cứng
 
-Nghĩa nghiệp vụ · thẩm quyền actor · ngữ nghĩa capability/quyền · nghĩa vòng đời/hoàn thành · hành vi HIFI đã
-khoá · nghĩa metric sản phẩm · ngữ nghĩa nguồn sự thật · quyết định chi phí/phạm vi/phát hành lớn không đảo
-được. Lựa chọn kỹ thuật thường không lên Founder. Strategy Session cross-check Root ở các lần khoá lớn.
+**Founder giải xung đột sản phẩm/nghiệp vụ. AI giải bất định kỹ thuật.** Bất đồng kỹ thuật giữa các agent
+**không** phải escalation lên Founder.
+
+- Engineering tự giải: mơ hồ kỹ thuật · phương án hiện thực · schema/query/index · ranh giới module ·
+  transaction/batch/listener/cache · retry/backoff · cơ chế migration · chiến lược test · observability ·
+  chọn model · chọn effort · context/session · song song · phân bổ worker · độ sâu verification · thứ tự kỹ thuật.
+- **Root** quyết và khoá quyết định GREEN/AMBER; **Governor** quyết chi tiết thực thi bên trong wave đã admit.
+- Quy trình bắt buộc: xem bằng chứng → so phương án → thử nếu được → chọn winner → ghi rationale → đi tiếp.
+- Chỉ lên Founder khi lựa chọn chưa giải **đổi**: nghĩa nghiệp vụ · thẩm quyền actor · ngữ nghĩa
+  capability/quyền · nghĩa vòng đời/hoàn thành · hành vi HIFI đã khoá · nghĩa metric sản phẩm · ngữ nghĩa nguồn
+  sự thật · phạm vi/chi phí lớn không đảo được · cam kết release/go-live.
+- BUILD ADMISSION REVIEW chỉ được đưa lên: quyết định RED · đánh đổi nghiệp vụ lớn không đảo được · nghiệm thu
+  go-live/release khi áp dụng. **Không** hỏi Founder chọn phương án kỹ thuật.
+
+Máy kiểm: sự kiện `decision` (zone GREEN/AMBER/RED) — GREEN/AMBER bắt buộc rationale, AMBER bắt buộc
+alternatives + winner, cả hai **không** được `escalated_to_founder`; RED bắt buộc `red_basis` thuộc danh sách
+trên; governor không quyết RED và chỉ quyết trong wave đang mở. `oser doctor` OSR-103 bắt escalation sai vùng;
+`oser metrics` đếm DECISIONS và FOUNDER_ESCALATIONS. Strategy Session cross-check Root ở các lần khoá lớn.
 
 ## Mode
 

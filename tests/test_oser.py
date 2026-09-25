@@ -476,6 +476,35 @@ class TestF_LedgerMetrics(Base):
         ok = dict(bad, plan={"model": "m", "effort": "low", "mode": "fresh_session"})
         self.assertEqual(ledger.append(self.proj, ok), [], "every runtime effort is a valid candidate")
 
+    def test_sovereignty_boundary(self):
+        self.wave()
+        green_escalated = {"event": "decision", "decisionId": "D1", "zone": "GREEN", "decidedBy": "root",
+                           "subject": "listener vs polling", "rationale": "measured", "escalated_to_founder": True}
+        self.assertTrue(any("must not be escalated to Founder" in e for e in ledger.append(self.proj, green_escalated)))
+        amber_no_alts = {"event": "decision", "decisionId": "D2", "zone": "AMBER", "decidedBy": "root",
+                         "subject": "claims vs get()", "rationale": "read cost"}
+        self.assertTrue(any("alternatives" in e for e in ledger.append(self.proj, amber_no_alts)))
+        founder_green = dict(green_escalated, decisionId="D3", decidedBy="founder", escalated_to_founder=False)
+        self.assertTrue(any("belong to Root/Governor" in e for e in ledger.append(self.proj, founder_green)))
+        red_bad = {"event": "decision", "decisionId": "D4", "zone": "RED", "decidedBy": "founder",
+                   "subject": "x", "red_basis": "which index to use", "escalated_to_founder": True}
+        self.assertTrue(any("red_basis" in e for e in ledger.append(self.proj, red_bad)))
+        gov_closed = {"event": "decision", "decisionId": "D5", "zone": "GREEN", "decidedBy": "governor", "waveId": "W1",
+                      "subject": "retry", "rationale": "idempotent"}
+        self.assertTrue(any("open wave" in e for e in ledger.append(self.proj, gov_closed)), "W1 is already ROOT_ACCEPTED")
+        ok = [{"event": "decision", "decisionId": "D6", "zone": "AMBER", "decidedBy": "root", "subject": "claims vs get()",
+               "rationale": "0 extra reads", "alternatives": ["claims", "get()"], "winner": "claims"},
+              {"event": "decision", "decisionId": "D7", "zone": "RED", "decidedBy": "founder", "subject": "go-live date",
+               "red_basis": "release/go-live commitment", "escalated_to_founder": True}]
+        for ev in ok:
+            self.assertEqual(ledger.append(self.proj, ev), [], ev)
+        m = metrics.compute(self.proj)
+        self.assertEqual(m["DECISIONS"], {"GREEN": 0, "AMBER": 1, "RED": 1})
+        self.assertEqual(m["FOUNDER_ESCALATIONS"], 1)
+        with io.open(ledger.path(self.proj), "a", encoding="utf-8") as f:   # a hand-edited bad record
+            f.write(json.dumps(green_escalated) + "\n")
+        self.assertTrue(any(f["id"] == "OSR-103" and f["severity"] == "critical" for f in doctor.run(self.proj).findings))
+
     def test_cli_metrics_and_root(self):
         self.wave()
         code, out = run_cli("metrics", "--project", self.proj, env={"NNC_OSER_CLAUDE_HOME": self.home})

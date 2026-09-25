@@ -121,6 +121,8 @@ def compute(root, manifest=None, wave=None):
                            "fable_work": fable_work},
         "ESCALATION_EFFICIENCY": {"escalated": len(esc), "resolved": len(esc_ok), "rate": ratio(len(esc_ok), len(esc)),
                                   "work_mean": ratio(sum(ptotal(p)["work"] for p in esc), len(esc))},
+        "DECISIONS": {z: sum(1 for d in st["decisions"] if d.get("zone") == z) for z in ("GREEN", "AMBER", "RED")},
+        "FOUNDER_ESCALATIONS": sum(1 for d in st["decisions"] if d.get("escalated_to_founder")),
         "plans": plan_benchmark(packets, usage_att, accepted),
         "ledger_errors": st["errors"], "unknown": unknown,
     }
