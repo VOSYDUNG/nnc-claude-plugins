@@ -11,7 +11,7 @@ from pathlib import Path
 from . import VERSION
 from .adapters import claude_health, claude_lifecycle, claude_usage, codex_health
 from .capabilities import admit
-from .common import OserError, canonical, digest, epoch, file_hash, load_json_file, require, safe_path, utcnow
+from .common import OserError, digest, epoch, file_hash, load_json_file, project_root, require, safe_path, utcnow
 from .health import Health, render
 from .probe import available_hosts, codex_probe
 from .state import Store
@@ -47,8 +47,8 @@ def summary(state):
 
 
 def migration_plan(root):
-    """Read only: project-owned rules are never deleted by a guessed migration."""
-    root = Path(root).resolve()
+    """Read only; canonical worktrees cannot hide an active legacy manifest."""
+    root = project_root(root)
     manifest = root / ".claude/oser/project.json"
     if not manifest.is_file():
         return {"legacy_found": False, "writes": 0}
@@ -113,13 +113,13 @@ def build_parser():
 
 
 def initialize(project, contract, event_key=None):
-    root = Path(project).resolve()
+    root = project_root(project)
     plan = migration_plan(root)
     require(not plan["legacy_found"], "LEGACY_CONFLICT", "run oser migration-plan; archive/reconcile active v4 instructions explicitly")
     store = Store(root, create=True)
     state = store.create(contract, event_key or "init:" + digest(contract))
-    # A discoverable frame, not a team roster or user-global settings change.
     frame = store.root / ".nnc-oser/BOOTSTRAP.md"
+    require(not frame.is_symlink(), "UNSAFE_PATH", "bootstrap must not be a symlink")
     if not frame.exists():
         frame.write_text(BRIEF, encoding="utf-8")
     return dict(summary(state), state_directory=str(store.path.parent),
@@ -168,8 +168,7 @@ def main(argv=None):
             if args.command == "statusline":
                 percentages = [str(s.get("used_percent")) + "% " + s["bucket"] for s in samples if s.get("used_percent") is not None]
                 print("OSER | " + (" | ".join(percentages) if percentages else "quota/context UNKNOWN") + " | source age UNKNOWN")
-            # Hooks never emit a block instruction, wake, or claim Mission DONE.
-            return 0
+            return 0  # no blocking instruction, wake, or Mission DONE assertion
         if args.command == "health":
             if args.input:
                 value = input_json(args.input)

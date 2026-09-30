@@ -107,7 +107,9 @@ def file_hash(path, max_bytes=16 * 1024 * 1024):
 def source_fingerprint(root, sources):
     """Hash explicit source inputs; prune excluded trees BEFORE traversing them."""
     require(isinstance(sources, list) and bool(sources), "SOURCES_REQUIRED", "declare relevant source inputs")
-    root = Path(root)
+    # Windows temp paths may use 8.3 names while resolved children use long names.
+    # Compare canonical paths on both sides, never lexical aliases of one root.
+    root = Path(root).resolve()
     result, total, visited = {}, 0, 0
     excluded = {".git", ".nnc-oser", "__pycache__"}
 
