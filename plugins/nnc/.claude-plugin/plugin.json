@@ -1,17 +1,8 @@
 {
   "name": "nnc",
-  "version": "4.0.0",
-  "description": "NNC OSER: he dieu hanh agentic cho repo Claude Code — Root · Governor/wave · execution plan theo work packet; install · update · migrate · doctor · ledger · metrics · quota tho.",
-  "author": {
-    "name": "NNC Lao Group · Ban R&D AI"
-  },
+  "version": "5.0.0-rc.1",
+  "description": "NNC OSER R1: provider-neutral Mission state, capability admission, evidence, recovery and Health. Claude plugin packaging; CLI/MCP also usable from Codex or other hosts. No mandatory model roles.",
+  "author": {"name": "NNC Lao Group · Ban R&D AI"},
   "license": "MIT",
-  "keywords": [
-    "agent",
-    "quota",
-    "token",
-    "multi-agent",
-    "cost",
-    "nnc"
-  ]
+  "keywords": ["mission", "agent", "mcp", "evidence", "quota", "nnc"]
 }

@@ -1,28 +1,16 @@
 {
   "name": "nnc-claude-plugins",
-  "description": "Bo skill dung chung cua NNC Lao Group cho Claude Code.",
-  "version": "4.0.0",
-  "owner": {
-    "name": "NNC Lao Group - Ban R&D AI"
-  },
-  "plugins": [
-    {
-      "name": "nnc",
-      "source": "./plugins/nnc",
-      "displayName": "NNC — bo skill dung chung",
-      "description": "NNC OSER: he dieu hanh agentic cho repo Claude Code — Root · Governor/wave · execution plan theo work packet; install · update · migrate · doctor · ledger · metrics · quota tho.",
-      "version": "4.0.0",
-      "author": {
-        "name": "NNC Lao Group - Ban R&D AI"
-      },
-      "keywords": [
-        "agent",
-        "quota",
-        "xuong-ai",
-        "nnc",
-        "token"
-      ],
-      "license": "MIT"
-    }
-  ]
+  "description": "NNC tools: Mission continuity, evidence and runtime Health.",
+  "version": "5.0.0-rc.1",
+  "owner": {"name": "NNC Lao Group - Ban R&D AI"},
+  "plugins": [{
+    "name": "nnc",
+    "source": "./plugins/nnc",
+    "displayName": "NNC OSER — Mission R1",
+    "description": "Mission OS test candidate: provider-neutral CLI/MCP, transactional state, capability admission, evidence and Health. Live host conformance still required.",
+    "version": "5.0.0-rc.1",
+    "author": {"name": "NNC Lao Group - Ban R&D AI"},
+    "keywords": ["mission", "agent", "mcp", "evidence", "quota"],
+    "license": "MIT"
+  }]
 }

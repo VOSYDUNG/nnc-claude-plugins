@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "nnc-oser": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/oser/oser.py", "serve"]
+    }
+  }
+}

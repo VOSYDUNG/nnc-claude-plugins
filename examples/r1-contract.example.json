@@ -1,0 +1,19 @@
+{
+  "id": "MISSION-001",
+  "goal": "Replace this with the approved project outcome",
+  "owner": "initial-owner-reference",
+  "baseline": {
+    "id": "BASELINE-001",
+    "authority": [{"path": "docs/PRD.md"}]
+  },
+  "sources": ["src"],
+  "acceptance": [{
+    "id": "AC-01",
+    "description": "Replace with an approved behavioral acceptance criterion",
+    "requires": ["test", "behavioral"]
+  }],
+  "policy": {
+    "bindings": [],
+    "max_active_executions": 1
+  }
+}
