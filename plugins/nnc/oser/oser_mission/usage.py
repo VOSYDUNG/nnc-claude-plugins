@@ -1,8 +1,7 @@
-"""One usage snapshot per native response, not per content block or attempt.
+"""One snapshot per native response, not per block, attempt or imported file.
 
 Unknown identity, incomplete categories, conflicting snapshots and cross-Mission
-attribution remain UNKNOWN/INVALID. Never convert tokens into subscription quota,
-price or physical compute. Snapshot+delta mixing is deliberately unsupported.
+attribution remain UNKNOWN/INVALID. No token -> quota, price or FLOP conversion.
 """
 from __future__ import annotations
 
@@ -30,24 +29,25 @@ class Usage:
                 text(request_id, "request_id")
             if response_id is not None:
                 text(response_id, "response_id")
-            scope.update(request_id=request_id, response_id=response_id)
+            # Response ID is stable if a later content block adds request metadata.
+            scope["native_id"] = "response:" + response_id if response_id else "request:" + request_id
             key = digest(scope)
         except OserError as exc:
             with self.store.transaction() as db:
-                db.execute("INSERT OR IGNORE INTO usage_unknown VALUES (?, ?)", (digest(record), exc.code))
+                db.execute("INSERT OR IGNORE INTO usage_unknown VALUES (?, ?, ?)",
+                           (digest({"mission": mission, "record": record}), mission, exc.code))
             return {"validity": "UNKNOWN", "reason": exc.code}
         validity = "VALID"
         counters = record.get("usage")
         if record.get("mode", "snapshot") != "snapshot":
             validity = "INVALID"
         if not isinstance(counters, dict) or not all(k in counters for k in CATEGORIES):
-            validity = "UNKNOWN"
+            validity = "INVALID" if validity == "INVALID" else "UNKNOWN"
         else:
             try:
                 counters = {k: integer(counters[k], k) for k in CATEGORIES}
             except OserError:
-                validity = "INVALID"
-                counters = None
+                validity, counters = "INVALID", None
         body = {"identity": scope, "usage": counters, "mode": record.get("mode", "snapshot")}
         with self.store.transaction() as db:
             old = db.execute("SELECT mission,body,validity FROM usage WHERE key=?", (key,)).fetchone()
@@ -63,7 +63,7 @@ class Usage:
         self.store.read(mission)
         with self.store.connection() as db:
             rows = list(db.execute("SELECT body,validity FROM usage WHERE mission=?", (mission,)))
-            unknown = db.execute("SELECT COUNT(*) FROM usage_unknown").fetchone()[0]
+            unknown = db.execute("SELECT COUNT(*) FROM usage_unknown WHERE mission=?", (mission,)).fetchone()[0]
         subtotal = {k: 0 for k in CATEGORIES}
         counts = {"VALID": 0, "INVALID": 0, "UNKNOWN": 0}
         for row in rows:

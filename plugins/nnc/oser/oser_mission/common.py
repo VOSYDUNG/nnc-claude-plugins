@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
@@ -60,11 +61,7 @@ def epoch(value):
 
 
 def project_root(path):
-    """Linked Git worktrees share the main project's canonical state store.
-
-    No fetch, credential lookup, shell, global config mutation, or inference.
-    Non-Git projects use the supplied directory.
-    """
+    """Linked Git worktrees share the main project's state. No network or login."""
     root = Path(path).resolve()
     require(root.is_dir(), "PROJECT_NOT_FOUND", "project must be an existing directory")
     try:
@@ -85,7 +82,7 @@ def safe_path(root, relative):
     text(relative, "relative path")
     normalized = relative.replace("\\", "/")
     parts = Path(normalized).parts
-    require(not Path(normalized).is_absolute() and not PureWindowsPath(relative).is_absolute()
+    require(not Path(normalized).is_absolute() and not PureWindowsPath(relative).drive
             and ".." not in parts and ".git" not in parts,
             "UNSAFE_PATH", "path must stay inside the project, outside .git")
     target = (Path(root) / normalized).resolve()
@@ -108,28 +105,37 @@ def file_hash(path, max_bytes=16 * 1024 * 1024):
 
 
 def source_fingerprint(root, sources):
-    """Hash explicitly declared source inputs. No broad scanning or hidden log reads.
-
-    Directories are supported, but .git/.nnc-oser, symlinks and oversized trees
-    cannot silently become accepted evidence. Changes invalidate prior evidence.
-    """
+    """Hash explicit source inputs; prune excluded trees BEFORE traversing them."""
     require(isinstance(sources, list) and bool(sources), "SOURCES_REQUIRED", "declare relevant source inputs")
-    result = {}
-    total = 0
+    root = Path(root)
+    result, total, visited = {}, 0, 0
+    excluded = {".git", ".nnc-oser", "__pycache__"}
+
+    def add(item):
+        nonlocal total, visited
+        visited += 1
+        require(visited <= 10000, "SOURCE_SCAN_LIMIT", "narrow the declared source inputs")
+        require(not item.is_symlink(), "UNSAFE_PATH", "source inputs must not contain symlinks")
+        if item.is_file():
+            total += item.stat().st_size
+            require(total <= 64 * 1024 * 1024, "SOURCE_SCAN_LIMIT", "source input exceeds 64 MiB")
+            result[item.relative_to(root).as_posix()] = file_hash(item)
+
     for relative in sources:
         path = safe_path(root, relative)
         require(path.exists(), "SOURCE_MISSING", "source input is missing: " + relative)
-        paths = sorted(path.rglob("*")) if path.is_dir() else [path]
-        for item in paths:
-            rel = item.relative_to(Path(root)).as_posix()
-            require(not item.is_symlink(), "UNSAFE_PATH", "source inputs must not contain symlinks")
-            if any(part in (".git", ".nnc-oser", "__pycache__") for part in item.relative_to(root).parts):
-                continue
-            if item.is_file():
-                total += item.stat().st_size
-                require(len(result) < 10000 and total <= 64 * 1024 * 1024,
-                        "SOURCE_SCAN_LIMIT", "narrow the declared source inputs")
-                result[rel] = file_hash(item)
+        require(not any(p in excluded for p in path.relative_to(root).parts), "UNSAFE_PATH", "internal state is not a source input")
+        if path.is_dir():
+            for directory, dirs, files in os.walk(path, followlinks=False):
+                dirs[:] = sorted(d for d in dirs if d not in excluded)
+                visited += 1
+                require(visited <= 10000, "SOURCE_SCAN_LIMIT", "narrow the declared source inputs")
+                for name in dirs:
+                    require(not (Path(directory) / name).is_symlink(), "UNSAFE_PATH", "source inputs must not contain directory symlinks")
+                for name in sorted(files):
+                    add(Path(directory) / name)
+        else:
+            add(path)
     require(bool(result), "SOURCES_REQUIRED", "source inputs contain no files")
     return digest(result)
 

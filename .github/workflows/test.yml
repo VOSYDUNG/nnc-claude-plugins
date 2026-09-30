@@ -1,0 +1,29 @@
+name: OSER offline conformance
+on:
+  push:
+    branches: [main, 'refactor/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.9', '3.12']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compile Python sources
+        run: python -m compileall -q plugins/nnc/oser tests examples
+      - name: Legacy regression and R1 offline conformance
+        run: python -m unittest discover -s tests -v
+      - name: Disposable Mission walkthrough
+        run: python examples/r1_demo.py

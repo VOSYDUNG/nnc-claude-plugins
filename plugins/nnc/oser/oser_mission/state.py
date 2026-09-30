@@ -1,8 +1,8 @@
-"""Transactional Mission state, immutable acceptance and crash-safe replay.
+"""Transactional Mission state and evidence, not a second inference scheduler.
 
-The API enforces projection invariants, not an OS sandbox. Anyone with arbitrary
-write access to this database has the local user's trust; host approvals and
-sandboxing remain authoritative. No model inference or deployment lives here.
+Local tool callers share the launcher's filesystem trust. These contracts are
+not a security sandbox: host permissions, human approvals and external evidence
+validation remain necessary. No inference, credential reads or deploys here.
 """
 from __future__ import annotations
 
@@ -10,10 +10,9 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from copy import deepcopy
-from pathlib import Path
 
 from .capabilities import admit, validate_catalog, validate_policy
-from .common import canonical, digest, epoch, file_hash, integer, project_root, require, safe_path, source_fingerprint, text, utcnow
+from .common import OserError, canonical, digest, epoch, file_hash, integer, number, project_root, require, safe_path, source_fingerprint, text, utcnow
 
 TERMINAL = ("COMPLETED", "FAILED", "CANCELLED")
 RUNTIME_STATES = ("RUNNING", "WAITING", "INTERRUPTED", "UNKNOWN") + TERMINAL
@@ -36,7 +35,7 @@ class Store:
                   mission TEXT NOT NULL, operation TEXT NOT NULL, result TEXT NOT NULL, at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS health (key TEXT PRIMARY KEY, body TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS usage (key TEXT PRIMARY KEY, mission TEXT NOT NULL, body TEXT NOT NULL, validity TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS usage_unknown (key TEXT PRIMARY KEY, reason TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS usage_unknown (key TEXT PRIMARY KEY, mission TEXT NOT NULL, reason TEXT NOT NULL);
                 """)
                 db.execute("INSERT OR IGNORE INTO meta VALUES ('schema', 'nnc-oser/store@1')")
         require(self.path.exists(), "NOT_INITIALIZED", "run oser init with a Mission contract first")
@@ -84,12 +83,12 @@ class Store:
         require(isinstance(baseline, dict), "INVALID_CONTRACT", "baseline is required")
         text(baseline.get("id"), "baseline.id")
         refs = baseline.get("authority")
-        require(isinstance(refs, list) and bool(refs), "AUTHORITY_REQUIRED", "at least one locked authority reference is required")
+        require(isinstance(refs, list) and bool(refs), "AUTHORITY_REQUIRED", "locked authority references are required")
         for ref in refs:
             require(isinstance(ref, dict), "INVALID_AUTHORITY", "authority must be an object")
             if "path" in ref:
                 actual = file_hash(safe_path(self.root, ref["path"]))
-                require(ref.get("sha256", actual) == actual, "AUTHORITY_DRIFT", "local authority does not match its lock")
+                require(ref.get("sha256", actual) == actual, "AUTHORITY_DRIFT", "local authority differs from its lock")
                 ref["sha256"] = actual
             else:
                 text(ref.get("ref"), "authority.ref")
@@ -97,7 +96,7 @@ class Store:
         sources = deepcopy(contract.get("sources"))
         source_fingerprint(self.root, sources)
         acceptance = contract.get("acceptance")
-        require(isinstance(acceptance, list) and bool(acceptance), "ACCEPTANCE_REQUIRED", "acceptance must have a stable denominator")
+        require(isinstance(acceptance, list) and bool(acceptance), "ACCEPTANCE_REQUIRED", "acceptance needs a stable denominator")
         normalized = {}
         for item in acceptance:
             require(isinstance(item, dict), "INVALID_ACCEPTANCE", "criterion must be an object")
@@ -106,7 +105,7 @@ class Store:
             text(item.get("description"), "criterion.description")
             kinds = item.get("requires")
             require(isinstance(kinds, list) and bool(kinds) and all(isinstance(k, str) and k for k in kinds),
-                    "INVALID_ACCEPTANCE", "criterion.requires lists the evidence kinds needed, e.g. test and behavioral")
+                    "INVALID_ACCEPTANCE", "requires must list the actual evidence kinds needed")
             normalized[cid] = {"description": item["description"], "requires": sorted(set(kinds))}
         state = {"schema": "nnc-oser/mission@1", "id": mid, "goal": goal, "baseline": baseline,
                  "sources": sources, "acceptance": normalized, "policy": validate_policy(contract.get("policy")),
@@ -120,7 +119,7 @@ class Store:
             if previous is not None:
                 return previous
             require(db.execute("SELECT 1 FROM missions WHERE id=?", (mid,)).fetchone() is None,
-                    "MISSION_EXISTS", "create a new Mission/baseline; do not overwrite locked acceptance")
+                    "MISSION_EXISTS", "create a new Mission/baseline rather than rewriting acceptance")
             db.execute("INSERT INTO missions VALUES (?, 0, ?)", (mid, canonical(state)))
             self._event(db, event_key, fingerprint, mid, "mission.create", state)
         return state
@@ -154,8 +153,8 @@ class Store:
             require(row is not None, "MISSION_NOT_FOUND", "unknown mission")
             require(row["revision"] == expected_revision, "REVISION_CONFLICT", "read current Mission before retrying")
             state = json.loads(row["state"])
-            # A late native receipt may arrive after ownership transfer. It can
-            # update execution facts, never acceptance, policy or ownership.
+            # A late native observation can update execution facts after transfer,
+            # never policy, acceptance or accountable ownership.
             if operation != "execution.receipt":
                 require(state["owner"] == {"ref": actor, "epoch": owner_epoch},
                         "OWNER_CONFLICT", "stale owner or ownership epoch")
@@ -170,7 +169,7 @@ class Store:
             state["catalog"] = validate_catalog(p)
         elif operation == "execution.open":
             ref = text(p.get("ref"), "execution.ref")
-            require(ref not in state["executions"], "EXECUTION_EXISTS", "use a new segment id for a continuation")
+            require(ref not in state["executions"], "EXECUTION_EXISTS", "continuation needs a new segment id")
             active = sum(e["status"] not in TERMINAL for e in state["executions"].values())
             require(active < state["policy"].get("max_active_executions", 1), "CONCURRENCY_LIMIT", "active execution envelope exhausted")
             result = admit(state["catalog"], state["policy"], p.get("request", {}))
@@ -190,45 +189,52 @@ class Store:
             require(p.get("native_ref") == execution["native_ref"], "NATIVE_REF_MISMATCH", "receipt native identity mismatch")
             text(p.get("source_ref"), "receipt.source_ref")
             observed_at = text(p.get("observed_at"), "observed_at")
-            epoch(observed_at)
+            require(epoch(observed_at) <= epoch(utcnow()), "INVALID_TIME", "receipt source time is in the future")
+            ttl = number(p.get("ttl_seconds", 300), "receipt ttl_seconds", 1, 86400)
             status = p.get("status")
-            require(status in RUNTIME_STATES, "INVALID_STATUS", "normalize runtime status; preserve the native status separately")
+            require(status in RUNTIME_STATES, "INVALID_STATUS", "normalize status; retain native status separately")
             if execution.get("observed_at"):
-                require(epoch(observed_at) >= epoch(execution["observed_at"]), "STALE_RECEIPT", "receipt predates the last observed execution event")
+                require(epoch(observed_at) >= epoch(execution["observed_at"]), "STALE_RECEIPT", "receipt predates the last event")
             require(execution["status"] not in TERMINAL or execution["status"] == status,
-                    "TERMINAL_CONFLICT", "terminal segments are immutable; resume is a new segment")
+                    "TERMINAL_CONFLICT", "terminal segments are immutable; resume uses a new segment")
             observed = p.get("observed", {})
             require(isinstance(observed, dict), "INVALID_RECEIPT", "observed must be an object")
+            if execution.get("observed_at") == observed_at:
+                require(execution["status"] == status and execution["observed"] == observed,
+                        "RECEIPT_CONFLICT", "contradictory observation at the same source time")
+                return
             resolved = execution["plan"]["resolved"]
             violations = [key for key in ("host", "provider", "account", "model", "effort")
                           if key in observed and observed[key] != resolved.get(key)]
             execution.update(status=status, observed=observed, source_ref=p["source_ref"], observed_at=observed_at,
-                             native_status=p.get("native_status"), reconciled=False)
+                             ttl_seconds=ttl, native_status=p.get("native_status"), reconciled=False)
             execution["policy_violations"] = sorted(set(execution["policy_violations"] + violations))
         elif operation == "execution.reconcile":
             ref = p.get("ref")
             require(ref in state["executions"], "EXECUTION_NOT_FOUND", "unknown execution")
             execution = state["executions"][ref]
-            require(execution["status"] in TERMINAL, "NOT_TERMINAL", "reconcile only after a terminal receipt")
+            require(execution["status"] in TERMINAL, "NOT_TERMINAL", "reconcile after a terminal receipt")
             text(p.get("evidence_ref"), "reconciliation evidence_ref")
-            proof = safe_path(self.root, p["evidence_ref"])
-            execution.update(reconciled=True, reconciliation={"path": p["evidence_ref"], "sha256": file_hash(proof)})
+            execution.update(reconciled=True, reconciliation={"path": p["evidence_ref"], "sha256": file_hash(safe_path(self.root, p["evidence_ref"]))})
         elif operation == "checkpoint.record":
             text(p.get("summary"), "checkpoint.summary")
             text(p.get("next_action"), "checkpoint.next_action")
             mode = p.get("runtime_state", "UNKNOWN")
-            require(mode in ("RUNNING", "WAITING", "INTERRUPTED", "UNKNOWN", "RECOVERING"), "INVALID_STATUS", "invalid checkpoint runtime state")
+            require(mode in ("RUNNING", "WAITING", "INTERRUPTED", "UNKNOWN", "RECOVERING"), "INVALID_STATUS", "invalid reported state")
+            waits = p.get("waiting_for", [])
+            require(isinstance(waits, list) and all(isinstance(ref, str) for ref in waits), "INVALID_WAIT", "waiting_for must be a reference list")
             if mode == "WAITING":
-                require(bool(p.get("waiting_for")) or bool(p.get("external_wait_ref")), "WAIT_REASON_REQUIRED", "waiting is legal with a durable dependency")
-                require(all(ref in state["executions"] for ref in p.get("waiting_for", [])), "UNKNOWN_DEPENDENCY", "waiting execution not registered")
+                require(bool(waits) or bool(p.get("external_wait_ref")), "WAIT_REASON_REQUIRED", "waiting needs a durable dependency")
+                require(all(ref in state["executions"] for ref in waits), "UNKNOWN_DEPENDENCY", "waiting execution not registered")
             state["checkpoints"].append({"summary": p["summary"], "next_action": p["next_action"],
                                          "owner": deepcopy(state["owner"]), "at": utcnow(),
                                          "open_executions": [ref for ref, e in state["executions"].items() if not e["reconciled"]],
-                                         "waiting_for": p.get("waiting_for", []), "external_wait_ref": p.get("external_wait_ref"),
+                                         "waiting_for": waits, "external_wait_ref": p.get("external_wait_ref"),
                                          "source_hash": source_fingerprint(self.root, state["sources"])})
-            state["runtime_state"] = mode
+            state["runtime_state"] = mode  # Explicitly REPORTED, never independent Health.
         elif operation == "ownership.transfer":
             require(bool(state["checkpoints"]), "CHECKPOINT_REQUIRED", "transfer requires durable continuation state")
+            require(state["checkpoints"][-1]["owner"] == state["owner"], "CHECKPOINT_REQUIRED", "the current owner must checkpoint before transferring")
             text(p.get("to"), "new owner")
             require(p["to"] != state["owner"]["ref"], "OWNER_CONFLICT", "new owner must differ")
             text(p.get("reason"), "transfer.reason")
@@ -237,14 +243,14 @@ class Store:
         elif operation == "evidence.record":
             criterion = p.get("criterion")
             require(criterion in state["acceptance"], "UNKNOWN_CRITERION", "execution tasks cannot change acceptance")
-            require(p.get("kind") in state["acceptance"][criterion]["requires"], "EVIDENCE_KIND", "evidence kind does not satisfy this criterion")
+            require(p.get("kind") in state["acceptance"][criterion]["requires"], "EVIDENCE_KIND", "evidence kind does not satisfy criterion")
             require(p.get("outcome") in ("pass", "fail"), "EVIDENCE_OUTCOME", "explicit pass/fail required")
             text(p.get("producer_ref"), "producer_ref")
             path = safe_path(self.root, p.get("path"))
             state["evidence"].append({"criterion": criterion, "kind": p["kind"], "outcome": p["outcome"],
                                       "path": p["path"], "sha256": file_hash(path), "producer_ref": p["producer_ref"],
                                       "source_hash": source_fingerprint(self.root, state["sources"]), "baseline": state["baseline"]["id"],
-                                      "at": utcnow(), "trust": "HOST_ATTESTATION", "note": p.get("note", "")})
+                                      "at": utcnow(), "trust": "RECORDED_ATTESTATION", "note": p.get("note", "")})
             state["status"] = "OPEN"
         elif operation == "blocker.set":
             bid = text(p.get("id"), "blocker.id")
@@ -252,7 +258,8 @@ class Store:
             require(type(p.get("resolved", False)) is bool, "INVALID_INPUT", "resolved must be boolean")
             state["blockers"][bid] = {"summary": p["summary"], "resolved": p.get("resolved", False),
                                        "kind": p.get("kind", "dependency"), "evidence_ref": p.get("evidence_ref")}
-            # Tracking an approval never grants provider/deployment permissions.
+            if not p.get("resolved", False):
+                state["status"] = "OPEN"
         elif operation == "mission.complete":
             view = self.evaluate(state)
             require(view["accepted"] == view["total"] and view["authority_status"] != "DRIFT", "ACCEPTANCE_INCOMPLETE", "all current acceptance evidence must pass")
@@ -261,10 +268,14 @@ class Store:
                     "UNRECONCILED_EXECUTION", "execution result or policy mismatch remains unaccounted")
             state["status"] = "DONE"
         else:
-            require(False, "UNKNOWN_OPERATION", "operation is not a Mission kernel operation")
+            require(False, "UNKNOWN_OPERATION", "not a Mission kernel operation")
 
     def evaluate(self, state):
-        source_hash = source_fingerprint(self.root, state["sources"])
+        try:
+            source_hash = source_fingerprint(self.root, state["sources"])
+            source_status = "CURRENT"
+        except (OserError, OSError):
+            source_hash, source_status = None, "UNAVAILABLE"
         authority_status = "LOCKED_LOCAL"
         for ref in state["baseline"]["authority"]:
             if "path" in ref:
@@ -288,8 +299,8 @@ class Store:
                         actual = file_hash(safe_path(self.root, evidence["path"]))
                     except (ValueError, OSError):
                         actual = None
-                    current = (evidence["baseline"] == state["baseline"]["id"] and evidence["source_hash"] == source_hash
-                               and actual == evidence["sha256"] and authority_status != "DRIFT")
+                    current = (source_hash is not None and evidence["baseline"] == state["baseline"]["id"]
+                               and evidence["source_hash"] == source_hash and actual == evidence["sha256"] and authority_status != "DRIFT")
                     status = ("PASS" if evidence["outcome"] == "pass" else "FAIL") if current else "STALE"
                 kinds[kind] = status
             criteria.append({"id": cid, "description": criterion["description"], "evidence": kinds,
@@ -297,9 +308,18 @@ class Store:
         accepted = sum(c["accepted"] for c in criteria)
         pending = [ref for ref, e in state["executions"].items() if e["status"] in TERMINAL and not e["reconciled"]]
         violations = [ref for ref, e in state["executions"].items() if e["policy_violations"]]
-        effective = "REOPENED" if state["status"] == "DONE" and (accepted != len(criteria) or authority_status == "DRIFT") else state["status"]
+        effective = "REOPENED" if state["status"] == "DONE" and (accepted != len(criteria) or pending or violations) else state["status"]
+        clock = epoch(utcnow())
+        active = [e for e in state["executions"].values() if e["status"] not in TERMINAL]
+        fresh = [e["status"] for e in active if e.get("observed_at") and 0 <= clock - epoch(e["observed_at"]) <= e.get("ttl_seconds", 300)]
+        runtime = "UNKNOWN"
+        for condition in ("WAITING", "RUNNING", "INTERRUPTED"):
+            if condition in fresh:
+                runtime = condition
         return {"id": state["id"], "goal": state["goal"], "revision": state["revision"], "owner": state["owner"],
-                "status": effective, "runtime_state": state["runtime_state"], "authority_status": authority_status,
+                "status": effective, "runtime_state": runtime, "reported_runtime_state": state["runtime_state"],
+                "runtime_source": "RECORDED_NATIVE_RECEIPTS" if fresh else "NO_FRESH_EXECUTION_OBSERVATION",
+                "authority_status": authority_status, "source_status": source_status,
                 "accepted": accepted, "total": len(criteria), "verified_percent": round(100 * accepted / len(criteria)),
                 "percentage_meaning": "current acceptance coverage, not remaining time", "criteria": criteria,
                 "frontier": [c["id"] for c in criteria if not c["accepted"]], "source_hash": source_hash,
