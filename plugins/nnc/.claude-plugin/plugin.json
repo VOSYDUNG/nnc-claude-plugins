@@ -1,7 +1,7 @@
 {
   "name": "nnc",
-  "version": "5.0.0-rc.1",
-  "description": "NNC OSER R1: provider-neutral Mission state, capability admission, evidence, recovery and Health. Claude plugin packaging; CLI/MCP also usable from Codex or other hosts. No mandatory model roles.",
+  "version": "5.1.0-alpha.1",
+  "description": "NNC OSER R2 alpha: Human Mission Space over the provider-neutral R1 Mission kernel. Adds mission formation, consequence-oriented decisions, Clean Desk authority hygiene and adaptive delivery without fixed model roles.",
   "author": {"name": "NNC Lao Group · Ban R&D AI"},
   "license": "MIT",
   "keywords": ["mission", "agent", "mcp", "evidence", "quota", "nnc"]

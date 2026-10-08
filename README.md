@@ -1,11 +1,12 @@
-# NNC OSER — Mission R1
+# NNC OSER — Human Mission R2 Alpha
 
-**5.0.0-rc.1 · test candidate, not a production certification.**
+**5.1.0-alpha.1 · Human Mission Space test candidate, not a production certification.**
 
 NNC OSER keeps a project's Mission, approved authority, acceptance evidence,
 continuation state and Health durable while the current agent chooses how to
-work. It does **not** prescribe a Governor, model family, task roster, effort
-ladder or number of agents.
+work. R2 adds Mission Formation, consequence-oriented human decisions, Clean
+Desk authority hygiene and adaptive delivery above the R1 kernel. It does **not**
+prescribe a Governor, model family, task roster, effort ladder or number of agents.
 
 The repository retains its Claude-plugin packaging name. The R1 Python kernel
 and stdio MCP server also work outside Claude Code: Codex and other hosts connect
@@ -15,7 +16,7 @@ Python **3.9+**, standard library, Git for linked-worktree resolution.
 ## Test this branch
 
 ```bash
-git clone --branch refactor/oser-vnext-r1 https://github.com/VOSYDUNG/nnc-claude-plugins.git
+git clone --branch refactor/oser-r2-human-mission https://github.com/VOSYDUNG/nnc-claude-plugins.git
 cd nnc-claude-plugins
 python -m unittest discover -s tests -v
 python plugins/nnc/oser/oser.py version

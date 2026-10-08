@@ -12,6 +12,9 @@ from . import VERSION
 from .adapters import claude_health, claude_lifecycle, claude_usage, codex_health
 from .capabilities import admit
 from .common import OserError, digest, epoch, file_hash, load_json_file, project_root, require, safe_path, utcnow
+from .decision import ask_user_payload, render_decision, validate_decision, write_decision
+from .desk import desk_view, validate_desk
+from .formation import formation_view, validate_formation
 from .health import Health, render
 from .probe import available_hosts, codex_probe
 from .state import Store
@@ -65,11 +68,11 @@ def migration_plan(root):
 
 
 def build_parser():
-    ap = argparse.ArgumentParser(prog="oser", description="NNC OSER R1 — Mission, capability, evidence and Health")
+    ap = argparse.ArgumentParser(prog="oser", description="NNC OSER R2 — Human Mission Space over the R1 Mission kernel")
     sub = ap.add_subparsers(dest="command")
     sub.add_parser("version")
     sub.add_parser("hosts")
-    for name in ("init", "status", "doctor", "apply", "admit", "catalog", "health", "usage", "probe", "serve", "migration-plan", "statusline", "hook"):
+    for name in ("init", "status", "doctor", "apply", "admit", "catalog", "health", "usage", "probe", "serve", "migration-plan", "statusline", "hook", "decision-check", "decision-write", "decision-ask", "desk-check", "formation-check"):
         p = sub.add_parser(name)
         p.add_argument("--project", default=os.getcwd(), help="existing project/worktree (canonical state shared through Git common dir)")
         if name in ("status", "doctor", "apply", "admit", "catalog", "usage"):
@@ -77,6 +80,8 @@ def build_parser():
         if name == "init":
             p.add_argument("--contract", required=True, help="approved contract JSON file; '-' reads stdin")
             p.add_argument("--event-key")
+        if name in ("decision-check", "decision-write", "decision-ask", "desk-check", "formation-check"):
+            p.add_argument("--input", required=True, help="JSON file or '-' for stdin")
         if name in ("status", "doctor"):
             p.add_argument("--json", action="store_true")
         if name == "apply":
@@ -142,6 +147,23 @@ def main(argv=None):
             return 0
         if args.command == "migration-plan":
             emit(migration_plan(args.project))
+            return 0
+        if args.command == "decision-check":
+            value = validate_decision(input_json(args.input))
+            emit({"decision": value, "rendered": render_decision(value)})
+            return 0
+        if args.command == "decision-write":
+            emit(write_decision(project_root(args.project), input_json(args.input)))
+            return 0
+        if args.command == "decision-ask":
+            emit(ask_user_payload(input_json(args.input)))
+            return 0
+        if args.command == "desk-check":
+            value = validate_desk(project_root(args.project), input_json(args.input))
+            emit({"desk": value, "view": desk_view(value)})
+            return 0
+        if args.command == "formation-check":
+            emit(formation_view(validate_formation(input_json(args.input))))
             return 0
         if args.command == "init":
             emit(initialize(args.project, input_json(args.contract), args.event_key))
