@@ -1,6 +1,6 @@
 # NNC OSER — Human Mission R2 Alpha
 
-**5.1.0-alpha.1 · Human Mission Space test candidate, not a production certification.**
+**5.1.0-alpha.2 · Human Mission Space pilot candidate, not a production certification.**
 
 NNC OSER keeps a project's Mission, approved authority, acceptance evidence,
 continuation state and Health durable while the current agent chooses how to
@@ -16,7 +16,7 @@ Python **3.9+**, standard library, Git for linked-worktree resolution.
 ## Test this branch
 
 ```bash
-git clone --branch refactor/oser-r2-human-mission https://github.com/VOSYDUNG/nnc-claude-plugins.git
+git clone https://github.com/VOSYDUNG/nnc-claude-plugins.git
 cd nnc-claude-plugins
 python -m unittest discover -s tests -v
 python plugins/nnc/oser/oser.py version
@@ -26,6 +26,9 @@ python examples/r1_demo.py
 The demo creates a disposable project, runs a real deterministic check and shows
 Mission progress plus UNKNOWN quota. It does not call a model, consume a paid
 quota, touch another project or deploy anything.
+
+For non-technical pilots, start with [Mission Formation quickstart](docs/oser-r2/NONTECH-QUICKSTART.md).
+The optional [Experience Observer](docs/oser-r2/EXPERIENCE-OBSERVER.md) records only local anonymous workflow events; it does not capture chat content.
 
 ## Use with a project
 
@@ -79,8 +82,8 @@ structured arguments over manually constructing JSON through a shell.
 ## Claude plugin and Codex integration
 
 On an installed release, the Claude entry is `/nnc:ai-oser`; bundled `.mcp.json`
-exposes the local server. This branch is **not** published to `main` by testing it.
-Use your host's supported local-plugin loading or configure stdio directly.
+exposes the local server. The R2 alpha is carried on `main`; reload/update the installed plugin before a pilot session.
+Use your host's supported plugin loading or configure stdio directly.
 Codex does not need a Claude plugin installer: point its MCP client at the same
 Python `serve --project ...` command.
 

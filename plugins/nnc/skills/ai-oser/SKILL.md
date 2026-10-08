@@ -25,7 +25,8 @@ The CLI/MCP implements state contracts. Host permissions remain authoritative.
 ## Interfaces
 
 `oser init --contract FILE` · `oser status --json` · `oser doctor` ·
-`oser serve` · `oser admit --request FILE` · `oser health` · `oser usage`.
+`oser serve` · `oser admit --request FILE` · `oser health` · `oser usage` ·
+`oser experience-enable` · `oser experience-report` · `oser experience-disable`.
 All project commands accept `--project DIR`. CLI JSON inputs accept `-` for stdin.
 For an agent, prefer `oser_mission_init`, `oser_mission_read`,
 `oser_mission_apply`, `oser_admit`, `oser_health`, `oser_usage` MCP tools.

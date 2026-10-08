@@ -556,7 +556,7 @@ class TestMcpAndCli(Fixture):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual(json.loads(p.stdout)["total"], 1)
         p = subprocess.run([sys.executable, str(HOME / "oser.py"), "version"], capture_output=True, text=True)
-        self.assertEqual(p.stdout.strip(), "5.1.0-alpha.1")
+        self.assertEqual(p.stdout.strip(), "5.1.0-alpha.2")
 
     def test_opt_in_probe_reads_catalog_not_model_turns(self):
         # sys.executable app-server runs this deterministic fake, on all OSes.

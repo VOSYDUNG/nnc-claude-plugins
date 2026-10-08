@@ -1,6 +1,6 @@
 {
   "name": "nnc",
-  "version": "5.1.0-alpha.1",
+  "version": "5.1.0-alpha.2",
   "description": "NNC OSER R2 alpha: Human Mission Space over the provider-neutral R1 Mission kernel. Adds mission formation, consequence-oriented decisions, Clean Desk authority hygiene and adaptive delivery without fixed model roles.",
   "author": {"name": "NNC Lao Group · Ban R&D AI"},
   "license": "MIT",

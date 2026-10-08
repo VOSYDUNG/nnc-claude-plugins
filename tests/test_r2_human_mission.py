@@ -17,6 +17,7 @@ from oser_mission.common import OserError
 from oser_mission.decision import ask_user_payload, render_decision, validate_decision, write_decision
 from oser_mission.desk import desk_view, validate_desk
 from oser_mission.formation import formation_view, validate_formation
+from oser_mission.experience import append as experience_append, enable as experience_enable, from_claude_hook, report as experience_report
 
 
 class TestR2DecisionContract(unittest.TestCase):
@@ -174,6 +175,62 @@ class TestR2DecisionHook(unittest.TestCase):
                     "multiSelect": False}
         out = self.run_hook(question)
         self.assertEqual(out.stdout.strip(), "")
+
+
+class TestR2ExperienceObserver(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="oser-r2-experience-")
+        os.mkdir(os.path.join(self.root, ".nnc-oser"))
+        self.card = TestR2DecisionContract().card()
+        write_decision(self.root, self.card)
+        experience_enable(self.root)
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_observer_records_only_safe_metadata(self):
+        event = {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-secret-looking-id",
+            "cwd": self.root,
+            "prompt": "Nội dung riêng của người dùng không được lưu"
+        }
+        from_claude_hook(self.root, event, None)
+        experience_append(self.root, "formation_checked",
+                          {"formation_stage": "RESEARCH", "source": "test"})
+        report = experience_report(self.root)
+        self.assertEqual(report["counts"]["prompt_submitted"], 1)
+        self.assertEqual(report["counts"]["formation_checked"], 1)
+        with open(os.path.join(self.root, ".nnc-oser", "experience.jsonl"), encoding="utf-8") as stream:
+            log = stream.read()
+        self.assertNotIn("Nội dung riêng", log)
+        self.assertNotIn("session-secret-looking-id", log)
+        self.assertFalse(report["content_capture"])
+
+    def test_decision_observation_maps_only_known_option_id(self):
+        question = ask_user_payload(self.card)["questions"][0]
+        pre = {"hook_event_name": "PreToolUse", "tool_name": "AskUserQuestion",
+               "tool_input": {"questions": [question]}, "session_id": "s1"}
+        from_claude_hook(self.root, pre, lambda _project, _question: self.card)
+        post = {"hook_event_name": "PostToolUse", "tool_name": "AskUserQuestion",
+                "tool_input": {"questions": [question]},
+                "tool_response": {"answer": self.card["uncertainty_option"]["label"]},
+                "session_id": "s1"}
+        from_claude_hook(self.root, post, lambda _project, _question: self.card)
+        report = experience_report(self.root)
+        self.assertEqual(report["counts"]["decision_prompted"], 1)
+        self.assertEqual(report["counts"]["decision_completed"], 1)
+        self.assertEqual(report["self_service"]["uncertainty_routes"], 1)
+
+    def test_disabled_observer_writes_nothing(self):
+        root = tempfile.mkdtemp(prefix="oser-r2-experience-off-")
+        try:
+            os.mkdir(os.path.join(root, ".nnc-oser"))
+            result = experience_append(root, "session_started", {"session_id": "s"})
+            self.assertFalse(result["recorded"])
+            self.assertFalse(os.path.exists(os.path.join(root, ".nnc-oser", "experience.jsonl")))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
 
 class TestR2CleanDesk(unittest.TestCase):

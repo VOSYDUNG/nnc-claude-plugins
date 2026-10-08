@@ -15,6 +15,7 @@ from .common import OserError, digest, epoch, file_hash, load_json_file, project
 from .decision import ask_user_payload, render_decision, validate_decision, write_decision
 from .desk import desk_view, validate_desk
 from .formation import formation_view, validate_formation
+from .experience import append as experience_append, disable as experience_disable, enable as experience_enable, report as experience_report
 from .health import Health, render
 from .probe import available_hosts, codex_probe
 from .state import Store
@@ -72,7 +73,7 @@ def build_parser():
     sub = ap.add_subparsers(dest="command")
     sub.add_parser("version")
     sub.add_parser("hosts")
-    for name in ("init", "status", "doctor", "apply", "admit", "catalog", "health", "usage", "probe", "serve", "migration-plan", "statusline", "hook", "decision-check", "decision-write", "decision-ask", "desk-check", "formation-check"):
+    for name in ("init", "status", "doctor", "apply", "admit", "catalog", "health", "usage", "probe", "serve", "migration-plan", "statusline", "hook", "decision-check", "decision-write", "decision-ask", "desk-check", "formation-check", "experience-enable", "experience-disable", "experience-report"):
         p = sub.add_parser(name)
         p.add_argument("--project", default=os.getcwd(), help="existing project/worktree (canonical state shared through Git common dir)")
         if name in ("status", "doctor", "apply", "admit", "catalog", "usage"):
@@ -148,6 +149,15 @@ def main(argv=None):
         if args.command == "migration-plan":
             emit(migration_plan(args.project))
             return 0
+        if args.command == "experience-enable":
+            emit(experience_enable(project_root(args.project)))
+            return 0
+        if args.command == "experience-disable":
+            emit(experience_disable(project_root(args.project)))
+            return 0
+        if args.command == "experience-report":
+            emit(experience_report(project_root(args.project)))
+            return 0
         if args.command == "decision-check":
             value = validate_decision(input_json(args.input))
             emit({"decision": value, "rendered": render_decision(value)})
@@ -163,10 +173,14 @@ def main(argv=None):
             emit({"desk": value, "view": desk_view(value)})
             return 0
         if args.command == "formation-check":
-            emit(formation_view(validate_formation(input_json(args.input))))
+            view = formation_view(validate_formation(input_json(args.input)))
+            experience_append(project_root(args.project), "formation_checked", {"formation_stage": view["stage"], "source": "cli"})
+            emit(view)
             return 0
         if args.command == "init":
-            emit(initialize(args.project, input_json(args.contract), args.event_key))
+            result = initialize(args.project, input_json(args.contract), args.event_key)
+            experience_append(project_root(args.project), "mission_initialized", {"source": "cli"})
+            emit(result)
             return 0
         if args.command == "probe":
             emit(codex_probe(args.project, args.provider, args.account, args.timeout))

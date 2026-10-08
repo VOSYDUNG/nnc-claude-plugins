@@ -11,6 +11,7 @@ sys.path.insert(0, str(PLUGIN / "oser"))
 
 from oser_mission.common import OserError  # noqa: E402
 from oser_mission.decision import ask_user_payload, load_matching_decision  # noqa: E402
+from oser_mission.experience import append as append_experience  # noqa: E402
 
 
 def deny(reason):
@@ -51,6 +52,9 @@ def main():
             comparable = dict(expected)
             comparable.pop("header", None)
             if incoming != comparable:
+                append_experience(cwd, "decision_guard_blocked", {
+                    "decision_ref": card["id"], "decision_level": card["level"],
+                    "session_id": event.get("session_id"), "source": "claude-code-hook"})
                 deny("OSER material decision %s is missing its locked consequence-oriented option shape. "
                      "Rebuild AskUserQuestion from the saved Decision Card; do not ask the user to infer architecture risk."
                      % card["id"])

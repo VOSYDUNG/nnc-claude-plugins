@@ -27,6 +27,8 @@ database or agent terminology before the real job is understood.
 
 Do not build merely because build is possible.
 
+For an approved pilot, the local Experience Observer may be enabled with `oser experience-enable --project .`. Tell the user once that it records workflow events only and never chat/prompt content; do not upload those events.
+
 ## Progressive disclosure
 
 Read only what applies:
