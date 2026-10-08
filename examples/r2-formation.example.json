@@ -1,0 +1,33 @@
+{
+  "id": "F-CHATBOT-001",
+  "stage": "RESEARCH",
+  "actor": "nontech-user",
+  "problem": "Muốn chatbot hỗ trợ comment/inbox cho fanpage nhưng chưa biết bắt đầu từ đâu.",
+  "current_reality": {
+    "workflow": "Nhân viên hiện trả lời comment/inbox và các câu hỏi lặp lại bằng tay.",
+    "pain": "Mất thời gian cho câu hỏi lặp lại và dễ phụ thuộc người trực.",
+    "current_tools": [
+      "Meta Business Suite"
+    ],
+    "constraints": [
+      "Người dùng vận hành là non-tech",
+      "Không tự động trả lời ngoài phạm vi chưa duyệt"
+    ],
+    "baseline": "Chưa đo — cần lấy số lượng câu hỏi lặp và thời gian phản hồi hiện tại."
+  },
+  "research": [
+    {
+      "candidate": "Native fanpage automation",
+      "class": "native/configuration",
+      "fit": "Phù hợp để kiểm FAQ/kịch bản và chuyển người trước khi custom build.",
+      "source_ref": "official-platform-research-pending",
+      "unknowns": [
+        "Coverage câu hỏi tự do",
+        "Giới hạn dữ liệu/kịch bản"
+      ]
+    }
+  ],
+  "unresolved": [
+    "Cần research thêm ít nhất một giải pháp hiện có để so sánh trước quyết định"
+  ]
+}

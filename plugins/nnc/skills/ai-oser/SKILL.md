@@ -1,11 +1,12 @@
 ---
 name: ai-oser
-description: NNC OSER Mission R1. Initialize/read Mission state, approved authority, evidence, checkpoints, capability admission and Health. Use for OSER, project continuity, interrupted work, quota/context status or Mission acceptance. Does not prescribe agent roles, model families or decomposition.
+description: NNC OSER Human Mission Space. Use for durable Mission state, authority, evidence, checkpoints, Health, interrupted work and capability admission. If the user has only a vague idea or does not know what to build, use mission-formation first; if the Mission is clear, use adaptive-delivery. No fixed agent/model topology.
 ---
 
-# NNC OSER — Mission R1
+# NNC OSER — Human Mission R2
 
-This skill is a discovery entry, not a workflow scheduler or permission grant.
+This skill is the kernel/admin discovery entry, not a workflow scheduler or permission grant.
+Use `mission-formation` before Mission lock and `adaptive-delivery` after the Mission is clear.
 The CLI/MCP implements state contracts. Host permissions remain authoritative.
 
 1. Read the current Mission with `oser status --json` or `oser_mission_read`.

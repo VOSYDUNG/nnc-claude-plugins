@@ -1,14 +1,14 @@
 {
   "name": "nnc-claude-plugins",
   "description": "NNC tools: Mission continuity, evidence and runtime Health.",
-  "version": "5.0.0-rc.1",
+  "version": "5.1.0-alpha.1",
   "owner": {"name": "NNC Lao Group - Ban R&D AI"},
   "plugins": [{
     "name": "nnc",
     "source": "./plugins/nnc",
-    "displayName": "NNC OSER — Mission R1",
-    "description": "Mission OS test candidate: provider-neutral CLI/MCP, transactional state, capability admission, evidence and Health. Live host conformance still required.",
-    "version": "5.0.0-rc.1",
+    "displayName": "NNC OSER — Human Mission R2 Alpha",
+    "description": "Human Mission Space alpha: Mission Formation + Decision Contract + Clean Desk + adaptive delivery over the provider-neutral Mission kernel. Live host/UI conformance still required.",
+    "version": "5.1.0-alpha.1",
     "author": {"name": "NNC Lao Group - Ban R&D AI"},
     "keywords": ["mission", "agent", "mcp", "evidence", "quota"],
     "license": "MIT"

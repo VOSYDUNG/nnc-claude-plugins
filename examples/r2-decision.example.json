@@ -1,0 +1,43 @@
+{
+  "id": "DEC-CHATBOT-001",
+  "level": "D2",
+  "topic": "Hướng chatbot fanpage",
+  "question": "Nên thử hướng nào trước?",
+  "options": [
+    {
+      "id": "native",
+      "label": "Dùng tính năng có sẵn trước",
+      "consequence": "Có thể pilot nhanh mà chưa cần tự vận hành một hệ thống riêng.",
+      "gain": "Time-to-value ngắn và ít bảo trì.",
+      "tradeoff": "Khả năng hiểu câu hỏi tự do và tùy biến có thể hạn chế.",
+      "risk": "Có thể không đáp ứng các tình huống ngoài FAQ/kịch bản.",
+      "reversibility": "easy",
+      "data_impact": "Giữ dữ liệu trong phạm vi nền tảng và nguồn đã duyệt cho pilot.",
+      "recurring_cost": "Theo gói nền tảng hiện hành; chưa tạo thêm hạ tầng riêng.",
+      "maintenance": "Thấp; chủ yếu nội dung, FAQ và rule chuyển người.",
+      "next_action": "Pilot một fanpage với bộ câu hỏi thật trong phạm vi hẹp.",
+      "recommended": true
+    },
+    {
+      "id": "custom",
+      "label": "Tự xây AI bot riêng",
+      "consequence": "Có thể tùy biến sâu nhưng phải build, tích hợp và bảo trì.",
+      "gain": "Kiểm soát logic, knowledge và tích hợp tốt hơn nếu nhu cầu thực sự cần.",
+      "tradeoff": "Thời gian triển khai và vận hành cao hơn.",
+      "risk": "Có thể overbuild trước khi chứng minh nhu cầu.",
+      "reversibility": "partial",
+      "data_impact": "Cần xác định rõ dữ liệu nào rời nền tảng và quyền truy cập nào được cấp.",
+      "recurring_cost": "Có thể phát sinh API, hosting và dịch vụ tích hợp.",
+      "maintenance": "Cần owner kỹ thuật cho thay đổi, lỗi và cập nhật nền tảng.",
+      "next_action": "Chỉ prototype sau khi pilot native chứng minh gap cụ thể.",
+      "recommended": false
+    }
+  ],
+  "uncertainty_option": {
+    "id": "investigate",
+    "label": "Tôi chưa chắc — điều tra/thử trước",
+    "consequence": "Chưa khóa kiến trúc; dùng thử có giới hạn để giảm bất định.",
+    "next_action": "Thu thập 20–30 câu hỏi thật và thử các lựa chọn trong phạm vi không ảnh hưởng production."
+  },
+  "recommended_reason": "Với nhu cầu còn đang hình thành, nên chứng minh gap trước khi custom-build."
+}
