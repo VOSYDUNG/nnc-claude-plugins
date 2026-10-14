@@ -65,6 +65,12 @@ class WorkFirstLearningContract(unittest.TestCase):
         self.assertIn("NOT_TESTED", self.scenarios)
         self.assertIn("INSTALL_NOT_VERIFIED", self.pilot)
         self.assertIn("not proof of learner independence", self.pilot)
+        self.assertIn("Claude Desktop", self.pilot)
+        self.assertIn("Code → New session", self.pilot)
+        self.assertIn("/work-first-learning", self.pilot)
+        self.assertIn("/nnc:mission-formation", self.pilot)
+        self.assertIn("OSER_SOURCE_UNVERIFIED", self.pilot)
+        self.assertNotIn("claude --plugin-dir", self.pilot)
 
 
 if __name__ == "__main__":
