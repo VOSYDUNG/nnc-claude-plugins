@@ -30,7 +30,7 @@ NNC-Learning-Sandbox/
 3. Copy the **SKILL.md** and its **references** directory from the ZIP's **plugins/nnc/skills/work-first-learning/** into this new location. Do not copy the marketplace, plugin.json, hooks, .mcp.json, or OSER source into the sandbox.
 4. Open **Claude Desktop → Code → New session**. Select **Local** and choose **NNC-Learning-Sandbox** as the project folder. Use **Manual** permission mode for first contact. On Windows, the Code tab requires Git for Windows installed.
 5. In that Code session, click **+ → Plugins → Manage plugins** and verify **nnc** is enabled from the approved main/alpha.2 source. If the core is not installed, use **+ → Plugins → Add plugin** and install the existing NNC marketplace's main/alpha.2 core at local/project scope. **Do not add the feature branch as a second marketplace of the same name:** adding a marketplace with an existing name can replace the earlier source, and alpha.2 versus branch snapshots may share a version label. If the source/version is unclear, stop at **OSER_SOURCE_UNVERIFIED** and report the screenshot.
-6. In the Code prompt box, type **/work-first-learning** or choose that Skill from **+ → Slash commands**. Confirm it appears. If absent, close this sandbox session and create a new Local Code session after checking the folder tree. Do not claim the Skill loaded until observed.
+6. In the Code prompt box, type **/work-first-learning** or choose that Skill from **+ → Slash commands**. Confirm it appears. If absent, record **INSTALL_NOT_VERIFIED**, close this sandbox session and create a new Local Code session after checking the folder tree. Do not claim the Skill loaded until observed.
 7. Confirm **/nnc:mission-formation** is separately available in the same session. Do not invoke it automatically: hand off only if the concrete learning case genuinely becomes a material improvement decision requiring Mission Formation.
 8. Do **not** enable Experience Observer, run OSER init, grant broad filesystem permissions, upload private data or write to live systems during this first practice.
 
@@ -61,6 +61,6 @@ Use the [seven simulated cases](../../plugins/nnc/skills/work-first-learning/ref
 - First 3–5 questions/answers and the changed-input test with synthetic information.
 - Observed tool/version status, blocked step and one improvement to the method.
 
-Keep the PR draft until actual Desktop behavior and teaching value are reviewed. Do not report a CLI, static CI or a successful file export as real learner acceptance.
+Keep the PR draft until actual Desktop behavior and teaching value are reviewed. Static CI or a successful file export is **not proof of learner independence**; do not report them as real learner acceptance.
 
 **Official docs:** https://code.claude.com/docs/en/desktop and https://code.claude.com/docs/en/skills.
