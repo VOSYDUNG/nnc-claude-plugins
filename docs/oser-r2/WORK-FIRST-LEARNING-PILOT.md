@@ -16,8 +16,24 @@ It does **not** rewrite /nnc:ai-oser, /nnc:mission-formation, /nnc:adaptive-deli
 1. Make an **empty local test directory** containing only synthetic or permitted input. Keep it separate from any live project, the NNC OSER source checkout on XEON, and personal/private folders.
 2. Confirm Python 3.9+ and Git, and inspect installed plugin sources/versions. The existing nnc marketplace may point at main/alpha.2 or a local checkout; do **not** install an identically named marketplace on top of another.
 3. Obtain this exact feature branch via a **separate checkout** rather than the default main. Keep the baseline intact. Ask Claude to inspect the local checkout's marketplace descriptor and the new Skill before installation.
-4. Install/reload this checkout only using the Claude Code Desktop plugin mechanism supported by that installed version. A GitHub marketplace entry with no branch pin can load main, where the new Skill does **not** exist. Verify that /nnc:work-first-learning actually appears; if not, record INSTALL_NOT_VERIFIED and stop rather than claiming the test ran.
+4. For the lowest-risk first host check, start a separate **Claude Code CLI test session** using the local plugin directory (the plugin root is plugins/nnc, not the repository root). Anthropic documents that the local copy takes precedence over a same-named marketplace plugin for **that session** only; no global plugin replace is needed. This proves the CLI host, not necessarily the Desktop UI. A GitHub marketplace entry with no branch pin can load main, where the new Skill does **not** exist. Verify that /nnc:work-first-learning actually appears; if not, record INSTALL_NOT_VERIFIED and stop rather than claiming the test ran.
 5. Do not enable Experience Observer during the first pilot. It is opt-in, not proof of learning.
+
+### Windows PowerShell example (Claude Code CLI test)
+
+Choose new, empty directories. These commands are for the **user's computer**, not the XEON OSER source checkout:
+
+~~~powershell
+git clone --branch feat/learning-work-first-v0.1 --single-branch https://github.com/VOSYDUNG/nnc-claude-plugins.git "$env:USERPROFILE\NNC-OSER-Learning-Test"
+New-Item -ItemType Directory -Force "$env:USERPROFILE\NNC-Learning-Sandbox"
+Set-Location "$env:USERPROFILE\NNC-Learning-Sandbox"
+claude --plugin-dir "$env:USERPROFILE\NNC-OSER-Learning-Test\plugins\nnc"
+~~~
+
+If the folder already exists, inspect it and use a different test path instead of overwriting work. If the Claude CLI is unavailable, report that prerequisite rather than pretending the Desktop test passed. To test the Desktop UI later, verify its own plugin source and version independently. For an installed version that supports it, Anthropic also documents pinning a marketplace at a branch via owner/repo@ref, but do not add a same-named marketplace over an existing installation for this first test.
+
+Official reference: https://code.claude.com/docs/en/plugins (Testing locally, --plugin-dir).
+
 
 ## Suggested first message
 
