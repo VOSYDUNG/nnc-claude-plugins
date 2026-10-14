@@ -71,4 +71,4 @@ Keep only a brief handoff: work instance reference (not raw private data), confi
 - The teacher checks the method; the person and responsible business owner verify the business result. A session demo is not business acceptance.
 - If the person asks to stop, changes their task, or rejects the suggested approach, adapt immediately.
 
-For piloting, use [work-first scenarios and observations](references/scenarios.md). For installation, release gates and non-destructive host checks, see [the test runbook](../../../../docs/oser-r2/WORK-FIRST-LEARNING-PILOT.md).
+For piloting, use [work-first scenarios and observations](references/scenarios.md). For installation, release gates and non-destructive host checks, see [the Claude Code Desktop test runbook](https://github.com/VOSYDUNG/nnc-claude-plugins/blob/feat/learning-work-first-v0.1/docs/oser-r2/WORK-FIRST-LEARNING-PILOT.md).
