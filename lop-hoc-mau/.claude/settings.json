@@ -1,0 +1,21 @@
+{
+  "extraKnownMarketplaces": {
+    "nnc-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "VOSYDUNG/nnc-claude-plugins",
+        "ref": "lop-hoc-v0.6.0"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "nnc@nnc-claude-plugins": true,
+    "lop-hoc@nnc-claude-plugins": true
+  },
+  "permissions": {
+    "allow": [
+      "Edit(./.lop-hoc/**)",
+      "Edit(./Thuc-hanh/**)"
+    ]
+  }
+}

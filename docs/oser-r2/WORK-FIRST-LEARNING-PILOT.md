@@ -1,66 +1,62 @@
-# Work-first learning v0.1 — Claude Code Desktop pilot runbook
+# Lớp học NNC — đóng gói, cài đặt và pilot (v0.6)
 
-**Target host:** Claude Desktop on Windows, **Code** tab, **Local** session only.
-**Feature branch:** feat/learning-work-first-v0.1 (draft learning layer).
-**Core plugin:** NNC OSER 5.1.0-alpha.2 from GitHub main commit 94ddf8b5a7cd69a65a3bf54991486da70c2a0282.
-**Status:** static Skill and CI tests passed; no real Desktop behavior or learner independence is yet verified.
+**Nơi chạy:** Claude Desktop trên Windows, tab **Code**, phiên **Local**. Giao diện lớp học (mod) cần Claude Code 2.1.286 trở lên.
+**Bản phát hành pilot:** tag `lop-hoc-v0.6.0` trên nhánh `feat/learning-work-first-v0.1` (chưa merge `main`).
+**Thành phần** (cùng một marketplace `nnc-claude-plugins`, nguồn đường dẫn tương đối):
 
-## Two separate layers, no plugin collision
+| Plugin | Phiên bản | Chứa |
+|---|---|---|
+| `nnc` | `5.1.0-alpha.2+lophoc.0.6.0` | NNC OSER alpha.2 + Skill **`nnc:work-first-learning`** (giáo viên, giáo án, kho trò, thẻ định nghĩa, dữ liệu mẫu) |
+| `lop-hoc` | `0.6.0` | Mod giao diện: bục giảng, nhịp buổi học, một chạm, thử thách, sao, huy hiệu |
 
-1. **OSER core:** the existing installed **nnc** plugin from main/alpha.2 supplies Mission Formation, Decision Cards, Adaptive Delivery and OSER state. Do not replace, reinstall from alpha.3 or merge branches for this test.
-2. **Learning layer:** copy **work-first-learning** from the feature branch into a disposable **project-local Skill** folder. This is the supported way to test the exact Skill instructions in Claude Code Desktop without replacing the marketplace/plugin name used by the core.
+**Trạng thái:** test tĩnh, test engine của mod và test dữ liệu mẫu đều qua; **chưa có học viên thật**. Test hay một lần cài thành công là **not proof of learner independence**.
 
-**Names differ during this first test:** project-local Skill is **/work-first-learning**; base OSER plugin Skills remain **/nnc:mission-formation**, **/nnc:adaptive-delivery** and **/nnc:ai-oser**. The proposed packaged name **/nnc:work-first-learning** can be tested separately after plugin integration/release. Do not claim the package installed simply because a project Skill works.
+## 1. Gói giao cho người mới
 
-## Desktop-only setup (Windows, no CLI)
-
-1. Open the [feature branch](https://github.com/VOSYDUNG/nnc-claude-plugins/tree/feat/learning-work-first-v0.1) in a browser. Click **Code → Download ZIP** and extract into a new folder. Do not extract on top of any existing NNC OSER checkout.
-2. In File Explorer, create a new empty folder for simulated work, for example **NNC-Learning-Sandbox** in your user home folder (not a production repo). Inside it, create this exact structure:
+Thư mục `lop-hoc-mau/` trong repo, phát dưới dạng ZIP **Lop-hoc-NNC**:
 
 ~~~text
-NNC-Learning-Sandbox/
-└── .claude/
-    └── skills/
-        └── work-first-learning/
-            ├── SKILL.md
-            └── references/
-                └── scenarios.md
+Lop-hoc-NNC/
+├── CLAUDE.md            ← quy tắc lớp học (sinh từ templates/classroom-CLAUDE.md)
+├── HUONG-DAN.md         ← 4 bước cho học viên
+├── NGUOI-DUNG-LOP.md    ← checklist người đứng lớp
+├── Thuc-hanh/           ← nơi giáo viên chép file mẫu
+└── .claude/settings.json
+       ├── extraKnownMarketplaces: nnc-claude-plugins ← GitHub VOSYDUNG/nnc-claude-plugins @ lop-hoc-v0.6.0
+       ├── enabledPlugins: nnc@nnc-claude-plugins, lop-hoc@nnc-claude-plugins
+       └── permissions.allow: Edit(./.lop-hoc/**), Edit(./Thuc-hanh/**)
 ~~~
 
-3. Copy the **SKILL.md** and its **references** directory from the ZIP's **plugins/nnc/skills/work-first-learning/** into this new location. Do not copy the marketplace, plugin.json, hooks, .mcp.json, or OSER source into the sandbox.
-4. Open **Claude Desktop → Code → New session**. Select **Local** and choose **NNC-Learning-Sandbox** as the project folder. Use **Manual** permission mode for first contact. On Windows, the Code tab requires Git for Windows installed.
-5. In that Code session, click **+ → Plugins → Manage plugins** and verify **nnc** is enabled from the approved main/alpha.2 source. If the core is not installed, use **+ → Plugins → Add plugin** and install the existing NNC marketplace's main/alpha.2 core at local/project scope. **Do not add the feature branch as a second marketplace of the same name:** adding a marketplace with an existing name can replace the earlier source, and alpha.2 versus branch snapshots may share a version label. If the source/version is unclear, stop at **OSER_SOURCE_UNVERIFIED** and report the screenshot.
-6. In the Code prompt box, type **/work-first-learning** or choose that Skill from **+ → Slash commands**. Confirm it appears. If absent, record **INSTALL_NOT_VERIFIED**, close this sandbox session and create a new Local Code session after checking the folder tree. Do not claim the Skill loaded until observed.
-7. Confirm **/nnc:mission-formation** is separately available in the same session. Do not invoke it automatically: hand off only if the concrete learning case genuinely becomes a material improvement decision requiring Mission Formation.
-8. Do **not** enable Experience Observer, run OSER init, grant broad filesystem permissions, upload private data or write to live systems during this first practice.
+Người mới mở thư mục trong **Claude Desktop → Code → New session → Local**, đồng ý tin cậy thư mục. Claude Code tải marketplace từ GitHub theo tag. Hai plugin dùng đường dẫn tương đối nên được nạp theo marketplace, không cần lệnh cài.
 
-### First learner message
+**Dựng lại gói:** `python tools/build_lop_hoc_mau.py --tag <tag> --zip <đường dẫn>.zip`. Test kiểm tra `CLAUDE.md` của gói khớp template và tag khớp phiên bản `lop-hoc`.
 
-After selecting **/work-first-learning** in Claude Desktop Code, send:
+## 2. Kiểm tra một máy (G1)
 
-> Tôi muốn thực hành với Claude từ một việc thực tế gần nhất. Không hỏi chức danh hoặc mô tả nhiệm vụ tổng quát. Hãy bắt đầu bằng đúng một câu hỏi về hôm nay, hôm qua hoặc ca gần nhất; mỗi lượt chỉ hỏi điều quan trọng tiếp theo. Khi đủ thông tin, hãy hướng dẫn tôi làm một bước nhỏ bằng dữ liệu giả hoặc đã được phép; để tôi tự kiểm kết quả, xử lý dữ liệu thay đổi và biết cách tiếp tục. Không tự tạo Mission, không xây web/app hoặc cài thêm công cụ nếu chưa có căn cứ.
+1. Bục giảng hiện *"Lớp đang chờ giáo viên"*.
+2. Gõ `/`: có **`/nnc:work-first-learning`** và **`/nnc:mission-formation`**. Trong môi trường phát triển, Skill có thể hiện là `/work-first-learning`.
+3. Thiếu thì ghi **INSTALL_NOT_VERIFIED**, mở phiên mới và xem mục Plugins hoặc thẻ Errors.
+4. Nguồn hoặc phiên bản OSER không rõ (ví dụ máy đã cài `nnc` từ nguồn khác cùng tên marketplace) thì dừng ở **OSER_SOURCE_UNVERIFIED** và gửi ảnh chụp.
+5. Không bật Experience Observer, không chạy OSER init, không cấp quyền rộng, không đưa dữ liệu riêng lên, không ghi vào hệ thống thật.
 
-If the user already described a concrete recent job, Claude should continue directly instead of asking for that same job again.
+## 3. Phát hành bản mới
 
-## What this proves — and does not prove
+1. Đổi `version` của `nnc` và/hoặc `lop-hoc` (cả `plugin.json` và `marketplace.json`). Plugin GitHub được chép vào cache theo phiên bản, nên **không đổi phiên bản thì máy đã cài giữ bản cũ**.
+2. Chạy toàn bộ test: `python -m unittest discover -s tests`, rồi `claude plugin test plugins/lop-hoc` và `claude plugin validate plugins/lop-hoc` bằng bản `claude` đi kèm Desktop.
+3. Gắn tag mới, dựng lại `lop-hoc-mau` với tag đó, phát ZIP mới.
 
-- **G1 Desktop discovery:** /work-first-learning project Skill appears under a Local Code session.
-- **G2 OSER core:** /nnc:mission-formation is available from an independently verified main/alpha.2 install.
-- **G3 Guidance:** first 3–5 turns start from recent work, one relevant question at a time; move to a safe action without a long intake form.
-- **G4 Recovery:** use an invented changing/missing field; learner detects and verifies it, rather than Claude guessing.
-- **G5 Independent transfer:** the learner handles a new instance without the trainer performing material decisions. Business reuse still requires a later real occurrence accepted by the responsible receiver.
+## 4. Riêng tư khi phát hành
 
-**Separate future gate:** native installation of the feature-branch plugin package and hooks in Claude Desktop. The project-local Skill trial does **not** establish that branch plugin packaging, MCP configuration or global installation works.
+Repo là **công khai**. File đưa lên repo không chứa tên người, yêu cầu nội bộ, đường dẫn tài liệu nội bộ hay dữ liệu thật; test `test_lop_hoc_package.py` kiểm tra điều này. Dữ liệu mẫu đều là dữ liệu giả, có nhãn "— mẫu".
 
-Use the [seven simulated cases](../../plugins/nnc/skills/work-first-learning/references/scenarios.md). A person's actual legitimate job is preferable once permissions are clear; never use a mandatory department or role-based training exercise.
+## 5. Cổng kiểm chứng
 
-## Evidence to return for review
+| Cổng | Kiểm gì |
+|---|---|
+| G1 | Cài từ gói, bục giảng và Skill hiện đủ |
+| G2 | Giáo viên mở từ việc gần nhất, thao tác thật trong 2 phút đầu |
+| G3 | Học viên làm một việc và tự kiểm |
+| G4 | Đầu vào đổi hoặc thiếu được kiểm, không đoán |
+| G5 | Học viên tự làm một việc mới mà người đào tạo không làm thay |
 
-- Screenshot of **Code / Local / sandbox project**.
-- Screenshot of **+ → Skills** showing **/work-first-learning** and **/nnc:mission-formation**, or errors.
-- First 3–5 questions/answers and the changed-input test with synthetic information.
-- Observed tool/version status, blocked step and one improvement to the method.
-
-Keep the PR draft until actual Desktop behavior and teaching value are reviewed. Static CI or a successful file export is **not proof of learner independence**; do not report them as real learner acceptance.
-
-**Official docs:** https://code.claude.com/docs/en/desktop and https://code.claude.com/docs/en/skills.
+Tài liệu thiết kế: [hợp đồng chung](LOP-HOC-V05-CONTRACT.md) · [bộ năng lực giáo viên](LOP-HOC-NANG-LUC-GIAO-VIEN.md) · [Buổi 1](LOP-HOC-BUOI-1.md). Tài liệu chính thức: https://code.claude.com/docs/en/plugins/mods/overview · https://code.claude.com/docs/en/plugins/marketplace-reference.
