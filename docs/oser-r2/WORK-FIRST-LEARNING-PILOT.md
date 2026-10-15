@@ -22,12 +22,12 @@ Lop-hoc-NNC/
 ├── NGUOI-DUNG-LOP.md    ← checklist người đứng lớp
 ├── Thuc-hanh/           ← nơi giáo viên chép file mẫu
 └── .claude/settings.json
-       ├── extraKnownMarketplaces: nnc-claude-plugins ← GitHub VOSYDUNG/nnc-claude-plugins @ lop-hoc-v0.6.0
+       ├── extraKnownMarketplaces: nnc-claude-plugins ← git HTTPS github.com/VOSYDUNG/nnc-claude-plugins.git @ lop-hoc-v0.6.0
        ├── enabledPlugins: nnc@nnc-claude-plugins, lop-hoc@nnc-claude-plugins
        └── permissions.allow: Edit(./.lop-hoc/**), Edit(./Thuc-hanh/**)
 ~~~
 
-Người mới mở thư mục trong **Claude Desktop → Code → New session → Local**, đồng ý tin cậy thư mục. Claude Code tải marketplace từ GitHub theo tag. Hai plugin dùng đường dẫn tương đối nên được nạp theo marketplace, không cần lệnh cài.
+Người mới mở thư mục trong **Claude Desktop → Code → New session → Local**, đồng ý tin cậy thư mục. Claude Code tải marketplace từ GitHub theo tag, **qua HTTPS** (dạng rút gọn `owner/repo` clone bằng SSH nên hỏng trên máy không có khóa SSH; đã kiểm bằng một lần cài mới). Hai plugin dùng đường dẫn tương đối nên được nạp theo marketplace, không cần lệnh cài.
 
 **Dựng lại gói:** `python tools/build_lop_hoc_mau.py --tag <tag> --zip <đường dẫn>.zip`. Test kiểm tra `CLAUDE.md` của gói khớp template và tag khớp phiên bản `lop-hoc`.
 

@@ -2,8 +2,8 @@
   "extraKnownMarketplaces": {
     "nnc-claude-plugins": {
       "source": {
-        "source": "github",
-        "repo": "VOSYDUNG/nnc-claude-plugins",
+        "source": "git",
+        "url": "https://github.com/VOSYDUNG/nnc-claude-plugins.git",
         "ref": "lop-hoc-v0.6.0"
       }
     }

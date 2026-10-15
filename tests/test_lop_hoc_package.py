@@ -47,8 +47,9 @@ class LopHocPackage(unittest.TestCase):
     def test_classroom_settings_pin_the_release_tag(self):
         s = json.loads((MAU / ".claude" / "settings.json").read_text(encoding="utf-8"))
         src = s["extraKnownMarketplaces"]["nnc-claude-plugins"]["source"]
-        self.assertEqual(src["source"], "github")
-        self.assertEqual(src["repo"], "VOSYDUNG/nnc-claude-plugins")
+        # HTTPS, không SSH: máy học viên thường không có khóa SSH (đã kiểm bằng cài mới 15/10/2026).
+        self.assertEqual(src["source"], "git")
+        self.assertEqual(src["url"], "https://github.com/VOSYDUNG/nnc-claude-plugins.git")
         lop = json.loads(LOPHOC.read_text(encoding="utf-8"))["version"]
         self.assertEqual(src["ref"], f"lop-hoc-v{lop}")
         self.assertTrue(s["enabledPlugins"]["nnc@nnc-claude-plugins"])

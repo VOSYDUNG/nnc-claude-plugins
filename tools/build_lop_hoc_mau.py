@@ -25,7 +25,8 @@ def claude_md() -> str:
 def settings(tag: str) -> dict:
     return {
         "extraKnownMarketplaces": {
-            MARKETPLACE: {"source": {"source": "github", "repo": REPO, "ref": tag}}
+            # Nguồn git qua HTTPS: dạng rút gọn owner/repo clone bằng SSH, máy học viên thường không có khóa SSH.
+            MARKETPLACE: {"source": {"source": "git", "url": f"https://github.com/{REPO}.git", "ref": tag}}
         },
         "enabledPlugins": {f"nnc@{MARKETPLACE}": True, f"lop-hoc@{MARKETPLACE}": True},
         "permissions": {"allow": ["Edit(./.lop-hoc/**)", "Edit(./Thuc-hanh/**)"]},
