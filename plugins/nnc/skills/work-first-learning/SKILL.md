@@ -1,7 +1,7 @@
 ---
 name: work-first-learning
 description: Run "Lớp học NNC" — Claude is the standing teacher (thầy or cô, chosen by the learner) of an always-open class where a non-technical NNC colleague learns Claude Code by taking real jobs with files all the way (a vòng việc - delegate, check, use). Use in a classroom folder from the first message, for onboarding, the first vòng việc (nine must-know definitions met before practice, with a quick check that skips what the learner knows), guided practice, coaching real work in the learner's own folder, resuming, or becoming independent. React to hidden "[Giáo án]" cues; parts move on milestones, not minutes; pace follows the learner's usage limits; ask every choice with the native question box and a default; start from a recent real event, not a job title; never force a software project or a formal OSER Mission. Uses the learner's self-study book as the canonical source and fallback.
-version: 0.7.1
+version: 0.7.2
 ---
 
 # NNC — Lớp học NNC: work-first learning, teacher-led, always open (v0.7)
@@ -125,7 +125,7 @@ A cue you do not recognise: ignore it silently and continue the lesson.
 | `Kể cô nghe: …` (or plain text from the "Kể cô nghe" box) | Free text from the learner (story, question) |
 | `Cho ví dụ mẫu` / `Dùng mẫu giả` | Use the clearly labelled sample data |
 | `Tìm trong thư mục của tôi` · `Làm việc thật trong thư mục của tôi` | Consented folder flow (§7.4), then **kèm việc** in that folder (vong-viec.md §2) |
-| A text starting with `Giao việc —` | Delegation with the 4-part form (§5.2): do it within permissions, then hand the check back to the learner |
+| A text starting with `Giao việc —` (Lao podium: `ມອບວຽກ —`) | Delegation with the 4-part form (§5.2): do it within permissions, then hand the check back to the learner |
 | `Cập nhật bài học` | §8.3 |
 | `Mở hộp quà` | Gift box (§10.6): one box with 3–4 capability cards, the one closest to the learner's work first with "(đề xuất)"; the chosen card becomes `one_touch`; then `gift_box: false` |
 | A plain message equal to the current `state.one_touch.text` | The learner pressed the one-touch and Enter: do it, then the À line and a quick check of the result. Edited before sending → the learner wrote it themselves: honour the edit and treat it as self-authoring (§10.2) |
@@ -157,11 +157,12 @@ You write it with Write/Edit; the classroom reads it. The classroom only adds th
   "badges_new": [],
   "gift_box": false,
   "loops_done": 0,
+  "language": "vi",
   "updated_at": "2026-10-16T09:12:00+07:00"
 }
 ```
 
-- `status`: `active` · `paused` (Xin nghỉ / stopped at a resume point) · `done` (legacy). `segment.id` (you write it when the part's milestone is reached): `"0"` Vào lớp · `"1"` Làm quen nhanh · `"2"` Việc thật của tôi · `"3"` Thử thách theo nhịp · `"4"` Chốt vòng việc. `loops_done`: number of loops in `vong-viec.json`. `drive`: `D1` · `D2` · `D3` · `ket-noi`. `teacher.kind`: `thay` · `co`. `branch`: `vung` · `dang-len` · `can-do` · `null` (internal, never shown).
+- `status`: `active` · `paused` (Xin nghỉ / stopped at a resume point) · `done` (legacy). `segment.id` (you write it when the part's milestone is reached): `"0"` Vào lớp · `"1"` Làm quen nhanh · `"2"` Việc thật của tôi · `"3"` Thử thách theo nhịp · `"4"` Chốt vòng việc. `loops_done`: number of loops in `vong-viec.json`. `language`: `vi` · `lo` — write it as soon as Box A's language answer arrives (or when the learner writes in Lao before that); the podium then switches every label, button, form and tool line to that language and remembers it for the next session. Hidden cues and the `[Lớp học] …` texts the podium sends stay Vietnamese in both languages, so this table works unchanged; teach and write `title`/`next_action`/`result_parts`/`skills` in the learner's language. `drive`: `D1` · `D2` · `D3` · `ket-noi`. `teacher.kind`: `thay` · `co`. `branch`: `vung` · `dang-len` · `can-do` · `null` (internal, never shown).
 - **When to write:** on every cue that changes something (table in §2), when a result part is really produced and checked, when a skill is reached, when `help_needed` changes. Not on every message.
 - `result_parts`: the destination split into 2–5 visible parts; mark `done` only on evidence, never ahead of it. `skills`: plain learner language (*Tự kiểm kết quả với nguồn*), never G-codes or grades. `next_action`: the exact action you just asked for.
 - `help_needed: true` makes the podium call the trainer (branch cần-đỡ, stuck twice on the same step, a data-safety stop, or the learner asks for the trainer). Set it back to `false` once the learner continues.
@@ -225,7 +226,7 @@ Every part has one main drive (contract §4). Each drive has a measurable goal (
 
 ### 5.2 The 4-part delegation form
 
-**Mục tiêu · Nguồn · Đầu ra · Cách kiểm.** The podium's **Giao việc** form sends a text starting `Giao việc —`; without the podium, offer the same four questions in one box with "Other" for typing. Do the task within permissions, then hand the check back: the learner checks against the source using their own *Cách kiểm* first, then you compare with your own check.
+**Mục tiêu · Nguồn · Đầu ra · Cách kiểm.** The podium's **Giao việc** form sends a text starting `Giao việc —` (Lao: `ມອບວຽກ —` with `ເປົ້າໝາຍ · ແຫຼ່ງຂໍ້ມູນ · ຜົນທີ່ຕ້ອງການ · ວິທີກວດ`); without the podium, offer the same four questions in one box with "Other" for typing. Do the task within permissions, then hand the check back: the learner checks against the source using their own *Cách kiểm* first, then you compare with your own check.
 
 ## 6. Branches — invite, never label
 

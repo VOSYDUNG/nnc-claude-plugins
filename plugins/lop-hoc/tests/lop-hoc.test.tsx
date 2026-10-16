@@ -328,6 +328,40 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
+  test(`${surface}: lớp tiếng Lào — cửa lớp có hai thứ tiếng; bục, nút, giao việc bằng tiếng Lào; tín hiệu giáo viên vẫn tiếng Việt`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC' }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    // Chưa biết tiếng: cửa lớp hiện cả hai.
+    expect(await ui.find({ text: /Lớp đang chờ giáo viên/ })).toBeDefined()
+    expect(await ui.find({ text: /ຫ້ອງຮຽນລໍຖ້າຄູ/ })).toBeDefined()
+    await ui.press({ key: 'enter' })
+    // Giáo viên hỏi xong, ghi language: 'lo'.
+    files['.lop-hoc/state.json'] = v7({ language: 'lo', segment: { id: '2', title: 'Việc thật của tôi', drive: 'D1' } })
+    await teacherTalks($ as never)
+    expect(await ui.find({ text: /ພາກ 2 · ວຽກແທ້ຂອງຂ້ອຍ/ })).toBeDefined()
+    expect(await ui.find({ text: /Phần 2/ })).toBeUndefined()
+    await ui.press({ key: 'xin-phep' })
+    expect(await ui.find({ text: /ໄປດື່ມນ້ຳ/ })).toBeDefined()
+    await ui.press({ key: 'ly-do-nuoc' })
+    expect(io.sent).toContain('[Giáo án] Xin phép · đi uống nước')
+    expect(await ui.find({ text: /ກຳລັງຂໍອະນຸຍາດ · ໄປດື່ມນ້ຳ/ })).toBeDefined()
+    await ui.press({ key: 'quay-lai' })
+    await ui.press({ key: 'goi-y' })
+    expect(io.sent).toContain('[Lớp học] Cô gợi ý giúp')
+    await ui.press({ key: 'b-form' })
+    await ui.input({ key: 'f-goal', text: 'ສັງລວມຍອດຂາຍ' })
+    await ui.press({ key: 'form-fill' })
+    const filled = io.filled.find(t => t.startsWith('ມອບວຽກ —')) ?? ''
+    expect(filled).toContain('ເປົ້າໝາຍ: ສັງລວມຍອດຂາຍ')
+    await ui.unmount()
+    // Lần mở sau: nhớ tiếng Lào ngay từ cửa lớp, dòng công cụ cũng tiếng Lào.
+    const tool = await $.ui.mount({ plugin: 'lop-hoc', surface, component: 'ToolUse', props: { tool_use_id: 't1', tool: 'Read', input: { file_path: 'D:/x/bang-tinh-mau.xlsx' }, isRunning: true, isErrored: false, isInterrupted: false } } as never)
+    expect(await tool.find({ text: /ອ່ານ bang-tinh-mau.xlsx · ບໍ່ແກ້ຫຍັງ/ })).toBeDefined()
+    await tool.unmount()
+  })
+
   test(`${surface}: bảng usage giáo viên mở (panel) có số liệu thật, giờ reset Vientiane`, LONG, async ($, on) => {
     const st = JSON.stringify({ schema: 'lop-hoc/2', status: 'active', segment: { id: '1', title: 'Làm quen nhanh', drive: 'D2' }, teacher: { kind: 'thay', emotion: 'giang' }, panel: 'usage' })
     const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': st })

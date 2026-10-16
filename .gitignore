@@ -10,3 +10,6 @@ plugins/lop-hoc/tsconfig.json
 
 # Danh sách từ nội bộ cấm đưa lên repo (chỉ trên máy người phát hành)
 .noi-bo-tu-cam.txt
+
+# Dòng người hỗ trợ điền vào HUONG-DAN.md khi đóng ZIP (tên người, không đưa lên repo)
+.lien-he-ho-tro.txt

@@ -44,20 +44,31 @@ class LopHocPackage(unittest.TestCase):
         self.assertEqual((MAU / "CLAUDE.md").read_text(encoding="utf-8"), b.claude_md())
         self.assertIn("Lớp học NNC", (MAU / "CLAUDE.md").read_text(encoding="utf-8"))
 
-    def test_classroom_settings_pin_the_release_tag(self):
+    def test_classroom_settings_follow_the_release_branch(self):
         s = json.loads((MAU / ".claude" / "settings.json").read_text(encoding="utf-8"))
         src = s["extraKnownMarketplaces"]["nnc-claude-plugins"]["source"]
         # HTTPS, không SSH: máy học viên thường không có khóa SSH (đã kiểm bằng cài mới 15/10/2026).
         self.assertEqual(src["source"], "git")
         self.assertEqual(src["url"], "https://github.com/VOSYDUNG/nnc-claude-plugins.git")
-        lop = json.loads(LOPHOC.read_text(encoding="utf-8"))["version"]
-        self.assertEqual(src["ref"], f"lop-hoc-v{lop}")
+        # Từ 0.7.2: trỏ vào nhánh phát hành (đẩy tới mỗi tag) và tự cập nhật, để máy đã cài nhận bản mới.
+        self.assertEqual(src["ref"], "lop-hoc-release")
+        self.assertTrue(s["extraKnownMarketplaces"]["nnc-claude-plugins"]["autoUpdate"])
         self.assertTrue(s["enabledPlugins"]["nnc@nnc-claude-plugins"])
         self.assertTrue(s["enabledPlugins"]["lop-hoc@nnc-claude-plugins"])
         self.assertIn("Edit(./.lop-hoc/**)", s["permissions"]["allow"])
         self.assertIn("Edit(./Phieu-ket-qua.md)", s["permissions"]["allow"])
         for f in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md", "Thuc-hanh/README.md"):
             self.assertTrue((MAU / f).is_file(), f)
+
+    def test_support_contact_filled_only_in_the_zip(self):
+        b = _builder()
+        guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
+        self.assertIn("______", guide, "repo keeps the blank support line")
+        filled = b.with_support(guide, "Người A hoặc người B")
+        self.assertIn("**Người hỗ trợ của bạn:** Người A hoặc người B", filled)
+        self.assertNotIn("______________________ (kênh liên hệ", filled)
+        self.assertEqual(b.with_support(guide, None), guide)
+        self.assertIn(".lien-he-ho-tro.txt", (ROOT / ".gitignore").read_text(encoding="utf-8"))
 
     def test_no_internal_names_or_links_in_tracked_files(self):
         try:

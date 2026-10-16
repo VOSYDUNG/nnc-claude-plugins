@@ -224,3 +224,13 @@ Không cài plugin cho cả máy, không dùng Bypass permissions. Phiên lớp 
 | Làm quen hai chiều | lần gặp đầu | giáo viên tự giới thiệu; hai hộp làm quen; hồ sơ nhỏ ở `trainer.json` `learner` |
 | Dữ liệu mẫu | máy không có Python | đọc bằng Excel qua PowerShell, hoặc bản `.csv` đi kèm mỗi file mẫu |
 
+### 9.7 Bổ sung v0.7.2 (song ngữ, cập nhật, người hỗ trợ)
+
+| Thay đổi | Ai làm | Chi tiết |
+|---|---|---|
+| `state.json` `language`: `vi` · `lo` | giáo viên ghi ngay khi có câu trả lời "Ngôn ngữ" ở hộp làm quen A | mod chuyển chữ trên bục giảng, nút, form Giao việc, dòng công cụ, tiêu đề sang tiếng đó và nhớ trong store cho lần mở sau; cửa lớp chưa biết tiếng thì hiện cả hai |
+| Lời giao việc tiếng Lào | mod | bắt đầu `ມອບວຽກ —` (cùng 4 ý: ເປົ້າໝາຍ · ແຫຼ່ງຂໍ້ມູນ · ຜົນທີ່ຕ້ອງການ · ວິທີກວດ); giáo viên xử lý như `Giao việc —` |
+| Tín hiệu giữ tiếng Việt | mod | mọi `[Giáo án] …` và `[Lớp học] …` vẫn tiếng Việt ở cả hai tiếng (lý do Xin phép gửi theo bản tiếng Việt), nên bảng tín hiệu không đổi |
+| Câu tiếng Lào | người bản ngữ | nằm ở `hooks/i18n.ts` bảng `lo`; cần người bản ngữ duyệt trước khi dùng rộng |
+| Cập nhật | gói | `.claude/settings.json` trỏ nhánh `lop-hoc-release` và `autoUpdate: true`; người phát hành đẩy nhánh này tới commit của mỗi tag |
+| Người hỗ trợ | người phát hành | điền khi đóng ZIP (`--support` hoặc `.lien-he-ho-tro.txt` đã gitignore); repo giữ dòng trống |

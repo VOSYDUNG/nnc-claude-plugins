@@ -11,7 +11,7 @@
       "source": "./plugins/nnc",
       "displayName": "NNC OSER — Human Mission R2 Alpha",
       "description": "Human Mission Space alpha: Mission Formation + Decision Contract + Clean Desk + adaptive delivery over the provider-neutral Mission kernel. Live host/UI conformance still required.",
-      "version": "5.1.0-alpha.2+lophoc.0.7.1",
+      "version": "5.1.0-alpha.2+lophoc.0.7.2",
       "author": {
         "name": "NNC Lao Group - Ban R&D AI"
       },
@@ -29,7 +29,7 @@
       "source": "./plugins/lop-hoc",
       "displayName": "Lớp học NNC — bục giảng",
       "description": "Giao diện lớp học cho Claude Code Desktop: lớp luôn mở, bục giảng có giáo viên, phần học theo mốc, nhịp theo hạn mức, một chạm, thử thách, huy hiệu, phiếu kết quả. Dùng cùng Skill nnc:work-first-learning.",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "author": {
         "name": "NNC Lao Group - Ban R&D AI"
       },

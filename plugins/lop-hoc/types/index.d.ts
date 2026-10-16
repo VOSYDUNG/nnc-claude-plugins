@@ -48,6 +48,8 @@ export type LessonState = {
   gift_box?: boolean
   // v0.7: số vòng việc đã chốt (giáo viên ghi; chi tiết ở .lop-hoc/vong-viec.json).
   loops_done?: number
+  // v0.7.2: tiếng của lớp — 'vi' tiếng Việt, 'lo' tiếng Lào (giáo viên ghi khi biết học viên dùng tiếng nào).
+  language?: 'vi' | 'lo'
 }
 
 // Bản cũ v0.4 (lop-hoc/1) vẫn đọc được: stage 0–5 được đổi sang phần học.

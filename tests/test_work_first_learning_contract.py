@@ -84,7 +84,7 @@ class WorkFirstLearningContract(unittest.TestCase):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.7.1", frontmatter)
+        self.assertIn("version: 0.7.2", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
         self.assertNotIn("version: 0.5.0", frontmatter)
         self.assertNotIn("version: 0.4.0", frontmatter)
@@ -159,7 +159,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn(state, self.scenarios)
 
     def test_scenarios_and_host_not_claimed(self):
-        for i in range(1, 46):
+        for i in range(1, 48):
             self.assertIn("Case F{} ".format(i), self.scenarios)
         self.assertIn("NOT_TESTED", self.scenarios)
         self.assertIn("INSTALL_NOT_VERIFIED", self.pilot)
@@ -444,6 +444,13 @@ class WorkFirstLearningContract(unittest.TestCase):
         for phrase in ("Giáo viên tự giới thiệu", "Làm quen học viên", "Gặp lại"):
             self.assertIn(phrase, self.interactions, phrase)
         self.assertIn("Get to know each other first", self.template)
+
+    def test_bilingual_class_v072(self):
+        for phrase in ("`language`: `vi` · `lo`", "ມອບວຽກ —", "stay Vietnamese in both languages"):
+            self.assertIn(phrase, self.skill, phrase)
+        self.assertIn("Write `language` (`vi` or `lo`) into state right away", self.buoi1)
+        for phrase in ("Case F46 — A Lao-speaking learner", "Case F47 — A machine installed before 0.7.2"):
+            self.assertIn(phrase, self.scenarios, phrase)
 
     def test_samples_readable_without_python(self):
         for asset in SAMPLE_ASSETS:

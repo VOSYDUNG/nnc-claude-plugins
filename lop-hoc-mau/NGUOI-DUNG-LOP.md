@@ -3,7 +3,11 @@
 Lớp học **luôn mở**: giáo viên AI đứng lớp cho từng người, không có thời lượng buổi, không điểm danh. Người giám sát không dạy thay. Người giám sát chuẩn bị máy, kèm khi học viên cần, và đọc kết quả.
 
 ## Trước khi phát gói
-- [ ] Điền **Người hỗ trợ** và kênh liên hệ ở đầu `HUONG-DAN.md` của gói. Tin *Soạn tin nhờ hỗ trợ* và *Phiếu kết quả* của học viên gửi về đây.
+- [ ] Dòng **Người hỗ trợ** ở đầu `HUONG-DAN.md` đã có tên và kênh liên hệ (người phát hành điền khi đóng gói; gói tự tải từ repo thì tự điền). Tin *Soạn tin nhờ hỗ trợ* và *Phiếu kết quả* của học viên gửi về đây.
+
+## Cập nhật
+- Gói từ 0.7.2 trở đi **tự cập nhật** theo nhánh phát hành; không cần phát gói mới cho mỗi bản.
+- Máy đã cài bản trước 0.7.2: phát gói mới một lần, học viên giải nén đè lên thư mục cũ.
 
 ## Trước khi học (mỗi máy, khoảng 10 phút)
 - [ ] Claude Desktop đã cài, đăng nhập đúng tài khoản; tab **Code** mở được. Mỗi học viên một tài khoản còn hạn mức.
@@ -32,3 +36,5 @@ Lớp học **luôn mở**: giáo viên AI đứng lớp cho từng người, kh
 | Hết hạn mức 5 giờ | Giáo viên đã lưu chỗ; học tiếp sau giờ làm mới (bấm **Tiếp tục**) |
 | Claude không làm được một bước | Mở sách tự học đúng mục giáo viên chỉ, học viên làm theo sách |
 | Học viên định dùng dữ liệu thật nhạy cảm | Dừng lại, làm trên bản sao đã che, hoặc chuyển sang file mẫu |
+| Máy cũ vẫn chạy bản trước sau khi giải nén gói mới đè lên | Mở phiên mới trong thư mục lớp. Vẫn cũ: người phát hành gỡ nguồn cũ trên máy đó (`claude plugin marketplace remove nnc-claude-plugins`), rồi mở lại thư mục lớp và đồng ý cài công cụ (chỗ học trong `.lop-hoc` không mất) |
+| Học viên người Lào | Giáo viên hỏi tiếng học ngay đầu lớp; chọn ພາສາລາວ thì bảng lớp chuyển tiếng Lào. Câu tiếng Lào đang chờ người bản ngữ duyệt: thấy câu khó hiểu thì ghi vào phiếu phản hồi |

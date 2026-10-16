@@ -37,6 +37,8 @@ import {
   usageTimelineSvg,
   weekResetSvg,
 } from './art'
+import { DELEGATION_HEADS, STR, isLang } from './i18n'
+import type { Lang } from './i18n'
 
 // Lớp học NNC v0.7 — lớp luôn mở, giáo viên đứng lớp, nhịp theo việc và hạn mức (hợp đồng §9).
 //   Bục giảng (dải trên ô nhập, nền bảng lớp): chọn thầy/cô → Vào lớp; giáo viên trên bục với cảm xúc;
@@ -219,6 +221,7 @@ export function parseState(raw: unknown): ClassState | null {
     stars: typeof raw.stars === 'number' && Number.isFinite(raw.stars) ? Math.min(99, Math.max(0, Math.round(raw.stars))) : undefined,
     badges_new: badgesOf(raw.badges_new),
     gift_box: raw.gift_box === true,
+    language: isLang(raw.language) ? raw.language : undefined,
     loops_done: typeof raw.loops_done === 'number' && Number.isFinite(raw.loops_done) ? Math.min(999, Math.max(0, Math.round(raw.loops_done))) : undefined,
   }
 }
@@ -372,6 +375,12 @@ async function readBadgeFile($: EngineInterface): Promise<BadgeEntry[]> {
 async function syncBody($: EngineInterface) {
   if (!(await read($, isClassroom))) return
   const s = await loadState($)
+  if (s?.language && s.language !== curLang) {
+    curLang = s.language
+    try {
+      await $.store.set('language', curLang)
+    } catch {}
+  }
   const seg = s?.segment ? (SEGMENTS_BY_ID[s.segment.id] ? { ...SEGMENTS_BY_ID[s.segment.id]!, title: s.segment.title || SEGMENTS_BY_ID[s.segment.id]!.title, drive: s.segment.drive } : { id: s.segment.id, title: s.segment.title, drive: s.segment.drive }) : null
   const live: LiveState = { activity: s?.activity ?? null, challenge: s?.challenge ?? null, giftBox: s?.gift_box === true, segment: seg }
   await update($, liveAtom, () => live)
@@ -391,7 +400,7 @@ async function syncBody($: EngineInterface) {
   for (const b of fresh) {
     toasted.add(b.id)
     try {
-      $.ui.toast(`Huy hiệu mới: ${b.label}`)
+      $.ui.toast(L().badgeToast(b.label))
     } catch {}
   }
   // Giáo viên vui (hỉ) 6 giây trên bục.
@@ -415,8 +424,11 @@ async function detectClassroom($: EngineInterface): Promise<boolean> {
   }
 }
 
-// ── Lời lớp học ────────────────────────────────────────────────────────────────
-const teacherName = (k: TeacherKind) => TEACHERS.find(t => t.id === k)?.label ?? (k === 'thay' ? 'Thầy' : 'Cô')
+// ── Lời lớp học (tiếng Việt / tiếng Lào, hooks/i18n.ts) ───────────────────────────
+// Ngôn ngữ của lớp: state.json `language` (giáo viên ghi), nhớ trong $.store cho lần mở sau.
+let curLang: Lang = 'vi'
+const L = () => STR[curLang]
+const teacherName = (k: TeacherKind) => STR[curLang].teacherSelf(k)
 const teacherLower = (k: TeacherKind) => teacherName(k).toLowerCase()
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 const cut = (s: string | undefined, n: number) => (!s ? '' : s.length > n ? s.slice(0, n - 1) + '…' : s)
@@ -443,22 +455,24 @@ function resetDay(iso: string | undefined): string {
 }
 
 // Lời giao việc ghép từ form 4 ý (người học tự bấm Enter để giao).
-export function delegationPrompt(f: { goal: string; src: string; out: string; check: string }): string {
-  return ['Giao việc —', `Mục tiêu: ${f.goal.trim()}`, `Nguồn: ${f.src.trim() || '(chưa có — dùng mẫu giả)'}`, `Đầu ra: ${f.out.trim() || '(giáo viên đề xuất)'}`, `Cách kiểm: ${f.check.trim() || '(giáo viên gợi ý, tôi tự kiểm)'}`].join('\n')
+export function delegationPrompt(f: { goal: string; src: string; out: string; check: string }, lang: Lang = curLang): string {
+  const d = STR[lang].delegation
+  return [d.head, `${d.goal}: ${f.goal.trim()}`, `${d.src}: ${f.src.trim() || d.noSrc}`, `${d.out}: ${f.out.trim() || d.noOut}`, `${d.check}: ${f.check.trim() || d.noCheck}`].join('\n')
 }
 
 // Một câu dễ hiểu cho mỗi thao tác công cụ. null = để nguyên dòng gốc.
-export function describeTool(tool: string, input: unknown): string | null {
+export function describeTool(tool: string, input: unknown, lang: Lang = curLang): string | null {
   const i = (input ?? {}) as Record<string, unknown>
-  const file = baseName(i.file_path ?? i.notebook_path ?? i.path)
-  if (tool === 'Read') return `đọc ${file || 'một file'} · không sửa gì`
-  if (tool === 'Glob' || tool === 'Grep') return 'tìm trong thư mục · không sửa gì'
-  if (tool === 'Write') return `ghi ${file || 'một file'}`
-  if (tool === 'Edit' || tool === 'NotebookEdit') return `sửa ${file || 'một file'}`
-  if (tool === 'Bash' || tool === 'PowerShell') return 'chạy một lệnh trên máy'
-  if (tool === 'WebFetch' || tool === 'WebSearch') return 'tra cứu trên mạng · không sửa gì'
-  if (tool === 'Skill') return 'mở bài học'
-  if (tool.startsWith('mcp__')) return 'dùng một công cụ kết nối'
+  const w = STR[lang].tool
+  const file = baseName(i.file_path ?? i.notebook_path ?? i.path) || w.aFile
+  if (tool === 'Read') return w.read(file)
+  if (tool === 'Glob' || tool === 'Grep') return w.find
+  if (tool === 'Write') return w.write(file)
+  if (tool === 'Edit' || tool === 'NotebookEdit') return w.edit(file)
+  if (tool === 'Bash' || tool === 'PowerShell') return w.run
+  if (tool === 'WebFetch' || tool === 'WebSearch') return w.web
+  if (tool === 'Skill') return w.skill
+  if (tool.startsWith('mcp__')) return w.mcp
   return null
 }
 
@@ -470,13 +484,6 @@ export function defaultLabel(questions: unknown): string {
   return labels.find(l => /mặc định|đề xuất|recommended/i.test(l)) ?? labels[0] ?? 'phương án đầu'
 }
 
-const TIPS = [
-  'mẹo: effort cao nghĩ kỹ hơn nhưng tốn usage hơn',
-  'mẹo: context gần đầy thì mở phiên mới, kèm ghi chú tiếp tục',
-  'mẹo: giao việc rõ 4 ý — mục tiêu, nguồn, đầu ra, cách kiểm',
-  'mẹo: Claude xin quyền là để bạn quyết — đọc kỹ rồi hãy đồng ý',
-  'mẹo: kết quả nghe hợp lý chưa phải bằng chứng — đối chiếu nguồn',
-]
 
 // ── Trạng thái của module (mất khi nạp lại; đồng hồ buổi học nằm trong $.state) ──
 let turns = 0
@@ -659,7 +666,7 @@ async function tickBody($: EngineInterface) {
     const left = ANSWER_MS - (now - ask.openedAt)
     if (left > 0) {
       try {
-        $.ui.notice(ask.id, `${teacherName(l.teacher)} chọn giúp sau ${mmss(left)}`)
+        $.ui.notice(ask.id, L().pickFor(teacherName(l.teacher), mmss(left)))
       } catch {}
     } else {
       await answerTimeout($, ask, now)
@@ -812,6 +819,8 @@ async function loadPrefs($: EngineInterface) {
   try {
     const t = await $.store.get('teacher')
     if (isTeacherKind(t)) await update($, teacherPick, () => t)
+    const lg = await $.store.get('language')
+    curLang = isLang(lg) ? lg : 'vi'
   } catch {}
 }
 
@@ -949,7 +958,8 @@ export const register: Register = on => {
     const kind: TeacherKind = lesson?.teacher ?? (await read($, teacherPick))
     const T = teacherName(kind)
     const t = teacherLower(kind)
-    const address = cap(s?.address || 'anh/chị')
+    const S = L()
+    const address = cap(s?.address || (curLang === 'lo' ? 'ເຈົ້າ' : 'anh/chị'))
     const live = await read($, liveAtom)
     const seg = shownSeg(lesson, live)
     view = { teacher: kind, seg }
@@ -960,7 +970,7 @@ export const register: Register = on => {
     let podium = null
     if (isDesktop) {
       const { Svg } = $.ui.resolve(e)
-      podium = <Svg key="podium" source={teacherPodiumSvg(kind, running ? emotion : 'hi', presence)} alt={`${T} trên bục giảng`} width={140} height={88} isInteractive />
+      podium = <Svg key="podium" source={teacherPodiumSvg(kind, running ? emotion : 'hi', presence)} alt={curLang === 'lo' ? `${T} ຢູ່ກະດານ` : `${T} trên bục giảng`} width={140} height={88} isInteractive />
     }
     const board = (children: RenderChildren[], gap = 1) => (
       <Box flexDirection="row" gap={2} alignItems="center" backgroundColor={BOARD} paddingX={1} paddingY={1}>
@@ -970,7 +980,7 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
-    const claudeRow = line ? <Text color={CHALK_DIM}>{`Claude của tôi · ${line}`}</Text> : null
+    const claudeRow = line ? <Text color={CHALK_DIM}>{S.myClaude(line)}</Text> : null
     const pick = (key: string, label: string, isOn: boolean, onPress: () => unknown) =>
       isOn ? <Button key={key} label={label} variant="primary" onPress={onPress} /> : <Button key={key} label={label} onPress={onPress} />
 
@@ -978,21 +988,23 @@ export const register: Register = on => {
     if (!running) {
       const tp = await read($, teacherPick)
       return board([
-        <Text bold color={CHALK_Y}>{TITLE}</Text>,
-        lesson?.over === 'xin-nghi' ? <Text color={CHALK}>{`Đã xin nghỉ · ${t} đã lưu chỗ, quay lại lúc nào cũng được`}</Text> : null,
-        <Text color={CHALK}>Lớp đang chờ giáo viên · chọn thầy hoặc cô, rồi bấm Vào lớp</Text>,
+        <Text bold color={CHALK_Y}>{S.title}</Text>,
+        lesson?.over === 'xin-nghi' ? <Text color={CHALK}>{S.leftSaved(t)}</Text> : null,
+        <Text color={CHALK}>{S.waiting}</Text>,
+        // Chưa biết học viên dùng tiếng nào: thêm một dòng bằng thứ tiếng còn lại.
+        <Text color={CHALK_DIM}>{STR[curLang === 'lo' ? 'vi' : 'lo'].waiting}</Text>,
         <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-          <Text color={CHALK_DIM}>Giáo viên</Text>
-          {TEACHERS.map(x => pick(`t-${x.id}`, x.label, tp === x.id, () => update($, teacherPick, () => x.id)))}
+          <Text color={CHALK_DIM}>{S.teacherWord}</Text>
+          {TEACHERS.map(x => pick(`t-${x.id}`, S.teacherLabel(x.id), tp === x.id, () => update($, teacherPick, () => x.id)))}
         </Box>,
         claudeRow,
         <Box flexDirection="row" gap={1}>
-          <Button key="enter" label="Vào lớp" variant="primary" onPress={() => startLesson($)} />
+          <Button key="enter" label={S.enter} variant="primary" onPress={() => startLesson($)} />
         </Box>,
       ])
     }
 
-    const xinNghi = <Button key="xin-nghi" label="Xin nghỉ" onPress={async () => {
+    const xinNghi = <Button key="xin-nghi" label={S.leave} onPress={async () => {
       await update($, modeAtom, () => 'normal')
       await sendPressCue($, 'Xin nghỉ', { over: 'xin-nghi', pause: null, pausedAt: null })
     }} />
@@ -1000,9 +1012,9 @@ export const register: Register = on => {
     // Mở lại app: lớp vẫn mở, giáo viên chờ học viên bấm Tiếp tục.
     if (lesson.pause === 'cho') {
       return board([
-        <Text bold color={CHALK_Y}>{`${T}: ${t} vẫn ở đây — bấm Tiếp tục để học tiếp từ chỗ đã lưu`}</Text>,
+        <Text bold color={CHALK_Y}>{S.waitingResume(T, t)}</Text>,
         <Box flexDirection="row" gap={1}>
-          <Button key="tiep-tuc" label="Tiếp tục" variant="primary" onPress={async () => {
+          <Button key="tiep-tuc" label={S.resume} variant="primary" onPress={async () => {
             if (await resume($)) await sendPressCue($, 'Học viên trở lại')
           }} />
           {xinNghi}
@@ -1013,10 +1025,10 @@ export const register: Register = on => {
     // Xin phép: lớp chờ học viên quay lại.
     if (lesson.pause === 'xin-phep') {
       return board([
-        <Text bold color={CHALK_Y}>{`Đang xin phép · ${lesson.pauseNote}`}</Text>,
-        <Text color={CHALK_DIM}>{`${T} giữ chỗ cho ${address.toLowerCase()}`}</Text>,
+        <Text bold color={CHALK_Y}>{S.inBreak(S.reasons.find(r => r.vi === lesson.pauseNote)?.label ?? lesson.pauseNote)}</Text>,
+        <Text color={CHALK_DIM}>{S.keepSeat(T, address.toLowerCase())}</Text>,
         <Box flexDirection="row" gap={1}>
-          <Button key="quay-lai" label="Quay lại lớp" variant="primary" onPress={async () => {
+          <Button key="quay-lai" label={S.backToClass} variant="primary" onPress={async () => {
             if (await resume($)) await sendPressCue($, 'Học viên trở lại')
           }} />
           {xinNghi}
@@ -1025,20 +1037,19 @@ export const register: Register = on => {
     }
 
     if (mode === 'xin-phep') {
-      const reason = (key: string, label: string) => (
+      // Nhãn theo tiếng của học viên; tín hiệu gửi giáo viên luôn bằng tiếng Việt.
+      const reason = (key: string, label: string, vi: string) => (
         <Button key={key} label={label} onPress={async () => {
           const at = await $.clock.now()
           await update($, modeAtom, () => 'normal')
-          await sendPressCue($, `Xin phép · ${label}`, { pause: 'xin-phep', pausedAt: at, pauseNote: label })
+          await sendPressCue($, `Xin phép · ${vi}`, { pause: 'xin-phep', pausedAt: at, pauseNote: vi })
         }} />
       )
       return board([
-        <Text bold color={CHALK_Y}>{`Xin phép ${t} một lát · chọn lý do`}</Text>,
+        <Text bold color={CHALK_Y}>{S.chooseReason(t)}</Text>,
         <Box flexDirection="row" gap={1} flexWrap="wrap">
-          {reason('ly-do-nuoc', 'đi uống nước')}
-          {reason('ly-do-gap', 'có việc gấp')}
-          {reason('ly-do-hoi', 'cần hỏi riêng')}
-          <Button key="xin-phep-thoi" label="Thôi" onPress={() => update($, modeAtom, () => 'normal')} />
+          {S.reasons.map(r => reason(r.key, r.label, r.vi))}
+          <Button key="xin-phep-thoi" label={S.cancel} onPress={() => update($, modeAtom, () => 'normal')} />
         </Box>,
       ])
     }
@@ -1046,8 +1057,8 @@ export const register: Register = on => {
     if (mode === 'gio-tay' && (e.surface === 'desktop' || e.surface === 'terminal')) {
       const { Input } = $.ui.resolve(e)
       return board([
-        <Text bold color={CHALK_Y}>{`${address} giơ tay · ${t} đang nghe`}</Text>,
-        <Input key="ke" label={`Kể ${t} nghe`} placeholder="Viết điều muốn hỏi hoặc kể, rồi bấm Enter" value="" submitLabel="gửi" autoFocus onSubmit={async (v: string) => {
+        <Text bold color={CHALK_Y}>{S.raised(address, t)}</Text>,
+        <Input key="ke" label={S.tellLabel(t)} placeholder={S.tellPlaceholder} value="" submitLabel={S.send} autoFocus onSubmit={async (v: string) => {
           const text = v.trim()
           if (!text) return
           await update($, modeAtom, () => 'normal')
@@ -1055,7 +1066,7 @@ export const register: Register = on => {
           await $.prompt.submit({ text, asUser: true })
         }} />,
         <Box flexDirection="row" gap={1}>
-          <Button key="gio-tay-thoi" label="Thôi" onPress={() => update($, modeAtom, () => 'normal')} />
+          <Button key="gio-tay-thoi" label={S.cancel} onPress={() => update($, modeAtom, () => 'normal')} />
         </Box>,
       ])
     }
@@ -1067,16 +1078,16 @@ export const register: Register = on => {
         <Input key={`f-${key}`} label={label} placeholder={placeholder} value={draft[key]} onInput={(v: string) => { draft = { ...draft, [key]: v } }} onSubmit={(v: string) => { draft = { ...draft, [key]: v } }} />
       )
       return board([
-        <Text bold color={CHALK_Y}>Giao việc cho Claude · 4 ý</Text>,
-        field('goal', 'Mục tiêu', 'Tổng hợp doanh số theo kênh từ bảng tính'),
-        field('src', 'Nguồn', 'File bảng tính mẫu / file của tôi đã che thông tin'),
-        field('out', 'Đầu ra', 'Bảng: kênh – số đơn – doanh số'),
-        field('check', 'Cách kiểm', 'Đối chiếu tổng với cột gốc'),
+        <Text bold color={CHALK_Y}>{S.formTitle}</Text>,
+        field('goal', ...S.formFields.goal),
+        field('src', ...S.formFields.src),
+        field('out', ...S.formFields.out),
+        field('check', ...S.formFields.check),
         formError ? <Text color={ALERT}>{formError}</Text> : null,
         <Box flexDirection="row" gap={1}>
-          <Button key="form-fill" label="Đưa vào ô nhập" variant="primary" onPress={async () => {
+          <Button key="form-fill" label={S.formFill} variant="primary" onPress={async () => {
             if (!draft.goal.trim()) {
-              formError = 'Ghi "Mục tiêu" trước đã.'
+              formError = S.formGoalFirst
               await update($, rev, n => n + 1)
               return
             }
@@ -1085,9 +1096,9 @@ export const register: Register = on => {
             await $.prompt.fill({ text: delegationPrompt(draft), mode: 'replace' })
             draft = { goal: '', src: '', out: '', check: '' }
             await update($, modeAtom, () => 'normal')
-            $.ui.toast('Đọc lại lời giao việc trong ô nhập, rồi bấm Enter để giao.')
+            $.ui.toast(S.formToast)
           }} />
-          <Button key="form-cancel" label="Đóng" onPress={() => update($, modeAtom, () => 'normal')} />
+          <Button key="form-cancel" label={S.formClose} onPress={() => update($, modeAtom, () => 'normal')} />
         </Box>,
       ])
     }
@@ -1117,21 +1128,21 @@ export const register: Register = on => {
         ]
       }
       panelRows = [
-        <Text bold color={CHALK_Y}>Hạn mức sử dụng · 5 giờ và tuần</Text>,
+        <Text bold color={CHALK_Y}>{S.usageTitle}</Text>,
         ...pics,
-        five ? <Text color={CHALK}>{`5 giờ: đã dùng ${Math.round(five.percentUsed)}%${resetTime(five.resetsAt) ? ` · reset lúc ${resetTime(five.resetsAt)}` : ''}`}</Text> : null,
-        week ? <Text color={CHALK}>{`Tuần: đã dùng ${Math.round(week.percentUsed)}%${resetDay(week.resetsAt) ? ` · reset ${resetDay(week.resetsAt)}` : ''}`}</Text> : null,
-        !five && !week ? <Text color={CHALK_DIM}>{`Chưa đọc được số liệu · chờ ${t} giảng xong một lượt`}</Text> : null,
+        five ? <Text color={CHALK}>{S.usageFive(Math.round(five.percentUsed), resetTime(five.resetsAt))}</Text> : null,
+        week ? <Text color={CHALK}>{S.usageWeek(Math.round(week.percentUsed), resetDay(week.resetsAt))}</Text> : null,
+        !five && !week ? <Text color={CHALK_DIM}>{S.usageUnknown(t)}</Text> : null,
       ]
     } else if (panel === 'claude') {
       panelRows = [
-        <Text bold color={CHALK_Y}>Claude của tôi</Text>,
-        <Text color={CHALK}>{line || `Chưa đọc được số liệu · chờ ${t} giảng xong một lượt`}</Text>,
-        <Text color={CHALK_DIM}>Model: bộ não đang dùng · Effort: mức nghĩ kỹ · Context: trí nhớ của phiên · 5 giờ / tuần: hạn mức gói</Text>,
+        <Text bold color={CHALK_Y}>{S.mine}</Text>,
+        <Text color={CHALK}>{line || S.usageUnknown(t)}</Text>,
+        <Text color={CHALK_DIM}>{S.mineHelp}</Text>,
       ]
     }
 
-    const headline = working ? `${T} đang giảng — ${address.toLowerCase()} xem bên trên` : `Lượt của bạn${s?.next_action ? ` · ${cut(s.next_action, 80)}` : ''}`
+    const headline = working ? S.working(T, address.toLowerCase()) : `${S.yourTurn}${s?.next_action ? ` · ${cut(s.next_action, 80)}` : ''}`
 
     // ── v0.6: nút một chạm, thử thách, sao, huy hiệu, hộp quà ──
     const isActive = !s || s.status === 'active'
@@ -1144,7 +1155,7 @@ export const register: Register = on => {
           await update($, entered, () => true)
           await update($, oneTouchUsed, () => oneHash)
           await $.prompt.fill({ text: one.text, mode: 'replace' })
-          $.ui.toast('Đã điền sẵn — bấm Enter để giao cho Claude')
+          $.ui.toast(S.oneTouchToast)
         }} />
       </Box>
     ) : null
@@ -1170,7 +1181,7 @@ export const register: Register = on => {
       if (isDesktop) {
         const { Svg } = $.ui.resolve(e)
         const src = starRowSvg(stars)
-        extras.push(<Svg key="stars" source={src} alt={`${stars} sao trong buổi`} {...svgSize(src, 24 * Math.min(stars, 5) + 40, 24)} />)
+        extras.push(<Svg key="stars" source={src} alt={S.starsAlt(stars)} {...svgSize(src, 24 * Math.min(stars, 5) + 40, 24)} />)
       } else {
         extras.push(<Text key="stars" color={CHALK_Y}>{`★ ${stars}`}</Text>)
       }
@@ -1180,10 +1191,10 @@ export const register: Register = on => {
         const { Svg } = $.ui.resolve(e)
         const shelf: BadgeRef[] = allBadges.map(b => ({ id: b.id, label: b.label }))
         const src = badgeShelfSvg(shelf)
-        extras.push(<Svg key="badges" source={src} alt={`Huy hiệu: ${badges.map(b => b.label).join(', ')}`} {...svgSize(src, 240, 56)} />)
+        extras.push(<Svg key="badges" source={src} alt={`${S.badgesText}: ${badges.map(b => b.label).join(', ')}`} {...svgSize(src, 240, 56)} />)
       } else {
         const more = allBadges.length - badges.length
-        extras.push(<Text key="badges" color={CHALK}>{`Huy hiệu: ${badges.map(b => cut(b.label, 24)).join(' · ')}${more > 0 ? ` · +${more}` : ''}`}</Text>)
+        extras.push(<Text key="badges" color={CHALK}>{`${S.badgesText}: ${badges.map(b => cut(b.label, 24)).join(' · ')}${more > 0 ? ` · +${more}` : ''}`}</Text>)
       }
     }
     const extrasRow = extras.length ? (
@@ -1196,7 +1207,7 @@ export const register: Register = on => {
     let giftRow: RenderChildren = null
     if (gift === 'opening' || (gift === 'closed' && isActive && s?.gift_box && !working)) {
       const isOpen = gift === 'opening'
-      let pic: RenderChildren = <Text color={CHALK_Y}>{isOpen ? 'Hộp quà đang mở…' : 'Có một hộp quà cho bạn'}</Text>
+      let pic: RenderChildren = <Text color={CHALK_Y}>{isOpen ? S.giftOpening : S.giftWaiting}</Text>
       if (isDesktop) {
         const { Svg } = $.ui.resolve(e)
         const src = giftBoxSvg(isOpen)
@@ -1205,7 +1216,7 @@ export const register: Register = on => {
       giftRow = (
         <Box flexDirection="row" gap={1} alignItems="center">
           {pic}
-          {isOpen ? null : <Button key="hop-qua" label="Mở hộp quà" variant="primary" onPress={async () => {
+          {isOpen ? null : <Button key="hop-qua" label={S.giftOpen} variant="primary" onPress={async () => {
             await touch($)
             await update($, giftAtom, () => 'opening')
             try {
@@ -1219,22 +1230,22 @@ export const register: Register = on => {
 
     const header = (
       <Box flexDirection="row" gap={1} alignItems="center">
-        <Text backgroundColor={DRIVE_COLOR[drive]} color={INK}>{` Phần ${shown.id} · ${shown.title} `}</Text>
-        <Text color={CHALK_DIM}>{loops ? `${T} · đã chốt ${loops} vòng việc` : T}</Text>
+        <Text backgroundColor={DRIVE_COLOR[drive]} color={INK}>{` ${S.part} ${shown.id} · ${curLang === 'vi' ? shown.title : (S.segments[shown.id] ?? shown.title)} `}</Text>
+        <Text color={CHALK_DIM}>{loops ? S.loops(T, loops) : T}</Text>
       </Box>
     )
     const headRow = <Text bold={!working} color={working ? CHALK_DIM : CHALK_Y}>{headline}</Text>
-    const askRow = ask && !ask.handled && timedAsk ? <Text color={CHALK}>{`${T} chọn giúp sau ${mmss(ANSWER_MS - (now - ask.openedAt))}`}</Text> : null
+    const askRow = ask && !ask.handled && timedAsk ? <Text color={CHALK}>{S.pickFor(T, mmss(ANSWER_MS - (now - ask.openedAt)))}</Text> : null
     const helpRow = s?.help_needed ? (
       <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-        <Text bold color={INK} backgroundColor={ALERT}>{' Đang cần người hỗ trợ '}</Text>
-        <Button key="nho-ho-tro" label="Soạn tin nhờ hỗ trợ" onPress={async () => {
+        <Text bold color={INK} backgroundColor={ALERT}>{S.helpNeeded}</Text>
+        <Button key="nho-ho-tro" label={S.helpButton} onPress={async () => {
           await touch($)
           await $.prompt.submit({ text: `${TAG}Soạn tin nhờ hỗ trợ`, asUser: true })
         }} />
       </Box>
     ) : null
-    const destRow = s?.destination ? <Text color={CHALK_DIM}>{`Đích: ${cut(s.destination, 80)}`}</Text> : null
+    const destRow = s?.destination ? <Text color={CHALK_DIM}>{`${S.dest}: ${cut(s.destination, 80)}`}</Text> : null
     const partsRow = parts.length ? (
       <Box flexDirection="row" gap={2} flexWrap="wrap">
         {parts.map((p, i) => (
@@ -1257,11 +1268,11 @@ export const register: Register = on => {
     return board([
       ...top,
       <Box flexDirection="row" gap={1} flexWrap="wrap">
-        <Button key="gio-tay" label="Giơ tay" onPress={async () => {
+        <Button key="gio-tay" label={S.raiseHand} onPress={async () => {
           await update($, modeAtom, () => 'gio-tay')
           await sendPressCue($, 'Giơ tay')
         }} />
-        <Button key="xin-phep" label="Xin phép" onPress={async () => {
+        <Button key="xin-phep" label={S.askLeave} onPress={async () => {
           await touch($)
           await update($, modeAtom, () => 'xin-phep')
         }} />
@@ -1269,18 +1280,19 @@ export const register: Register = on => {
       </Box>,
       working ? null : (
         <Box flexDirection="row" gap={1} flexWrap="wrap">
-          <Button key="cham" label="Chậm lại một chút" onPress={() => sendPressCue($, 'Nhịp: chậm lại')} />
-          <Button key="nhanh" label="Nhanh hơn được" onPress={() => sendPressCue($, 'Nhịp: nhanh hơn')} />
-          <Button key="goi-y" label={`${T} gợi ý giúp`} onPress={async () => {
+          <Button key="cham" label={S.slower} onPress={() => sendPressCue($, 'Nhịp: chậm lại')} />
+          <Button key="nhanh" label={S.faster} onPress={() => sendPressCue($, 'Nhịp: nhanh hơn')} />
+          <Button key="goi-y" label={S.hint(T)} onPress={async () => {
             await touch($)
-            await $.prompt.submit({ text: `${TAG}${T} gợi ý giúp`, asUser: true })
+            // Tín hiệu cho giáo viên giữ tiếng Việt để Skill nhận ra, dù nhãn nút theo tiếng học viên.
+            await $.prompt.submit({ text: `${TAG}${STR.vi.hint(STR.vi.teacherSelf(kind))}`, asUser: true })
           }} />
-          {isPractice ? <Button key="b-form" label="Giao việc" onPress={async () => { await touch($); await update($, modeAtom, () => 'form') }} /> : null}
-          {isPractice ? <Button key="chua-dung" label={`Thưa ${t}, chỗ này chưa đúng`} onPress={async () => {
+          {isPractice ? <Button key="b-form" label={S.delegate} onPress={async () => { await touch($); await update($, modeAtom, () => 'form') }} /> : null}
+          {isPractice ? <Button key="chua-dung" label={S.notRight(t)} onPress={async () => {
             await touch($)
-            await $.prompt.fill({ text: `Thưa ${t}, chỗ này chưa đúng: `, mode: 'replace' })
+            await $.prompt.fill({ text: S.notRightFill(t), mode: 'replace' })
           }} /> : null}
-          <Button key="phieu" label="Phiếu kết quả" onPress={async () => {
+          <Button key="phieu" label={S.resultSheet} onPress={async () => {
             await touch($)
             await $.prompt.submit({ text: `${TAG}Xuất phiếu kết quả`, asUser: true })
           }} />
@@ -1296,7 +1308,9 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     if (!askDone.has(e.requestId) && askSeen?.id !== e.requestId) askSeen = { id: e.requestId, label: defaultLabel(e.props.questions) }
     const T = teacherName(view.teacher)
-    const head = view.seg ? `${T} hỏi · Phần ${view.seg.id} · ${view.seg.title}` : `${T} hỏi`
+    const S = L()
+    const segTitle = view.seg ? (curLang === 'vi' ? view.seg.title : (S.segments[view.seg.id] ?? view.seg.title)) : ''
+    const head = view.seg ? `${S.askHead(T)} · ${S.part} ${view.seg.id} · ${segTitle}` : S.askHead(T)
     return (
       <Box flexDirection="column">
         <Text bold color="#006D11">{head}</Text>
@@ -1314,7 +1328,8 @@ export const register: Register = on => {
     const T = teacherName(view.teacher)
     let title = headerById.get(e.requestId)
     if (!title) {
-      title = view.seg ? ` ${T} · Phần ${view.seg.id} · ${view.seg.title} ` : ` ${T} `
+      const S = L()
+      title = view.seg ? ` ${T} · ${S.part} ${view.seg.id} · ${curLang === 'vi' ? view.seg.title : (S.segments[view.seg.id] ?? view.seg.title)} ` : ` ${T} `
       headerById.set(e.requestId, title)
     }
     const color = DRIVE_COLOR[view.seg?.drive ?? 'D1']
@@ -1345,12 +1360,12 @@ export const register: Register = on => {
     if (text.startsWith(TAG)) {
       return (
         <Box flexDirection="row" borderStyle="round" borderColor="#C9A800" paddingX={1}>
-          <Text color="#854F0B">{`Bạn bấm · ${cut(text.slice(TAG.length).trim().split('\n')[0], 120)}`}</Text>
+          <Text color="#854F0B">{`${L().youPressed} · ${cut(text.slice(TAG.length).trim().split('\n')[0], 120)}`}</Text>
         </Box>
       )
     }
     const theirs = await next(e)
-    const label = text.startsWith('Giao việc —') ? 'Bạn giao việc' : 'Bạn'
+    const label = DELEGATION_HEADS.some(h => text.startsWith(h)) ? L().youDelegated : L().you
     return (
       <Box flexDirection="column" borderStyle="round" borderColor="#C9A800" paddingX={1}>
         <Text bold color="#854F0B">{label}</Text>
@@ -1378,8 +1393,9 @@ export const register: Register = on => {
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     if (!(await read($, isClassroom))) return next(e)
     const T = teacherName(view.teacher)
-    const word = e.props.mode === 'tool-use' || e.props.mode === 'tool-input' ? `${T} đang làm mẫu` : `${T} đang giảng`
-    const tip = TIPS[turns % TIPS.length] ?? ''
+    const S = L()
+    const word = e.props.mode === 'tool-use' || e.props.mode === 'tool-input' ? S.demoWord(T) : S.teachWord(T)
+    const tip = S.tips[turns % S.tips.length] ?? ''
     return next({ ...e, props: { ...e.props, word, suffix: ` · ${tip}` } })
   })
 
@@ -1387,7 +1403,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (e.props.isDraft || e.props.isWorking || !(await read($, isClassroom))) return next(e)
     const isIn = await read($, entered)
-    const hint = !isIn ? 'Chọn thầy hoặc cô trên bảng lớp, rồi bấm Vào lớp' : `Bấm nút trên bảng lớp, hoặc kể ${teacherLower(view.teacher)} nghe ở đây`
+    const hint = !isIn ? L().promptBefore : L().promptIn(teacherLower(view.teacher))
     return next({ ...e, props: { ...e.props, hint } })
   })
 

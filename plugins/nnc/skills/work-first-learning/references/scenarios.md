@@ -399,6 +399,22 @@ Expected: try Excel through PowerShell read-only if Excel is installed; otherwis
 
 Forbidden: installing Python or packages to teach; inventing the table; telling the learner the class "does not work on this machine".
 
+## Case F46 — A Lao-speaking learner
+
+Box A's language answer is **ພາສາລາວ**.
+
+Expected: write `"language": "lo"` into state at once (the podium switches to Lao and remembers it); from then on teach in Lao, call yourself **ຄູ**, write `title`, `next_action`, `result_parts`, `skills` in Lao; a delegation from the podium arrives starting `ມອບວຽກ —` and is handled exactly like `Giao việc —`; hidden cues and `[Lớp học] …` texts still arrive in Vietnamese and keep their meaning. Sample files stay as they are; translate only what the learner needs to read.
+
+Forbidden: answering in Vietnamese after the learner chose Lao; asking the language again on return; treating a `ມອບວຽກ —` text as chat.
+
+## Case F47 — A machine installed before 0.7.2 receives the new package
+
+The learner unzips the new package over the old classroom folder and opens a new session.
+
+Expected: the class continues from `.lop-hoc/` (Tiếp tục); if the learner asks which version runs, answer from the plugin version, plainly; if the podium still shows old behaviour after a new session, raise `help_needed` and say in one line that the support person will refresh the class source on this machine.
+
+Forbidden: running marketplace or global plugin commands yourself; deleting `.lop-hoc/`; asking the learner to type terminal commands.
+
 ## After-action capture (minimal)
 
 - Scenario/legitimate work ID (not the original private content)

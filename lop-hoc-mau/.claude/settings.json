@@ -4,8 +4,9 @@
       "source": {
         "source": "git",
         "url": "https://github.com/VOSYDUNG/nnc-claude-plugins.git",
-        "ref": "lop-hoc-v0.7.1"
-      }
+        "ref": "lop-hoc-release"
+      },
+      "autoUpdate": true
     }
   },
   "enabledPlugins": {

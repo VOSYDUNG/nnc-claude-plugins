@@ -20,6 +20,7 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 
 ## 4. Vào học
 - Chọn **thầy** hoặc **cô**, rồi bấm **Vào lớp**. Mở lại app sau vài hôm thì bấm **Tiếp tục**.
+- Giáo viên hỏi bạn học bằng **tiếng Việt** hay **ພາສາລາວ**. Chọn tiếng Lào thì bảng lớp, các nút và lời giáo viên chuyển sang tiếng Lào.
 - Giáo viên dẫn từng bước. Khi thấy nút **"▶ …"**, bấm nút rồi bấm **Enter** là bạn đã giao việc cho Claude.
 - Có việc thật trong thư mục của bạn? Chọn **Làm việc thật trong thư mục của tôi**, giáo viên kèm bạn làm ngay trong thư mục đó.
 - Cần hỏi thì **Giơ tay**. Cần đi đâu một lát thì **Xin phép**. Phải dừng thì **Xin nghỉ**, giáo viên lưu chỗ.
@@ -32,3 +33,8 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 - Mỗi lần học tốn một phần hạn mức Claude của bạn. Giáo viên sẽ nói gọn lại khi hạn mức gần hết.
 - Mỗi lần chỉ mở **một** phiên trong thư mục lớp học.
 - Giáo viên là nhân vật AI của Lớp học NNC.
+
+## Cập nhật lớp học
+- Lớp học **tự cập nhật**: khi có bản mới, Claude tự tải về trong lúc bạn học. Lần mở phiên sau là bản mới. Chỗ học của bạn giữ nguyên.
+- Máy đã cài bản trước 0.7.2: giải nén gói mới **đè lên** thư mục **Lop-hoc-NNC** cũ (chọn *Thay thế*). Chỗ học trong thư mục `.lop-hoc` không mất. Mở phiên mới trong thư mục; Claude hỏi cài công cụ thì **đồng ý**. Từ đó về sau máy tự cập nhật.
+- Không chắc mình đang dùng bản nào: hỏi giáo viên *"Lớp học đang ở bản nào?"* hoặc nhờ người hỗ trợ.

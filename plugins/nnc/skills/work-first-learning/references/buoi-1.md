@@ -42,7 +42,7 @@ Later visits skip part 1 when every card is known (§6) and open with the **vi�
   "teacher": { "kind": "co", "name": "", "emotion": "hi" },
   "address": null, "branch": null, "help_needed": false,
   "destination": "Một việc có file đã giao cho Claude và tự kiểm",
-  "result_parts": [], "skills": [], "loops_done": 0,
+  "result_parts": [], "skills": [], "loops_done": 0, "language": null,
   "next_action": "Chọn cách xưng hô và chế độ quyền",
   "one_touch": null, "activity": null, "challenge": null,
   "stars": 0, "badges_new": [], "gift_box": false, "updated_at": "<now>" }
@@ -72,7 +72,7 @@ trainer.json: `autonomy: 2`.
                  { "label": "Chưa rõ — cô gợi ý", "description": "Cô chọn giúp đường đi" } ] } ] }
 ```
 
-   Answer each answer in one human line (T55). Then **Box B** (not timed):
+   Answer each answer in one human line (T55). **Write `language` (`vi` or `lo`) into state right away** — the podium switches to that language (labels, buttons, Giao việc form); from here on teach in that language. Then **Box B** (not timed):
 
 ```json
 { "questions": [
