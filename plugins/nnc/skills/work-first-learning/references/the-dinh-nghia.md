@@ -1,11 +1,11 @@
 # Thẻ định nghĩa — 9 thẻ phải nắm trước thực hành + thẻ 10 Skill
 
-Dùng ở phần **Nhập môn** của Buổi 1 (nhóm A: 1–3 · B: 4–6 · C: 7–9), khi **gọi tên** định nghĩa trong việc thật, và trong các câu **nhớ lại** cuối buổi và đầu buổi sau. Thẻ 10 chỉ mở cho học viên nhận thử thách ở phần 3, và là thẻ mới đầu tiên của Buổi 2.
+Dùng ở phần **Làm quen nhanh** của vòng việc đầu tiên (nhóm A: 1–3 · B: 4–6 · C: 7–9; **kiểm nhanh trước**, nhóm nào học viên đã biết thì chỉ nói một dòng), khi **gọi tên** định nghĩa trong việc thật, và trong các câu **nhớ lại** khi chốt vòng việc và khi học viên quay lại. Thẻ 10 chỉ mở cho học viên nhận thử thách ở phần 3, và là thẻ mới đầu tiên của lần quay lại sau đó. Nguồn chuẩn cho học viên tự đọc: sách tự học mục 2–5 ([sach-tu-hoc.md](sach-tu-hoc.md)).
 
 Mỗi thẻ có: `id` (dùng trong sổ định nghĩa) · **Một câu** · **Ví dụ đời thường** · **Số liệu thật trên máy** · **Giải thích thêm** (cách nói thứ hai, khi học viên bấm *Giải thích thêm*) · **Gọi tên khi dùng** · **2 câu nhớ lại** (đáp án đúng ✓ và vì sao).
 
 Quy tắc chung:
-- Trình bày mỗi thẻ ≤ 3 dòng. Số liệu chỉ nói khi **đã thấy thật** trong buổi (thẻ usage trên bục giảng do học viên đọc, kết quả `/status`, tên model giáo viên đang chạy). Chưa thấy thì nhờ học viên đọc trên bục — đọc được chính là kỹ năng D2. **Không đoán, không nói theo trí nhớ.**
+- Trình bày mỗi thẻ ≤ 3 dòng. Số liệu chỉ nói khi **đã thấy thật** trong buổi (thẻ usage trên bục giảng hoặc vòng tròn hạn mức cuối thanh dưới ô nhập do học viên đọc, Settings > Usage, kết quả `/status` ở bản dòng lệnh, tên model giáo viên đang chạy). Chưa thấy thì nhờ học viên đọc trên bục — đọc được chính là kỹ năng D2. **Không đoán, không nói theo trí nhớ.**
 - Câu nhớ lại dùng hộp câu hỏi gốc. **Phương án đầu tiên luôn là "Chưa chắc — cô nhắc lại"** (mặc định khi hết 60 giây). Chọn phương án này hoặc hết giờ **không** tính là nhớ đúng; giáo viên nhắc lại thẻ trong ≤ 30 giây.
 - Các phương án sai là hiểu lầm thường gặp, không gài bẫy chữ.
 
@@ -34,7 +34,7 @@ Quy tắc chung:
 ## Thẻ 3 · Phiên — `phien`
 - **Một câu:** Một cuộc làm việc với Claude, có trí nhớ riêng; việc mới thì mở phiên mới.
 - **Ví dụ đời thường:** như một cuộc họp có biên bản riêng: họp việc khác thì mở biên bản mới, không ghi chồng lên.
-- **Số liệu thật:** sơ đồ vị trí *Code → New session → Local* (học viên đang ngồi trong một phiên như vậy).
+- **Số liệu thật:** vị trí *tab Code → + New → This computer* (học viên đang ngồi trong một phiên như vậy; sách tự học Hình 1, Hình 7).
 - **Giải thích thêm:** phiên dài, lẫn nhiều việc thì Claude dễ nhầm và mỗi lượt tốn hạn mức hơn. Chuyển sang việc khác hẳn, hoặc context đầy: ghi chú "lần sau tiếp từ đâu" rồi mở phiên mới.
 - **Gọi tên khi dùng:** bước 1 của quy trình 7 bước; bước 7 (khi nào mở phiên mới).
 - **Nhớ lại:**
@@ -75,11 +75,11 @@ Quy tắc chung:
 - **Một câu:** Hạn mức theo phiên, **reset mỗi 5 giờ**; claude.ai, Claude Code và Desktop dùng **chung** một hạn mức.
 - **Ví dụ đời thường:** như suất ăn theo ca: dùng ở căng-tin nào cũng trừ vào cùng một suất; sang ca mới thì có suất mới.
 - **Số liệu thật:** dòng thời gian 5 giờ trên bục giảng — vạch "bây giờ", vạch "reset lúc HH:MM", thanh % đã dùng, "còn … đến lượt reset". Giáo viên **chỉ vào giờ reset thật**, không tự tính.
-- **Giải thích thêm:** không phải một số tin nhắn cố định — độ dài tin nhắn và file, độ dài cuộc trò chuyện, model, tính năng đều làm thay đổi mức dùng. Gần chạm sẽ có cảnh báo; chạm giới hạn khi Claude Code đang làm thì nó có thể làm nốt bước đang dở rồi dừng. Xem bằng `/status` hoặc Settings > Usage.
+- **Giải thích thêm:** không phải một số tin nhắn cố định — độ dài tin nhắn và file, độ dài cuộc trò chuyện, model, tính năng đều làm thay đổi mức dùng. Gần chạm sẽ có cảnh báo; chạm giới hạn khi Claude Code đang làm thì nó có thể làm nốt bước đang dở rồi dừng. Xem nhanh: vòng tròn hạn mức cuối thanh dưới ô nhập (Desktop); xem đủ: **Settings > Usage**; ở bản dòng lệnh: `/status`.
 - **Không được nói:** "5 giờ tính từ tin nhắn đầu tiên" hay bất kỳ điểm bắt đầu nào — tài liệu cho gói cá nhân không ghi điều đó.
 - **Gọi tên khi dùng:** bước 4; khi thấy cảnh báo gần chạm; khi hết usage (làm cặp với bạn bên cạnh và xem giờ reset — chính là bài học thẻ này).
 - **Nhớ lại:**
-  1. *Usage 5 giờ của mình reset lúc nào?* — Chưa chắc · Đúng 5 giờ sau tin nhắn đầu tiên · **Lúc ghi trên thẻ usage của bục giảng (hoặc /status) ✓** · Nửa đêm mỗi ngày. *Vì:* tài liệu nói reset mỗi 5 giờ; giờ cụ thể thì đọc trên máy, không tự suy.
+  1. *Usage 5 giờ của mình reset lúc nào?* — Chưa chắc · Đúng 5 giờ sau tin nhắn đầu tiên · **Lúc ghi trên thẻ usage của bục giảng (hoặc Settings > Usage) ✓** · Nửa đêm mỗi ngày. *Vì:* tài liệu nói reset mỗi 5 giờ; giờ cụ thể thì đọc trên máy, không tự suy.
   2. *Sáng chị dùng claude.ai nhiều, chiều mở Claude Code. Hạn mức thế nào?* — Chưa chắc · Mỗi nơi một hạn mức riêng · Claude Code không tính · **Dùng chung một hạn mức ✓**. *Vì:* mọi nơi dùng Claude đều tính vào cùng giới hạn.
 
 ## Thẻ 8 · Usage tuần — `usage-tuan`
@@ -87,7 +87,7 @@ Quy tắc chung:
 - **Ví dụ đời thường:** như kho chốt sổ tuần vào một giờ cố định: tuần đó nhập hàng lúc nào thì sổ vẫn chốt đúng giờ ấy.
 - **Số liệu thật:** **ngày và giờ reset tuần thật** trên lịch tuần của bục giảng, % đã dùng trong tuần.
 - **Giải thích thêm:** hết hạn mức tuần thì phải chờ tới giờ reset tuần, dù hạn mức 5 giờ đã reset (trừ khi tài khoản được bật dùng thêm ngoài gói — việc của người quản trị, không phải học viên). Trước một việc dài, nhìn **cả hai** con số. Giờ reset kế tiếp xem ở Settings > Usage.
-- **Gọi tên khi dùng:** bước 4; khi lên kế hoạch bài về nhà.
+- **Gọi tên khi dùng:** bước 4; khi hẹn việc kế tiếp; khi lớp báo hạn mức chạm ngưỡng.
 - **Nhớ lại:**
   1. *Reset tuần của mình là lúc nào?* — Chưa chắc · 7 ngày sau lần mình dùng đầu tiên · Sáng thứ Hai, giống mọi người · **Giờ cố định của tài khoản — xem trên bục giảng / Settings > Usage ✓**. *Vì:* mỗi tài khoản được gán một giờ reset tuần cố định.
   2. *Hạn mức 5 giờ vừa reset nhưng hạn mức tuần đã hết. Làm tiếp được không?* — Chưa chắc · Được, vì 5 giờ đã reset · **Phải chờ tới giờ reset tuần ✓** · Chuyển sang claude.ai là được. *Vì:* hai giới hạn cùng áp dụng, và claude.ai dùng chung hạn mức.
@@ -96,18 +96,18 @@ Quy tắc chung:
 - **Một câu:** Claude hỏi trước khi sửa file hoặc chạy lệnh; mình **đọc rồi mới đồng ý**.
 - **Ví dụ đời thường:** như phiếu xuất kho cần chữ ký: thủ kho đọc phiếu rồi mới ký, không ký phiếu trắng.
 - **Số liệu thật:** hình hộp xin quyền (sơ đồ) + **chế độ quyền đang bật** trên bảng điều khiển.
-- **Giải thích thêm:** hộp xin quyền nói Claude sắp làm gì. Đọc ba điều: làm gì, ở thư mục nào, có sửa hay xoá gì không. Không hiểu thì chưa đồng ý — hỏi cô. Chế độ quyền quyết định Claude phải hỏi những gì; lớp học dùng chế độ hỏi trước. Giáo viên không bao giờ bấm thay.
+- **Giải thích thêm:** hộp xin quyền nói Claude sắp làm gì. Đọc ba điều: làm gì, ở thư mục nào, có sửa hay xoá gì không. Không hiểu thì chưa đồng ý — hỏi cô. Chế độ quyền quyết định Claude được tự làm gì, phải hỏi gì: lớp học khuyên người mới chọn **Auto** (bộ kiểm riêng xem trước từng thao tác, thao tác rủi ro vẫn bị chặn hoặc phải hỏi); không có Auto thì **Manual** (hỏi mọi lần sửa); **không bao giờ Bypass permissions**. Desktop nhớ chế độ cho từng thư mục (sách tự học mục 5). Giáo viên không bao giờ bấm thay.
 - **Gọi tên khi dùng:** mỗi lần hộp xin quyền hiện ra trong việc thật (*"chị vừa duyệt quyền — đúng thẻ số 9"*).
 - **Nhớ lại:**
   1. *Claude hỏi quyền thì mình làm gì?* — Chưa chắc · Bấm đồng ý ngay cho nhanh · **Đọc nó sắp làm gì rồi mới đồng ý ✓** · Luôn từ chối cho an toàn. *Vì:* quyền là chữ ký của mình; ký khi đã đọc.
   2. *Hộp quyền ghi Claude sẽ xoá một file chị không nhận ra. Chị làm gì?* — Chưa chắc · **Chưa đồng ý, hỏi cô trước ✓** · Đồng ý vì Claude biết việc · Tắt máy ngay. *Vì:* không rõ thì dừng và hỏi — không đoán.
 
-## Thẻ 10 · Skill — `skill` (chỉ mở ở phần thử thách; thẻ mới đầu Buổi 2)
+## Thẻ 10 · Skill — `skill` (chỉ mở ở phần thử thách; thẻ mới của lần quay lại đầu tiên)
 - **Một câu:** Một gói hướng dẫn đã kiểm cho một việc lặp lại, để lần sau Claude làm đúng cách mà không phải dặn lại từ đầu.
 - **Ví dụ đời thường:** như quy trình chuẩn dán cạnh máy: ai làm cũng theo cùng các bước và cùng cách kiểm.
 - **Số liệu thật:** Skill nháp vừa tạo trong thư mục lớp (hoặc Skill mẫu của lớp).
 - **Giải thích thêm:** chỉ đóng gói khi việc **lặp lại** (thường từ 3 lần) và cách làm **đã kiểm**. Một Skill tốt chứa đủ 4 ý: mục tiêu, nguồn, đầu ra, cách kiểm. Skill mới thường dùng được ở phiên mới.
-- **Gọi tên khi dùng:** khi đóng gói ở phần 3; khi bài về nhà dùng Skill.
+- **Gọi tên khi dùng:** khi đóng gói ở phần 3; khi việc kế tiếp dùng Skill.
 - **Nhớ lại:**
   1. *Khi nào nên đóng gói một việc thành Skill?* — Chưa chắc · Ngay lần đầu làm · **Khi việc lặp lại và cách làm đã kiểm ✓** · Khi muốn Claude tự quyết thay mình. *Vì:* Skill đóng gói cách làm đã đúng, không đóng gói thử nghiệm.
   2. *Skill giống cái gì nhất?* — Chưa chắc · Một model mạnh hơn · **Quy trình chuẩn dán cạnh máy ✓** · Một thư mục làm việc. *Vì:* Skill là cách làm được ghi lại để làm lại giống nhau.
@@ -136,11 +136,11 @@ Quy tắc chung:
 
 ### Vòng đời một thẻ
 
-1. **Học** — thẻ được trình bày ở phần Nhập môn (hoặc thẻ mới đầu buổi sau).
+1. **Học** — thẻ được trình bày (hoặc học viên chứng tỏ đã biết qua câu kiểm nhanh) ở phần Làm quen nhanh, hoặc là thẻ mới khi quay lại.
 2. **Dùng** — giáo viên gọi tên thẻ ngay khi nó xuất hiện trong việc thật.
-3. **Nhớ lại cuối buổi** — 2 câu, chọn từ thẻ yếu nhất.
-4. **Nhớ lại đầu buổi sau** — 2 câu, chọn từ thẻ lâu chưa gặp, đã sai, hoặc có tin mới; sau đó dạy 1–2 thẻ mới.
-5. **Thuộc** — trả lời đúng **3 lần**, trải qua **ít nhất 2 buổi**.
+3. **Nhớ lại khi chốt vòng việc** — 2 câu, chọn từ thẻ yếu nhất.
+4. **Nhớ lại khi học viên quay lại** (ngày khác) — 2 câu, chọn từ thẻ lâu chưa gặp, đã sai, hoặc có tin mới; sau đó dạy 1–2 thẻ mới khi đến lượt.
+5. **Thuộc** — trả lời đúng **3 lần**, trải qua **ít nhất 2 ngày khác nhau** (lớp luôn mở nên không đếm theo buổi).
 
 ### Sổ định nghĩa — `.lop-hoc/trainer.json` → `concepts`
 
@@ -158,15 +158,15 @@ Id thẻ: `claude-code` · `thu-muc` · `phien` · `model` · `effort` · `conte
 ### Quy tắc ghi
 
 - `learned`: ngày thẻ được trình bày lần đầu; không đổi về sau.
-- `used`: +1 mỗi lần giáo viên gọi tên thẻ trong việc thật (tối đa +3 mỗi buổi cho một thẻ, để con số phản ánh số lần gặp thật chứ không phải số lần nhắc).
-- `recalled_ok`: +1 khi học viên **tự bấm** đúng đáp án trong vé vào lớp, nhớ lại cuối buổi hoặc đầu buổi sau. Không cộng khi hết giờ (lớp chọn giúp), khi chọn "Chưa chắc", hay khi trả lời sai. Sai thì **không trừ**, thẻ đó được ưu tiên nhớ lại lần sau.
-- **Tối đa +2 `recalled_ok` cho một thẻ trong cùng một buổi** (giáo viên đếm trong buổi). Nhờ vậy, đạt 3 lần đúng luôn cần ít nhất 2 buổi — đúng điều kiện "thuộc" mà không cần thêm trường.
+- `used`: +1 mỗi lần giáo viên gọi tên thẻ trong việc thật (tối đa +3 mỗi ngày cho một thẻ, để con số phản ánh số lần gặp thật chứ không phải số lần nhắc).
+- `recalled_ok`: +1 khi học viên **tự bấm** đúng đáp án trong vé vào lớp, nhớ lại khi chốt vòng việc hoặc khi quay lại. Không cộng khi hết giờ (lớp chọn giúp), khi chọn "Chưa chắc", hay khi trả lời sai. Sai thì **không trừ**, thẻ đó được ưu tiên nhớ lại lần sau.
+- **Tối đa +2 `recalled_ok` cho một thẻ trong cùng một ngày** (so ngày ghi ở `last`). Nhờ vậy, đạt 3 lần đúng luôn cần ít nhất 2 ngày khác nhau — đúng điều kiện "thuộc" mà không cần thêm trường.
 - `last`: ngày gặp gần nhất (học, dùng hoặc nhớ lại).
-- `news`: `true` khi hãng đổi model hoặc đổi cách tính usage liên quan tới thẻ (biết qua hiệu chỉnh model hoặc khi tra tài liệu chính thức có thay đổi). Đầu buổi sau giảng lại thẻ đó ("Tin mới từ hãng", nói ngày tra), hỏi một câu nhớ lại, rồi đặt lại `false`.
-- **Thuộc** = `recalled_ok ≥ 3` (với giới hạn +2/buổi ở trên). Thẻ đã thuộc không còn được chọn để nhớ lại, trừ khi `news: true`.
+- `news`: `true` khi hãng đổi model hoặc đổi cách tính usage liên quan tới thẻ (biết qua hiệu chỉnh model hoặc khi tra tài liệu chính thức có thay đổi). Lần quay lại kế tiếp giảng lại thẻ đó ("Tin mới từ hãng", nói ngày tra), hỏi một câu nhớ lại, rồi đặt lại `false`.
+- **Thuộc** = `recalled_ok ≥ 3` (với giới hạn +2/ngày ở trên). Thẻ đã thuộc không còn được chọn để nhớ lại, trừ khi `news: true`.
 
 ### Chọn câu nhớ lại
 
-- **Cuối buổi (2 câu):** trong các thẻ đã học và chưa thuộc, ưu tiên: sai hôm nay → bấm *Giải thích thêm* hôm nay → `recalled_ok` thấp nhất → chưa được dùng hôm nay. Hai câu từ **hai thẻ khác nhau**; dùng câu nhớ lại chưa hỏi trong buổi.
-- **Đầu buổi sau (2 câu):** `news: true` trước → `last` cũ nhất → `recalled_ok` thấp nhất.
+- **Khi chốt vòng việc (2 câu):** trong các thẻ đã học và chưa thuộc, ưu tiên: sai hôm nay → bấm *Giải thích thêm* hôm nay → `recalled_ok` thấp nhất → chưa được dùng hôm nay. Hai câu từ **hai thẻ khác nhau**; dùng câu nhớ lại chưa hỏi hôm nay.
+- **Khi học viên quay lại (2 câu):** `news: true` trước → `last` cũ nhất → `recalled_ok` thấp nhất.
 - Tín hiệu nhớ lại chỉ để dạy cho vừa sức; không dùng để chấm người.

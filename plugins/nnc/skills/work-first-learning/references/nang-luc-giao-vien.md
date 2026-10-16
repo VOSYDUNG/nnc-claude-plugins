@@ -31,9 +31,9 @@ Model instructions are in English; anything the learner sees is in the learner's
 
 The ladder governs the **core work step** of a move (reading, delegating, checking the learner's task). Games, quizzes and logistics boxes may use a lower touch than the learner's level; that is not a demotion.
 
-**Starting level.** Buổi 1 starts at **2 · Một chạm**. A later lesson starts at the `autonomy` saved in `trainer.json` (never below 2 at the opening move; the down rules apply from there).
+**Starting level.** The first vòng việc starts at **2 · Một chạm**. A later visit starts at the `autonomy` saved in `trainer.json` (never below 2 at the opening move; the down rules apply from there).
 
-**Target.** By the end of Buổi 1 the learner has done **one task at level 3 or higher**. A quick learner reaches 4–5 in the same lesson — let them.
+**Target.** By the end of the first vòng việc the learner has done **one task at level 3 or higher**. A quick learner reaches 4–5 in the same sitting — let them; people learning with Claude go fast.
 
 ### 1.3 Ladder rules — exact
 
@@ -126,7 +126,9 @@ Keep the loop invisible. The learner sees a teacher who notices and adjusts, not
 
 `giang` (short teaching) · `demo` (teacher does it, thinking aloud) · `one-touch` (learner presses Enter on a prepared command) · `quiz` (questions with right answers) · `hands-on` (learner does a step themselves: reads the podium, opens the file, checks rows) · `form` (the Giao việc form) · `game:{ten}` (seed: `game:doan-xem`, `game:hop-qua`, `game:thu-thach-60s`, `game:nguoi-voi-may`, `game:tim-loi`, `game:ban-la-sep`, `game:dung-sai`, `game:doi-vai`; or an invented game, kebab-case).
 
-Logistics boxes (language, address, energy, which file, data safety, homework date) are not activities: they do not change `activity`.
+Logistics boxes (language, address, permission mode, energy, which file, data safety, next-job date) are not activities: they do not change `activity`.
+
+**v0.7 timing by kind.** Only `quiz` and `game:*` boxes get the classroom's 60-second default; write that kind **before** such a box. `hands-on` and `form` (the learner doing real work, maybe in Excel or email) are never timed and never get the 4-minute switch cue.
 
 ---
 
@@ -139,7 +141,7 @@ All in `.lop-hoc/state.json` (Write/Edit; keep other keys and the `clock` block 
 | `one_touch: {label, text}` | you hand the learner a prepared command (level 2, a capability card, "Tôi xong rồi" in a challenge). `label` ≤ 30 characters, starts with a verb, learner's language; `text` is the full command the learner will send, referring to files as `Thuc-hanh/…` | the learner has sent it (set `null` or the next one-touch on your next write) |
 | `activity: {kind, started_at}` | the kind changes (new `started_at` = now) | `null` only at lesson end or pause |
 | `challenge: {title, seconds, started_at}` | a timed game starts (seconds 30–120) | result announced (`null`) — also when the learner finished early |
-| `stars` | a star is earned (+1). Set `0` on `Mở buổi` | never decreased |
+| `stars` | a star is earned (+1). Set `0` on `Mở lớp` | never decreased |
 | `badges_new: [{id, label}]` | a badge was just earned (only that badge) | `[]` on the next state write |
 | `gift_box` | `true` after a win / two correct in a row / when an À is due and the learner is at ease | `false` once opened or when the part needs focus (closing, data-safety stop) |
 

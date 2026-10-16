@@ -19,7 +19,7 @@ Ghi nhận **hành vi thật** của học viên — điều giáo viên đã th
 |---|---|---|---|
 | `giao-viec-dau-tien` | Người giao việc đầu tiên | Học viên **tự soạn** lời giao việc đầu tiên đủ 4 ý (Mục tiêu · Nguồn · Đầu ra · Cách kiểm) — qua form hoặc lời của mình — và Claude làm được việc đó | Học viên chỉ bấm Enter một lệnh giáo viên đã điền sẵn; thiếu *Cách kiểm*; việc không chạy |
 | `mat-tinh` | Mắt tinh | Học viên **bắt được một lỗi thật của Claude** (hoặc của giáo viên) trong buổi — con số, dòng, cách hiểu sai — và chỉ ra được bằng nguồn | Lỗi cài sẵn trong trò Tìm lỗi (được sao, không phải huy hiệu này); học viên nói "sai rồi" nhưng thực ra kết quả đúng |
-| `thuoc-9-the` | Thuộc 9 thẻ | Sổ định nghĩa (`trainer.json` `concepts`) cho thấy **cả 9 thẻ** đã thuộc: mỗi thẻ 3 lần nhớ lại đúng qua ít nhất 2 buổi | Trong Buổi 1 (không thể đủ điều kiện); thắng một chuỗi Đúng/sai; vé vào lớp 3/3 |
+| `thuoc-9-the` | Thuộc 9 thẻ | Sổ định nghĩa (`trainer.json` `concepts`) cho thấy **cả 9 thẻ** đã thuộc: mỗi thẻ 3 lần nhớ lại đúng qua ít nhất 2 ngày khác nhau | Trong ngày học đầu tiên (không thể đủ điều kiện); thắng một chuỗi Đúng/sai; vé vào lớp 3/3 |
 | `tu-kiem-co-tam` | Tự kiểm có tâm | Học viên **tự kiểm** một kết quả với nguồn bằng cách cụ thể (ít nhất 3 dòng, hoặc cộng tay một kênh) **trước khi** nhận dùng, và báo lại kết quả kiểm | Bấm *Khớp* mà chưa thực sự kiểm; chọn mặc định do hết giờ; giáo viên làm hộ phần kiểm |
 | `nguoi-day-lai` | Người dạy lại | Trong **Đổi vai**, học viên giải thích đúng một bước **bằng lời của mình**, đủ ý chính | Bản chọn phương án (không gõ) — chỉ được sao; lời giải thích thiếu ý chính |
 | `dong-goi-skill-dau-tien` | Đóng gói Skill đầu tiên | Skill nháp của học viên có đủ 4 ý, học viên **đã đọc và sửa hoặc duyệt** một điểm, và nó được **chạy thử trên một file khác** có kiểm | Chỉ xem Skill mẫu của lớp; Skill do giáo viên viết mà học viên chưa đọc; chưa chạy thử |
@@ -33,7 +33,7 @@ Màu nhóm trên bục (lớp tự chọn theo `id`): việc thật · kiểm ·
 
 ## Sao trong buổi
 
-Sao là phần thưởng nhỏ **trong một buổi** (`state.stars`). Đầu mỗi buổi (`Mở buổi`) đặt `stars: 0`. Sao **không bao giờ bị trừ** và không ghi vào `trainer.json`.
+Sao là phần thưởng nhỏ **trong một buổi** (`state.stars`). Mỗi lần mở lớp (`Mở lớp`) đặt `stars: 0`. Sao **không bao giờ bị trừ** và không ghi vào `trainer.json`.
 
 | +1 sao khi | Giới hạn |
 |---|---|

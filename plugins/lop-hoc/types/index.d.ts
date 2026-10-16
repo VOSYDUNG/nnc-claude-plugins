@@ -1,5 +1,5 @@
-// Lớp học NNC v0.6 — kiểu dữ liệu của mod lop-hoc.
-// Hợp đồng: docs/oser-r2/LOP-HOC-V05-CONTRACT.md (§3 state lop-hoc/2, §4 giáo án, §8 bộ năng lực giáo viên).
+// Lớp học NNC v0.7 — kiểu dữ liệu của mod lop-hoc.
+// Hợp đồng: docs/oser-r2/LOP-HOC-V05-CONTRACT.md (§3 state lop-hoc/2, §8 bộ năng lực giáo viên, §9 lớp luôn mở v0.7).
 
 export type LessonStatus = 'active' | 'paused' | 'done'
 export type TeacherKindId = 'thay' | 'co'
@@ -7,7 +7,6 @@ export type EmotionId = 'hi' | 'no' | 'ai' | 'o' | 'bi' | 'lac' | 'giang' | 'ngh
 export type DriveId = 'D1' | 'D2' | 'D3' | 'ket-noi'
 export type BranchId = 'vung' | 'dang-len' | 'can-do'
 export type PanelKind = 'usage' | 'claude'
-export type LessonMinutes = 15 | 30 | 45
 
 export type LessonPart = { label: string; done: boolean }
 export type LessonSkill = { label: string; done: boolean }
@@ -47,6 +46,8 @@ export type LessonState = {
   stars?: number
   badges_new?: LessonBadge[]
   gift_box?: boolean
+  // v0.7: số vòng việc đã chốt (giáo viên ghi; chi tiết ở .lop-hoc/vong-viec.json).
+  loops_done?: number
 }
 
 // Bản cũ v0.4 (lop-hoc/1) vẫn đọc được: stage 0–5 được đổi sang phần học.
@@ -64,30 +65,25 @@ export type LessonStateV1 = {
   updated_at?: string
 }
 
-// Giáo án theo giờ (hợp đồng §4).
-export type PlanSegment = { id: string; title: string; minutes: number; drive: DriveId }
+// Phần học (v0.7: giáo viên chuyển phần theo mốc hoàn thành, không theo giờ).
+export type PlanSegment = { id: string; title: string; drive: DriveId }
 
-// Đồng hồ buổi học do mod giữ ($.state), không ghi vào state.json.
+// Lớp đang mở, do mod giữ ($.state + $.store), không ghi vào state.json. Lớp luôn mở: không có thời lượng.
 export type Lesson = {
-  minutes: LessonMinutes
   teacher: TeacherKindId
   startedAt: number
-  // Tổng thời gian đã tạm nghỉ/xin phép (ms), cộng vào lịch các phần còn lại.
+  // Tổng thời gian đã xin phép / chờ (ms), không tính vào giờ học.
   shiftMs: number
   pausedAt: number | null
-  pause: 'absent' | 'xin-phep' | null
+  // xin-phep: học viên xin phép một lát · cho: mở lại app, chờ học viên bấm Tiếp tục.
+  pause: 'xin-phep' | 'cho' | null
   pauseNote: string
-  over: 'ket-thuc' | 'xin-nghi' | null
-  // Chỉ số phần đã báo cho giáo viên (0 = Vào lớp, báo bằng "Mở buổi").
-  announced: number
+  over: 'xin-nghi' | null
   // Khoá các tín hiệu đã gửi: không gửi trùng.
   sent: string[]
   lastCueAt: number
-  // Số lần liên tiếp không tương tác (hết hạn trả lời hoặc ngồi im 60 giây).
-  strikes: number
-  idleFrom: number
-  rollCallAt: number | null
-  absences: number
+  // Đã gửi một tín hiệu và học viên chưa tác động lại: không gửi thêm (lớp chỉ chờ, không tốn hạn mức).
+  quiet: boolean
 }
 
 // Hộp câu hỏi gốc đang mở.
@@ -101,7 +97,7 @@ export type UsageInfo = {
 }
 
 // Phần v0.6 mod cần giữa các lần vẽ (đọc lại state.json mới cập nhật).
-export type LiveState = { activity: LessonActivity | null; challenge: LessonChallenge | null; giftBox: boolean }
+export type LiveState = { activity: LessonActivity | null; challenge: LessonChallenge | null; giftBox: boolean; segment: PlanSegment | null }
 // Kiểu tương tác đang theo dõi: thời điểm bắt đầu tính theo giờ buổi học (không tính lúc nghỉ).
 export type ActivityTrack = { key: string; fromEl: number }
 // Hộp quà: chưa mở · đang mở (hình nắp bật) · đã mở (chờ giáo viên tắt).
@@ -122,7 +118,6 @@ declare module 'claude-code' {
       isClassroom: boolean
       entered: boolean
       teacherPick: TeacherKindId
-      minutesPick: LessonMinutes
       mode: BandMode
       usage: UsageInfo | null
       effort: string

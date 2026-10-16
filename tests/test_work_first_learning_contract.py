@@ -1,4 +1,4 @@
-"""Static contract checks for the optional work-first learning Skill (Lớp học NNC v0.6).
+"""Static contract checks for the optional work-first learning Skill (Lớp học NNC v0.7, always-open class).
 
 These checks verify packaging and critical textual boundaries, not Claude behavior.
 A real host/learner evaluation is still required.
@@ -27,10 +27,11 @@ PLUGIN = ROOT / "plugins" / "nnc" / ".claude-plugin" / "plugin.json"
 LAO = re.compile(r"[຀-໿]")
 
 CUES = (
-    "Mở buổi", "Bắt đầu phần", "Còn {n} phút", "Hết hạn trả lời", "chọn giúp",
-    "Học viên vắng", "tạm nghỉ", "Học viên trở lại", "Xin phép", "Xin nghỉ",
-    "Giơ tay", "Nhịp: chậm lại", "Nhịp: nhanh hơn", "Kết thúc buổi",
+    "Mở lớp", "Hạn mức · 5 giờ", "Hạn mức · tuần", "Hết hạn trả lời", "chọn giúp",
+    "Học viên trở lại", "Xin phép", "Xin nghỉ", "Giơ tay", "Nhịp: chậm lại", "Nhịp: nhanh hơn",
 )
+# v0.6 cues a classroom may still send from an older podium: handled in the Skill's legacy line.
+LEGACY_CUES = ("Mở buổi", "Bắt đầu phần", "Còn {n} phút", "Học viên vắng", "Kết thúc buổi")
 EMOTIONS = ("hi", "no", "ai", "o", "bi", "lac", "giang", "nghe")
 CARD_IDS = (
     "claude-code", "thu-muc", "phien", "model", "effort", "context",
@@ -83,13 +84,15 @@ class WorkFirstLearningContract(unittest.TestCase):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.6.0", frontmatter)
+        self.assertIn("version: 0.7.0", frontmatter)
+        self.assertNotIn("version: 0.6.0", frontmatter)
         self.assertNotIn("version: 0.5.0", frontmatter)
         self.assertNotIn("version: 0.4.0", frontmatter)
         for ref in ("references/scenarios.md", "references/buoi-1.md",
                     "references/the-dinh-nghia.md", "references/tuong-tac.md",
                     "references/nang-luc-giao-vien.md", "references/kho-tro-choi.md",
-                    "references/tu-kha-nang.md", "references/huy-hieu.md"):
+                    "references/tu-kha-nang.md", "references/huy-hieu.md",
+                    "references/vong-viec.md", "references/sach-tu-hoc.md"):
             self.assertIn(ref, self.skill)
             self.assertTrue((SKILL.parent / ref).is_file(), ref)
         self.assertIn("WORK-FIRST-LEARNING-PILOT.md", self.skill)
@@ -117,7 +120,7 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_classroom_mode(self):
         for phrase in (
-            "Lớp đang chờ giáo viên", "Bắt đầu việc mới", "Tiếp tục buổi trước",
+            "Lớp đang chờ giáo viên", "Bắt đầu việc mới", "Tiếp tục từ chỗ đã lưu",
             ".lop-hoc/state.json", '"schema": "lop-hoc/2"', "trainer.json",
             "calibration.json", "[Lớp học]", "Thưa cô, chỗ này chưa đúng",
             "Never edit this Skill yourself", "only names and modified dates",
@@ -156,7 +159,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn(state, self.scenarios)
 
     def test_scenarios_and_host_not_claimed(self):
-        for i in range(1, 33):
+        for i in range(1, 43):
             self.assertIn("Case F{} ".format(i), self.scenarios)
         self.assertIn("NOT_TESTED", self.scenarios)
         self.assertIn("INSTALL_NOT_VERIFIED", self.pilot)
@@ -181,9 +184,10 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn("| `{}` |".format(code), self.skill)
 
     def test_every_contract_cue_is_handled(self):
-        for cue in CUES:
+        for cue in CUES + LEGACY_CUES:
             self.assertIn(cue, self.skill, cue)
         self.assertIn("[Giáo án]", self.skill)
+        self.assertIn("Legacy cues", self.skill)
         if CONTRACT.is_file():  # cross-check against the shared contract when present
             contract = CONTRACT.read_text(encoding="utf-8")
             for raw in re.findall(r"`\[Giáo án\] ([^`]+)`", contract):
@@ -208,25 +212,26 @@ class WorkFirstLearningContract(unittest.TestCase):
         for phrase in (
             "nine must-know definitions before any practice", "entry quiz",
             "Never keep the learner at the door more than one minute",
-            "mastered after 3 correct recalls across at least 2 lessons", "concepts",
+            "mastered after 3 correct recalls across at least 2 different days", "concepts",
+            "Quick check first",
             "Do not claim when the five-hour window starts",
         ):
             self.assertIn(phrase, self.skill)
 
     def test_branches_are_never_labels(self):
         for phrase in ("`vung`", "`dang-len`", "`can-do`", "Branch names are **never shown**",
-                       "Còn 2 phút phần 2"):
+                       "branch point"):
             self.assertIn(phrase, self.skill)
 
     # --- v0.5: reference files ------------------------------------------
 
     def test_buoi1_script(self):
         for phrase in (
-            "Part 0 — Vào lớp", "Part 1 — Nhập môn", "Part 2 — Việc thật của tôi",
-            "Part 3 — Thử thách theo nhịp của bạn", "Part 4 — Tổng kết",
-            "15 phút", "45 phút", "Nghỉ giữa giờ", '"header"', '"options"',
-            "Còn 2 phút phần 2", "help_needed", "bai0_done", "Bài về nhà",
-            "Task list", "lop-hoc/2", "Người đứng lớp",
+            "Part 0 — Vào lớp", "Part 1 — Làm quen nhanh", "Part 2 — Việc thật của tôi",
+            "Part 3 — Thử thách theo nhịp của bạn", "Part 4 — Chốt vòng việc",
+            "milestones, not minutes", "Exit milestone", "Usage-driven pace", '"header"', '"options"',
+            "Branch point", "help_needed", "bai0_done", "việc kế tiếp",
+            "Task list", "lop-hoc/2", "Người hỗ trợ", "quick check", "Đã chọn Auto",
         ):
             self.assertIn(phrase, self.buoi1, phrase)
 
@@ -240,21 +245,21 @@ class WorkFirstLearningContract(unittest.TestCase):
         self.assertGreaterEqual(self.cards.count("✓"), 20)
         for url in USAGE_SOURCES:
             self.assertIn(url, self.cards)
-        for phrase in ("resets every five hours", "giờ cố định mỗi tuần", "dùng chung",
+        for phrase in ("resets every five hours", "giờ cố định mỗi tuần", "dùng chung", "Auto",
                        "Không có số tin nhắn cố định", "cảnh báo", "làm nốt bước đang dở",
                        "/status", "Settings > Usage", "Không được khẳng định",
-                       "recalled_ok", "ít nhất 2 buổi", "news"):
+                       "recalled_ok", "ít nhất 2 ngày khác nhau", "news"):
             self.assertIn(phrase, self.cards, phrase)
 
     def test_interaction_library(self):
         for phrase in (
-            "Chào lớp và điểm danh", "năng lượng", "Nêu mục tiêu buổi", "Khởi động",
+            "Chào lớp (không điểm danh)", "năng lượng", "Nêu mục tiêu buổi", "Khởi động",
             "Giảng ngắn", "nghĩ to tiếng", "Thầy làm – cùng làm – em làm", "Gọi tên nhẹ nhàng",
             "Đố vui", "chọn giúp", "Khen cụ thể", "Sửa sai", "Động viên", "ngại giao việc",
             "an toàn dữ liệu", "Không ưng cách làm", "Câu đùa nhẹ", "Chuyển phần",
-            "còn 2 phút", "Nghỉ giữa giờ", "Giơ tay", "Xin phép", "Xin nghỉ",
-            "chậm lại", "nhanh hơn", "Học viên vắng", "trở lại", "Mời thử thách",
-            "Tổng kết và nhớ lại", "học được từ học viên", "Bài về nhà", "Mở buổi sau",
+            "Chốt bước trước khi sang phần", "Nghỉ giữa giờ", "Giơ tay", "Xin phép", "Xin nghỉ",
+            "chậm lại", "nhanh hơn", "Học viên im lặng", "trở lại", "Mời thử thách",
+            "Tổng kết và nhớ lại", "học được từ học viên", "Việc kế tiếp", "quay lại",
             "người đứng lớp", "Trung thực",
         ):
             self.assertIn(phrase.lower(), self.interactions.lower(), phrase)
@@ -355,18 +360,19 @@ class WorkFirstLearningContract(unittest.TestCase):
                        "Move plan per part", "game:doan-xem", "game:dung-sai",
                        "game:ban-la-sep", "game:thu-thach-60s", "autonomy",
                        "Đổi kiểu tương tác", "Hết giờ thử thách", "Mở hộp quà",
-                       "nine-definitions-first rule is untouched"):
+                       "A taste of card 1, not practice"):
             self.assertIn(phrase, self.buoi1, phrase)
+        # v0.7: no lesson lengths anywhere in the script
         for timing in ("| 0 | Vào lớp | 2 | 2 | 2 |", "15 phút (2 · 4 · 7 · 3)",
-                       "45 phút (2 · 7 · 16 · nghỉ 3 · 14 · 3)"):
-            self.assertIn(timing, self.buoi1, timing)
+                       "45 phút (2 · 7 · 16 · nghỉ 3 · 14 · 3)", "Còn 2 phút phần"):
+            self.assertNotIn(timing, self.buoi1, timing)
         plan = self.buoi1.split("Move plan per part", 1)[1]
-        for part in ("0 Vào lớp", "1 Nhập môn", "2 Việc thật", "3 `vung`", "3 `dang-len`",
-                     "3 `can-do`", "4 Tổng kết"):
+        for part in ("0 Vào lớp", "1 Làm quen nhanh", "2 Việc thật", "3 `vung`", "3 `dang-len`",
+                     "3 `can-do`", "4 Chốt vòng việc"):
             self.assertIn("| " + part + " |", plan, part)
 
     def test_interactions_v06(self):
-        for code in range(1, 48):
+        for code in range(1, 54):
             self.assertIn("### T{:02d} ".format(code), self.interactions, code)
         for phrase in ("Đưa lệnh một chạm", "Mở trò chơi", "Đóng trò", "Hết giờ thử thách",
                        "Trao huy hiệu", "Trao sao", "Mở hộp quà", "Đổi kiểu tương tác",
@@ -375,14 +381,55 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn(phrase, self.interactions, phrase)
 
     def test_template_and_scenarios_v06(self):
-        for phrase in ("Teacher competency (v0.6)", "one_touch", "Thuc-hanh/",
+        for phrase in ("Teacher competency", "one_touch", "Thuc-hanh/",
                        "Đổi kiểu tương tác", "Hết giờ thử thách", "Mở hộp quà",
-                       "autonomy_log", "games_proposed", "never name a level",
+                       "autonomy_log", "never name a level",
                        "Base directory for this skill"):
             self.assertIn(phrase, self.template, phrase)
         for phrase in ("Teacher competency (v0.6)", "within the first two minutes", "6 rules",
                        "No badge without the behaviour", "refuses a game", "warehouse learner"):
             self.assertIn(phrase, self.scenarios, phrase)
+
+    # --- v0.7: always-open class -----------------------------------------
+
+    def test_always_open_class(self):
+        for phrase in (
+            "Always-open class (v0.7)", "vòng việc", "Milestones move parts",
+            "Pace follows usage", "Hạn mức", "lean", "Tiếp tục", "Auto", "Bypass permissions",
+            "sach-tu-hoc.md", "canonical source", "fallback", "vong-viec.json",
+            "Xuất phiếu kết quả", "Soạn tin nhờ hỗ trợ", "kèm việc", "real-data mode",
+            "việc kế tiếp", "There is no lesson time", "OSER checkpoint",
+        ):
+            self.assertIn(phrase, self.skill, phrase)
+        self.assertNotIn("Mở buổi · {minutes} phút", self.skill)
+        self.assertNotIn("Thời lượng* (30 phút default", self.skill)
+
+    def test_loop_reference(self):
+        loops = (REFS / "vong-viec.md").read_text(encoding="utf-8")
+        for phrase in (
+            '"schema": "lop-hoc/vong-viec-1"', "not** an OSER Mission", "never run `oser init`",
+            "no Bypass permissions", "Real-data mode", "Outputs are new files",
+            "Nothing real is copied into the classroom folder", "Phiếu kết quả",
+            "never** G-codes", "Việc kế tiếp", "replaces homework", "Không cần nhắc",
+            "Never create reminders", "REUSED_IN_WORK", "cho-xac-nhan", "chap-nhan",
+            "never the receiver's name",
+        ):
+            self.assertIn(phrase, loops, phrase)
+        book = (REFS / "sach-tu-hoc.md").read_text(encoding="utf-8")
+        for phrase in ("CANONICAL SOURCE", "FALLBACK", "never as a script", "Chế độ quyền",
+                       "Quy trình 7 bước", "Giao việc 4 ý", "chọn đúng việc cần xây", "Phụ lục 2. Đáp án"):
+            self.assertIn(phrase, book, phrase)
+        self.assertNotIn("hinh/hinh-", book)
+
+    def test_scenarios_v07(self):
+        for phrase in ("v0.7 cases — always-open class", "Parts move on milestones",
+                       "Quick check skips what the learner knows", "A work box waits",
+                       "Usage cue at 70 %", "kèm việc", "việc kế tiếp", "Tiếp tục",
+                       "Phiếu kết quả", "Soạn tin nhờ hỗ trợ", "self-study book as the fallback"):
+            self.assertIn(phrase, self.scenarios, phrase)
+        for phrase in ("Always open.", "milestones you reach", "usage limits", "Auto",
+                       "Xuất phiếu kết quả", "sach-tu-hoc.md"):
+            self.assertIn(phrase, self.template, phrase)
 
 
 if __name__ == "__main__":

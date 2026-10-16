@@ -9,7 +9,6 @@ import type {
   DriveId,
   GiftPhase,
   Lesson,
-  LessonMinutes,
   LessonActivity,
   LessonBadge,
   LessonChallenge,
@@ -32,7 +31,6 @@ import {
   giftBoxSvg,
   isEmotion,
   isTeacherKind,
-  segmentClockSvg,
   starRowSvg,
   teacherAvatarSvg,
   teacherPodiumSvg,
@@ -40,14 +38,17 @@ import {
   weekResetSvg,
 } from './art'
 
-// Lớp học NNC v0.6 — buổi học có giáo viên đứng lớp, chạy theo giờ.
-//   Bục giảng (dải trên ô nhập, nền bảng lớp): chọn thầy/cô và thời lượng → Vào lớp; giáo viên trên bục
-//     với cảm xúc; tên phần + màu động lực + vòng giờ; "Lượt của bạn"; nút Giơ tay · Xin phép · Xin nghỉ.
-//   Mod giữ đồng hồ và giáo án (hợp đồng §4), gửi tín hiệu "[Giáo án] …" cho giáo viên khi giáo viên
-//     rảnh và ô nhập trống; vẽ lại các tín hiệu đó thành dòng chia phần hoặc ẩn hẳn.
-//   Câu hỏi/đố dùng hộp câu hỏi gốc (AskUserQuestion); mod chỉ thêm một dòng tiêu đề lớp học.
-// v0.6 (hợp đồng §8): nút một chạm (điền sẵn ô nhập), đổi kiểu tương tác sau 4 phút, thử thách có giờ,
-//   sao, huy hiệu (mod chép vào .lop-hoc/huy-hieu.json), hộp quà.
+// Lớp học NNC v0.7 — lớp luôn mở, giáo viên đứng lớp, nhịp theo việc và hạn mức (hợp đồng §9).
+//   Bục giảng (dải trên ô nhập, nền bảng lớp): chọn thầy/cô → Vào lớp; giáo viên trên bục với cảm xúc;
+//     phần học do giáo viên ghi khi đạt mốc (không theo giờ); "Lượt của bạn"; nút Giơ tay · Xin phép · Xin nghỉ;
+//     Phiếu kết quả; Soạn tin nhờ hỗ trợ khi cần người hỗ trợ.
+//   Không có thời lượng, không điểm danh. Giữa hai lần học viên tác động, mod gửi tối đa một tín hiệu
+//     "[Giáo án] …" (lớp chỉ chờ, không giảng vào phòng trống, không tốn hạn mức).
+//   Hạn 60 giây chọn giúp chỉ áp cho câu đố và trò chơi (activity.kind = quiz | game:*): lúc học viên
+//     đang làm việc thật ở Excel, email… đồng hồ không chạy.
+//   Mod đọc hạn mức 5 giờ và tuần, báo giáo viên khi chạm ngưỡng để giáo viên giảng gọn hoặc lưu điểm dừng.
+//   Câu hỏi dùng hộp câu hỏi gốc (AskUserQuestion); mod chỉ thêm một dòng tiêu đề lớp học.
+// v0.6 giữ nguyên: nút một chạm, đổi kiểu tương tác (trừ lúc làm việc thật), thử thách có giờ, sao, huy hiệu, hộp quà.
 // Mod chỉ ĐỌC .lop-hoc/state.json (giáo viên ghi). Hộp xin quyền, ô nhập và khung app là của Claude Code.
 
 const PANE = 'lop-hoc'
@@ -59,12 +60,13 @@ const CUE = '[Giáo án] '
 
 const TICK_MS = 5_000
 const ANSWER_MS = 60_000
-const IDLE_MS = 60_000
-const ROLLCALL_MS = 60_000
 const CUE_GAP_MS = 20_000
-const WARN_MS = 120_000
+// Ngưỡng hạn mức (%) báo giáo viên: 5 giờ ở 70 (giảng gọn) và 90 (lưu điểm dừng); tuần ở 90.
+const FIVE_STEPS = [70, 90]
+const WEEK_STEPS = [90]
 const ACTIVITY_MS = 4 * 60_000
 const CHALLENGE_STALE_MS = 10 * 60_000
+const MIN = 60_000
 const CHEER_MS = 6_000
 const GIFT_OPEN_MS = 4_000
 
@@ -80,7 +82,6 @@ const rev = atom({ plugin: 'lop-hoc', key: 'rev' } as const, 0)
 const isClassroom = atom({ plugin: 'lop-hoc', key: 'isClassroom' } as const, false)
 const entered = atom({ plugin: 'lop-hoc', key: 'entered' } as const, false)
 const teacherPick = atom({ plugin: 'lop-hoc', key: 'teacherPick' } as const, 'co' as TeacherKindId)
-const minutesPick = atom({ plugin: 'lop-hoc', key: 'minutesPick' } as const, 30 as LessonMinutes)
 const modeAtom = atom({ plugin: 'lop-hoc', key: 'mode' } as const, 'normal' as BandMode)
 const usageAtom = atom({ plugin: 'lop-hoc', key: 'usage' } as const, null as UsageInfo | null)
 const effortAtom = atom({ plugin: 'lop-hoc', key: 'effort' } as const, '')
@@ -91,65 +92,58 @@ const askAtom = atom({ plugin: 'lop-hoc', key: 'ask' } as const, null as AskOpen
 const nowAtom = atom({ plugin: 'lop-hoc', key: 'now' } as const, 0)
 // v0.6
 const oneTouchUsed = atom({ plugin: 'lop-hoc', key: 'oneTouchUsed' } as const, '')
-const liveAtom = atom({ plugin: 'lop-hoc', key: 'live' } as const, { activity: null, challenge: null, giftBox: false } as LiveState)
+const liveAtom = atom({ plugin: 'lop-hoc', key: 'live' } as const, { activity: null, challenge: null, giftBox: false, segment: null } as LiveState)
 const activityTrack = atom({ plugin: 'lop-hoc', key: 'activityTrack' } as const, null as ActivityTrack | null)
 const badgesAtom = atom({ plugin: 'lop-hoc', key: 'badges' } as const, [] as BadgeEntry[])
 const cheerAtom = atom({ plugin: 'lop-hoc', key: 'cheer' } as const, false)
 const giftAtom = atom({ plugin: 'lop-hoc', key: 'gift' } as const, 'closed' as GiftPhase)
 
-// ── Giáo án (hợp đồng §4) ─────────────────────────────────────────────────────
-const S0: PlanSegment = { id: '0', title: 'Vào lớp', minutes: 2, drive: 'ket-noi' }
-const S1: PlanSegment = { id: '1', title: 'Nhập môn', minutes: 7, drive: 'D2' }
-const S2: PlanSegment = { id: '2', title: 'Việc thật của tôi', minutes: 11, drive: 'D1' }
-const S3: PlanSegment = { id: '3', title: 'Thử thách theo nhịp của bạn', minutes: 7, drive: 'D3' }
-const S4: PlanSegment = { id: '4', title: 'Tổng kết', minutes: 3, drive: 'ket-noi' }
-const BREAK: PlanSegment = { id: 'nghi', title: 'Nghỉ giải lao', minutes: 3, drive: 'ket-noi' }
-const SEGMENTS_BY_ID: Record<string, PlanSegment> = { '0': S0, '1': S1, '2': S2, '3': S3, '4': S4, nghi: BREAK }
+// ── Phần học (v0.7: giáo viên chuyển phần khi đạt mốc; mod chỉ hiển thị) ────────
+const S0: PlanSegment = { id: '0', title: 'Vào lớp', drive: 'ket-noi' }
+const S1: PlanSegment = { id: '1', title: 'Làm quen nhanh', drive: 'D2' }
+const S2: PlanSegment = { id: '2', title: 'Việc thật của tôi', drive: 'D1' }
+const S3: PlanSegment = { id: '3', title: 'Thử thách theo nhịp của bạn', drive: 'D3' }
+const S4: PlanSegment = { id: '4', title: 'Chốt vòng việc', drive: 'ket-noi' }
+export const SEGMENTS: PlanSegment[] = [S0, S1, S2, S3, S4]
+const SEGMENTS_BY_ID: Record<string, PlanSegment> = { '0': S0, '1': S1, '2': S2, '3': S3, '4': S4 }
 
-// 15 phút: bỏ phần 3, phần 1 còn 4, phần 2 còn 7, tổng kết 2 (= 15). 45 phút: phần 2 thành 16, phần 3 thành 14, nghỉ 3 phút sau phần 2.
-export function lessonPlan(minutes: number): PlanSegment[] {
-  if (minutes === 15) return [S0, { ...S1, minutes: 4 }, { ...S2, minutes: 7 }, { ...S4, minutes: 2 }]
-  if (minutes === 45) return [S0, S1, { ...S2, minutes: 16 }, BREAK, { ...S3, minutes: 14 }, S4]
-  return [S0, S1, S2, S3, S4]
-}
-
-const MIN = 60_000
-
-// Thời gian buổi học đã trôi, không tính lúc tạm nghỉ / xin phép.
+// Thời gian lớp đã mở, không tính lúc xin phép / chờ.
 export function lessonElapsed(l: Pick<Lesson, 'startedAt' | 'shiftMs' | 'pausedAt'>, now: number): number {
   return Math.max(0, now - l.startedAt - l.shiftMs - (l.pausedAt != null ? now - l.pausedAt : 0))
 }
 
-function segmentIndexAt(plan: PlanSegment[], ms: number): number {
-  let end = 0
-  for (let i = 0; i < plan.length; i++) {
-    end += (plan[i]?.minutes ?? 0) * MIN
-    if (ms < end) return i
+// Câu đố và trò chơi có hạn 60 giây; câu hỏi lúc làm việc thật thì chờ học viên.
+export function timedKind(kind: string | undefined | null): boolean {
+  return !!kind && (kind === 'quiz' || kind.startsWith('game:'))
+}
+
+// Luật "cùng một kiểu quá 4 phút thì đổi" không áp cho lúc học viên đang làm việc thật.
+export function switchableKind(kind: string | undefined | null): boolean {
+  return !!kind && kind !== 'hands-on' && kind !== 'form'
+}
+
+type UsageCue = { key: string; text: string; also: string[] }
+
+// Tín hiệu hạn mức đến hạn (ngưỡng cao nhất vừa chạm, chưa báo trong chu kỳ reset này).
+export function usageCue(u: UsageInfo | null, sent: string[]): UsageCue | null {
+  if (!u) return null
+  const pick = (scope: 'u5' | 'uw', r: UsageInfo['five'], steps: number[], label: string, when: string): UsageCue | null => {
+    if (!r) return null
+    const crossed = steps.filter(s => r.percentUsed >= s)
+    if (!crossed.length) return null
+    const keys = crossed.map(s => `${scope}-${s}-${r.resetsAt ?? ''}`)
+    const top = keys[keys.length - 1] ?? ''
+    if (sent.includes(top)) return null
+    return { key: top, text: `Hạn mức · ${label} ${Math.round(r.percentUsed)}%${when ? ` · reset ${when}` : ''}`, also: keys.slice(0, -1) }
   }
-  return plan.length
+  return pick('uw', u.week, WEEK_STEPS, 'tuần', resetDay(u.week?.resetsAt)) ?? pick('u5', u.five, FIVE_STEPS, '5 giờ', resetTime(u.five?.resetsAt))
 }
 
-function segmentStart(plan: PlanSegment[], i: number): number {
-  let s = 0
-  for (let k = 0; k < i; k++) s += (plan[k]?.minutes ?? 0) * MIN
-  return s
-}
-
-type DueCue = { key: string; text: string; patch: Partial<Lesson> }
-
-// Tín hiệu giáo án đến hạn (nếu có). Chuyển phần trước, nhắc "còn 2 phút" sau; trễ thì bỏ nhắc cũ.
-export function dueCue(l: Lesson, now: number): DueCue | null {
-  const plan = lessonPlan(l.minutes)
-  const el = lessonElapsed(l, now)
-  const total = segmentStart(plan, plan.length)
-  if (el >= total) return { key: 'end', text: 'Kết thúc buổi', patch: { over: 'ket-thuc', pausedAt: null, pause: null } }
-  const cur = segmentIndexAt(plan, el)
-  const s = plan[cur]
-  if (!s) return null
-  if (cur > l.announced) return { key: `seg-${s.id}`, text: `Bắt đầu phần ${s.id} · ${s.title} · ${s.minutes} phút`, patch: { announced: cur } }
-  const left = segmentStart(plan, cur + 1) - el
-  if (s.minutes >= 5 && left <= WARN_MS && left > 30_000) return { key: `warn-${s.id}`, text: `Còn 2 phút phần ${s.id}`, patch: {} }
-  return null
+// Các khoá hạn mức đã vượt lúc mở lớp (số liệu đã gửi kèm "Mở lớp", không báo lại).
+export function usageKeysCrossed(u: UsageInfo | null): string[] {
+  if (!u) return []
+  const keys = (scope: string, r: UsageInfo['five'], steps: number[]) => (r ? steps.filter(s => r.percentUsed >= s).map(s => `${scope}-${s}-${r.resetsAt ?? ''}`) : [])
+  return [...keys('u5', u.five, FIVE_STEPS), ...keys('uw', u.week, WEEK_STEPS)]
 }
 
 // ── Đọc .lop-hoc/state.json (lop-hoc/2, vẫn nhận lop-hoc/1) ──────────────────
@@ -211,6 +205,7 @@ export function parseState(raw: unknown): ClassState | null {
     stars: typeof raw.stars === 'number' && Number.isFinite(raw.stars) ? Math.min(99, Math.max(0, Math.round(raw.stars))) : undefined,
     badges_new: badgesOf(raw.badges_new),
     gift_box: raw.gift_box === true,
+    loops_done: typeof raw.loops_done === 'number' && Number.isFinite(raw.loops_done) ? Math.min(999, Math.max(0, Math.round(raw.loops_done))) : undefined,
   }
 }
 
@@ -363,7 +358,8 @@ async function readBadgeFile($: EngineInterface): Promise<BadgeEntry[]> {
 async function syncBody($: EngineInterface) {
   if (!(await read($, isClassroom))) return
   const s = await loadState($)
-  const live: LiveState = { activity: s?.activity ?? null, challenge: s?.challenge ?? null, giftBox: s?.gift_box === true }
+  const seg = s?.segment ? (SEGMENTS_BY_ID[s.segment.id] ? { ...SEGMENTS_BY_ID[s.segment.id]!, title: s.segment.title || SEGMENTS_BY_ID[s.segment.id]!.title, drive: s.segment.drive } : { id: s.segment.id, title: s.segment.title, drive: s.segment.drive }) : null
+  const live: LiveState = { activity: s?.activity ?? null, challenge: s?.challenge ?? null, giftBox: s?.gift_box === true, segment: seg }
   await update($, liveAtom, () => live)
   if (!live.giftBox) await update($, giftAtom, g => (g === 'closed' ? g : 'closed'))
 
@@ -482,14 +478,18 @@ const headerById = new Map<string, string>()
 // Bộ nhớ đệm để các nơi vẽ không phải đăng ký theo dõi đồng hồ.
 let view: { teacher: TeacherKind; seg: PlanSegment | null } = { teacher: 'co', seg: null }
 
-function announcedSeg(l: Lesson | null): PlanSegment | null {
+function shownSeg(l: Lesson | null, live: LiveState): PlanSegment | null {
   if (!l || l.over) return null
-  return lessonPlan(l.minutes)[l.announced] ?? null
+  return live.segment ?? S0
 }
 
 async function refreshUsage($: EngineInterface) {
   try {
-    const model = await $.session.model()
+    // Không đọc được tên model thì vẫn đọc hạn mức (hạn mức cần cho tín hiệu ngưỡng).
+    let model: unknown = ''
+    try {
+      model = await $.session.model()
+    } catch {}
     const u = await $.session.usage()
     const pick = (kind: string) => {
       const r = u.rateLimits.find(x => x.kind === kind)
@@ -528,7 +528,7 @@ async function sendKeyedCue($: EngineInterface, key: string, text: string, now: 
       return l
     }
     claimed = true
-    return { ...l, ...patch, sent: [...l.sent, key], lastCueAt: now }
+    return { ...l, ...patch, sent: [...l.sent, key], lastCueAt: now, quiet: true }
   })
   if (claimed) void submitCue($, text)
   return claimed
@@ -537,17 +537,16 @@ async function sendKeyedCue($: EngineInterface, key: string, text: string, now: 
 // Tín hiệu do học viên bấm: gửi ngay (giáo viên đang làm thì chờ đến lượt).
 async function sendPressCue($: EngineInterface, text: string, patch: Partial<Lesson> = {}) {
   const now = await $.clock.now()
-  await update($, lessonAtom, l => (l ? { ...l, ...patch, lastCueAt: now, strikes: 0, rollCallAt: null, idleFrom: now } : l))
+  await update($, lessonAtom, l => (l ? { ...l, ...patch, lastCueAt: now, quiet: false } : l))
   await submitCue($, text)
 }
 
-// Học viên có mặt: xoá điểm danh, đếm lại từ đầu.
+// Học viên vừa tác động: lớp được gửi tín hiệu kế tiếp.
 async function touch($: EngineInterface) {
-  const now = await $.clock.now()
-  await update($, lessonAtom, l => (l && !l.over && (l.strikes || l.rollCallAt != null || l.idleFrom !== now) ? { ...l, strikes: 0, rollCallAt: null, idleFrom: now } : l))
+  await update($, lessonAtom, l => (l && !l.over && l.quiet ? { ...l, quiet: false } : l))
 }
 
-// Vào lại lớp sau tạm nghỉ / xin phép: dời các phần còn lại đúng bằng thời gian nghỉ.
+// Quay lại sau Xin phép, hoặc Tiếp tục sau khi mở lại app.
 async function resume($: EngineInterface): Promise<Lesson['pause']> {
   const now = await $.clock.now()
   let was: Lesson['pause'] = null
@@ -557,7 +556,7 @@ async function resume($: EngineInterface): Promise<Lesson['pause']> {
       return l
     }
     was = l.pause
-    return { ...l, pause: null, pauseNote: '', shiftMs: l.shiftMs + (now - (l.pausedAt ?? now)), pausedAt: null, strikes: 0, rollCallAt: null, idleFrom: now }
+    return { ...l, pause: null, pauseNote: '', shiftMs: l.shiftMs + (now - (l.pausedAt ?? now)), pausedAt: null, quiet: false }
   })
   return was
 }
@@ -573,44 +572,18 @@ async function abortTurn($: EngineInterface): Promise<boolean> {
   }
 }
 
-// Điểm danh hết hạn: lớp tạm nghỉ, báo giáo viên một lần, không gửi thêm tín hiệu nào.
-async function goAbsent($: EngineInterface, now: number) {
-  let claimed = false
-  let n = 0
-  await update($, lessonAtom, l => {
-    if (!l || l.pause || l.over) {
-      claimed = false
-      return l
-    }
-    claimed = true
-    n = l.absences + 1
-    return { ...l, pause: 'absent' as const, pausedAt: now, rollCallAt: null, absences: n, lastCueAt: now, sent: [...l.sent, `vang-${n}`] }
-  })
-  if (!claimed) return
-  // Hộp câu hỏi gốc còn mở thì đóng lượt đang chờ để giáo viên nhận được tin.
-  const ask = await read($, askAtom)
-  if (ask) {
-    await update($, askAtom, a => (a && a.id === ask.id ? { ...a, handled: true } : a))
-    await abortTurn($)
-  }
-  void submitCue($, 'Học viên vắng · tạm nghỉ')
-}
-
-// Hộp câu hỏi gốc để quá 60 giây.
+// Câu đố / trò chơi để quá 60 giây: giáo viên chọn giúp lựa chọn mặc định.
 async function answerTimeout($: EngineInterface, ask: AskOpen, now: number) {
   await update($, askAtom, a => (a && a.id === ask.id ? { ...a, handled: true } : a))
-  let strikes = 0
-  await update($, lessonAtom, l => {
-    if (!l) return l
-    strikes = l.strikes + 1
-    return { ...l, strikes, idleFrom: now, rollCallAt: strikes >= 2 ? now : l.rollCallAt }
-  })
-  if (strikes >= 2) return // lần thứ hai liên tiếp: điểm danh trước, không chọn giúp
   try {
     $.ui.notice(ask.id, undefined)
   } catch {}
   // Mod không bấm được vào hộp gốc; đóng lượt đang chờ rồi báo giáo viên lựa chọn mặc định.
-  if (await abortTurn($)) await sendKeyedCue($, `ask-${ask.id}`, `Hết hạn trả lời · chọn giúp ${ask.label}`, now, {})
+  // Đây là tín hiệu của chính câu hỏi giáo viên vừa hỏi, nên gửi cả khi lớp đang chờ.
+  if (await abortTurn($)) {
+    await update($, lessonAtom, l => (l ? { ...l, quiet: false } : l))
+    await sendKeyedCue($, `ask-${ask.id}`, `Hết hạn trả lời · chọn giúp ${ask.label}`, now, {})
+  }
 }
 
 async function tick($: EngineInterface) {
@@ -634,9 +607,9 @@ async function tickBody($: EngineInterface) {
   await persist($, l, now)
   if (!l || l.over) return
   await update($, nowAtom, () => now)
-  view = { teacher: l.teacher, seg: announcedSeg(l) }
-  // v0.6: kiểu tương tác đang dùng (giờ buổi học) và đồng hồ giây cho thử thách.
   const live = await read($, liveAtom)
+  view = { teacher: l.teacher, seg: shownSeg(l, live) }
+  // Kiểu tương tác đang dùng (giờ lớp mở) và đồng hồ giây cho thử thách.
   const el = lessonElapsed(l, now)
   const prevTrack = await read($, activityTrack)
   const track = trackActivity(prevTrack, live.activity, el, now)
@@ -654,20 +627,21 @@ async function tickBody($: EngineInterface) {
   try {
     box = (await $.prompt.read()).text.trim()
   } catch {}
-  // Đang gõ = có mặt.
-  if (box && !l.pause) {
+  // Đang gõ = học viên đang tác động.
+  if (box && !l.pause && l.quiet) {
     await touch($)
     l = (await read($, lessonAtom)) ?? l
   }
 
-  // A. Câu hỏi gốc: đếm ngược 60 giây, hết hạn thì chọn giúp.
+  // A. Câu đố / trò chơi: đếm ngược 60 giây, hết hạn thì chọn giúp. Câu hỏi lúc làm việc thật: chờ, không đếm.
   //    Đang có thử thách chạy giờ thì tạm ngưng: hạn 60 giây tính lại từ lúc thử thách xong.
+  const timed = timedKind(live.activity?.kind)
   if (ask && !ask.handled && ch && ch.leftMs > 0) {
     const a = ask
     await update($, askAtom, () => ({ ...a, openedAt: now }))
     ask = await read($, askAtom)
   }
-  if (ask && !ask.handled && !l.pause && !(ch && ch.leftMs > 0)) {
+  if (ask && !ask.handled && timed && !l.pause && !(ch && ch.leftMs > 0)) {
     const left = ANSWER_MS - (now - ask.openedAt)
     if (left > 0) {
       try {
@@ -679,36 +653,21 @@ async function tickBody($: EngineInterface) {
     }
   }
 
-  // B. Điểm danh hết 60 giây → lớp tạm nghỉ.
-  if (l.rollCallAt != null && !l.pause && now - l.rollCallAt >= ROLLCALL_MS) {
-    await goAbsent($, now)
-    return
+  // B. Tín hiệu do mod gửi: chỉ khi giáo viên rảnh, ô nhập trống, lớp không xin phép/chờ, học viên đã tác động
+  //    từ tín hiệu trước (lớp không giảng vào phòng trống), cách tín hiệu trước ≥ 20 giây.
+  if (l.pause || working || ask || box || l.quiet || now - l.lastCueAt < CUE_GAP_MS) return
+  // Hạn mức chạm ngưỡng.
+  const uc = usageCue(await read($, usageAtom), l.sent)
+  if (uc) {
+    await update($, lessonAtom, x => (x ? { ...x, sent: [...x.sent, ...uc.also.filter(k => !x.sent.includes(k))] } : x))
+    if (await sendKeyedCue($, uc.key, uc.text, now, {})) return
   }
-
-  // C. Ngồi im 60 giây ở lượt của học viên = một lần không tương tác.
-  if (!l.pause && l.rollCallAt == null && !working && !ask && !box && now - l.idleFrom >= IDLE_MS) {
-    await update($, lessonAtom, x => {
-      if (!x) return x
-      const strikes = x.strikes + 1
-      return { ...x, strikes, idleFrom: now, rollCallAt: strikes >= 2 ? now : x.rollCallAt }
-    })
-    return
-  }
-
-  // D. Giáo án theo giờ: chỉ khi giáo viên rảnh, ô nhập trống, lớp không nghỉ, cách tín hiệu trước ≥ 20 giây.
-  if (l.pause || l.rollCallAt != null || working || ask || box || now - l.lastCueAt < CUE_GAP_MS) return
-  const due = dueCue(l, now)
-  if (due && (await sendKeyedCue($, due.key, due.text, now, due.patch))) {
-    const after = await read($, lessonAtom)
-    view = { teacher: after?.teacher ?? view.teacher, seg: announcedSeg(after) }
-    return
-  }
-  // v0.6: hết giờ thử thách (một lần, bỏ thử thách cũ quá 10 phút).
+  // Hết giờ thử thách (một lần, bỏ thử thách cũ quá 10 phút).
   if (live.challenge && ch && ch.leftMs <= 0) {
     if (await sendKeyedCue($, `ch-${challengeKey(live.challenge)}`, `Hết giờ thử thách · ${live.challenge.title}`, now, {})) return
   }
-  // v0.6: cùng một kiểu tương tác quá 4 phút giờ học → nhắc giáo viên đổi kiểu (một lần).
-  if (live.activity && track && el - track.fromEl > ACTIVITY_MS) {
+  // Cùng một kiểu tương tác quá 4 phút → nhắc giáo viên đổi kiểu (một lần). Lúc làm việc thật thì không nhắc.
+  if (live.activity && switchableKind(live.activity.kind) && track && el - track.fromEl > ACTIVITY_MS) {
     const n = Math.floor((el - track.fromEl) / MIN)
     await sendKeyedCue($, `act-${track.key}`, `Đổi kiểu tương tác · ${live.activity.kind} · ${n} phút`, now, {})
   }
@@ -763,7 +722,8 @@ async function persist($: EngineInterface, l: Lesson | null, now: number) {
   } catch {}
 }
 
-// Mở lại sau khi tắt app (trong 3 giờ): lớp ở trạng thái tạm nghỉ, bấm Có mặt để học tiếp.
+// Mở lại app: lớp vẫn mở (lớp luôn mở), ở trạng thái chờ — bấm Tiếp tục để học tiếp từ chỗ đã lưu.
+// Nhận cả lớp lưu từ bản 0.6 (có thời lượng): chỉ giữ giáo viên, giờ mở lớp và các tín hiệu đã gửi.
 async function restoreLesson($: EngineInterface) {
   if (await read($, lessonAtom)) return
   const key = await storeKey($)
@@ -771,23 +731,37 @@ async function restoreLesson($: EngineInterface) {
   try {
     const saved = await $.store.get(key)
     if (!isObj(saved) || !isObj(saved.lesson) || typeof saved.savedAt !== 'number') return
-    const l = saved.lesson as unknown as Lesson
-    const now = await $.clock.now()
-    if (l.over || typeof l.startedAt !== 'number' || !Array.isArray(l.sent) || now - saved.savedAt > 3 * 3600_000) return
-    if (l.minutes !== 15 && l.minutes !== 30 && l.minutes !== 45) return
-    if (!isTeacherKind(l.teacher)) return
-    const restored: Lesson = { ...l, pause: l.pause ?? 'absent', pausedAt: l.pausedAt ?? saved.savedAt, rollCallAt: null, strikes: 0 }
+    const l = saved.lesson as Record<string, unknown>
+    if (l.over || typeof l.startedAt !== 'number' || !Array.isArray(l.sent) || !isTeacherKind(l.teacher)) return
+    const restored: Lesson = {
+      teacher: l.teacher,
+      startedAt: l.startedAt,
+      shiftMs: typeof l.shiftMs === 'number' ? l.shiftMs : 0,
+      pausedAt: typeof l.pausedAt === 'number' ? l.pausedAt : saved.savedAt,
+      pause: 'cho',
+      pauseNote: '',
+      over: null,
+      sent: (l.sent as unknown[]).filter((x): x is string => typeof x === 'string'),
+      lastCueAt: typeof l.lastCueAt === 'number' ? l.lastCueAt : saved.savedAt,
+      quiet: false,
+    }
     await update($, lessonAtom, () => restored)
     await update($, entered, () => true)
   } catch {}
 }
 
+function usagePart(u: UsageInfo | null): string {
+  if (!u) return ''
+  const five = u.five ? `5 giờ ${Math.round(u.five.percentUsed)}%` : ''
+  const week = u.week ? `tuần ${Math.round(u.week.percentUsed)}%` : ''
+  return five || week ? ` · hạn mức ${[five, week].filter(Boolean).join(' · ')}` : ''
+}
+
 async function startLesson($: EngineInterface) {
   const now = await $.clock.now()
   const teacher = await read($, teacherPick)
-  const minutes = await read($, minutesPick)
+  const usage = await read($, usageAtom)
   const lesson: Lesson = {
-    minutes,
     teacher,
     startedAt: now,
     shiftMs: 0,
@@ -795,13 +769,9 @@ async function startLesson($: EngineInterface) {
     pause: null,
     pauseNote: '',
     over: null,
-    announced: 0,
-    sent: ['open'],
+    sent: ['open', ...usageKeysCrossed(usage)],
     lastCueAt: now,
-    strikes: 0,
-    idleFrom: now,
-    rollCallAt: null,
-    absences: 0,
+    quiet: false,
   }
   await update($, lessonAtom, () => lesson)
   await update($, entered, () => true)
@@ -812,17 +782,14 @@ async function startLesson($: EngineInterface) {
   view = { teacher, seg: S0 }
   try {
     await $.store.set('teacher', teacher)
-    await $.store.set('minutes', minutes)
   } catch {}
-  await submitCue($, `Mở buổi · ${minutes} phút · giáo viên ${teacher}`)
+  await submitCue($, `Mở lớp · giáo viên ${teacher}${usagePart(usage)}`)
 }
 
 async function loadPrefs($: EngineInterface) {
   try {
     const t = await $.store.get('teacher')
     if (isTeacherKind(t)) await update($, teacherPick, () => t)
-    const m = await $.store.get('minutes')
-    if (m === 15 || m === 30 || m === 45) await update($, minutesPick, () => m)
   } catch {}
 }
 
@@ -833,7 +800,7 @@ async function setup($: EngineInterface) {
   await loadPrefs($)
   await restoreLesson($)
   await syncState($)
-  void refreshUsage($)
+  await refreshUsage($)
   return true
 }
 
@@ -861,7 +828,7 @@ export const register: Register = on => {
     return { text: 'Đã mở bảng tóm tắt Lớp học NNC.' }
   })
 
-  // Học viên tự gửi một câu = có mặt; đang tạm nghỉ thì vào lại lớp và báo giáo viên kèm câu đó.
+  // Học viên tự gửi một câu = đang tác động; đang xin phép/chờ thì vào lại lớp và báo giáo viên kèm câu đó.
   on('prompt.submit', async ($, e, next) => {
     if (!(await read($, isClassroom))) return next(e)
     const kind = (e.origin as { kind?: string } | undefined)?.kind
@@ -873,7 +840,7 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // Dùng nút / ô / lựa chọn của mod khác cũng là có mặt (nút của lớp tự ghi nhận trong handler).
+  // Dùng nút / ô / lựa chọn của mod khác cũng là tác động (nút của lớp tự ghi nhận trong handler).
   on('ui.press', async ($, e, next) => {
     if (e.plugin !== 'lop-hoc' && (await read($, isClassroom))) await touch($)
     return next(e)
@@ -904,13 +871,11 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    const now = await $.clock.now()
     await update($, workingAtom, () => false)
     await update($, turnIdAtom, () => '')
     askSeen = null
     if (await read($, isClassroom)) {
       await update($, askAtom, () => null)
-      await update($, lessonAtom, l => (l ? { ...l, idleFrom: now } : l))
       await syncState($)
       await update($, rev, n => n + 1)
       void refreshUsage($)
@@ -963,11 +928,12 @@ export const register: Register = on => {
     const T = teacherName(kind)
     const t = teacherLower(kind)
     const address = cap(s?.address || 'anh/chị')
-    const seg = announcedSeg(lesson)
+    const live = await read($, liveAtom)
+    const seg = shownSeg(lesson, live)
     view = { teacher: kind, seg }
     // Huy hiệu mới: giáo viên vui (hỉ) 6 giây, đè cảm xúc giáo viên ghi.
     const emotion: Emotion = (await read($, cheerAtom)) ? 'hi' : (s?.teacher?.emotion ?? 'giang')
-    const presence: TeacherPresence = !running ? 'wait' : lesson.pause === 'absent' ? 'away' : lesson.pause ? 'wait' : 'present'
+    const presence: TeacherPresence = !running ? 'wait' : lesson.pause === 'cho' ? 'away' : lesson.pause ? 'wait' : 'present'
 
     let podium = null
     if (isDesktop) {
@@ -986,22 +952,16 @@ export const register: Register = on => {
     const pick = (key: string, label: string, isOn: boolean, onPress: () => unknown) =>
       isOn ? <Button key={key} label={label} variant="primary" onPress={onPress} /> : <Button key={key} label={label} onPress={onPress} />
 
-    // Chưa vào lớp (hoặc buổi đã xong): chọn giáo viên, thời lượng, rồi Vào lớp.
+    // Chưa vào lớp (hoặc đã xin nghỉ): chọn giáo viên rồi Vào lớp. Lớp luôn mở, không chọn thời lượng.
     if (!running) {
       const tp = await read($, teacherPick)
-      const mp = await read($, minutesPick)
       return board([
         <Text bold color={CHALK_Y}>{TITLE}</Text>,
-        lesson?.over === 'xin-nghi' ? <Text color={CHALK}>{`Đã xin nghỉ · ${t} hẹn ${address.toLowerCase()} buổi sau`}</Text> : null,
-        lesson?.over === 'ket-thuc' ? <Text color={CHALK}>Buổi học đã xong · hẹn gặp lại buổi sau</Text> : null,
-        <Text color={CHALK}>Lớp đang chờ giáo viên · chọn giáo viên và thời lượng, rồi bấm Vào lớp</Text>,
+        lesson?.over === 'xin-nghi' ? <Text color={CHALK}>{`Đã xin nghỉ · ${t} đã lưu chỗ, quay lại lúc nào cũng được`}</Text> : null,
+        <Text color={CHALK}>Lớp đang chờ giáo viên · chọn thầy hoặc cô, rồi bấm Vào lớp</Text>,
         <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
           <Text color={CHALK_DIM}>Giáo viên</Text>
           {TEACHERS.map(x => pick(`t-${x.id}`, x.label, tp === x.id, () => update($, teacherPick, () => x.id)))}
-        </Box>,
-        <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-          <Text color={CHALK_DIM}>Thời lượng</Text>
-          {([15, 30, 45] as const).map(m => pick(`m-${m}`, `${m} phút`, mp === m, () => update($, minutesPick, () => m)))}
         </Box>,
         claudeRow,
         <Box flexDirection="row" gap={1}>
@@ -1015,13 +975,12 @@ export const register: Register = on => {
       await sendPressCue($, 'Xin nghỉ', { over: 'xin-nghi', pause: null, pausedAt: null })
     }} />
 
-    // Lớp tạm nghỉ vì vắng: chỉ còn thẻ Có mặt.
-    if (lesson.pause === 'absent') {
+    // Mở lại app: lớp vẫn mở, giáo viên chờ học viên bấm Tiếp tục.
+    if (lesson.pause === 'cho') {
       return board([
-        <Text bold color={CHALK_Y}>{`${T}: Lớp đang tạm nghỉ — ${t} chờ ${address.toLowerCase()} quay lại`}</Text>,
-        <Text color={CHALK_DIM}>Bấm Có mặt để học tiếp, thời gian các phần còn lại được dời theo.</Text>,
+        <Text bold color={CHALK_Y}>{`${T}: ${t} vẫn ở đây — bấm Tiếp tục để học tiếp từ chỗ đã lưu`}</Text>,
         <Box flexDirection="row" gap={1}>
-          <Button key="co-mat" label="Có mặt" variant="primary" onPress={async () => {
+          <Button key="tiep-tuc" label="Tiếp tục" variant="primary" onPress={async () => {
             if (await resume($)) await sendPressCue($, 'Học viên trở lại')
           }} />
           {xinNghi}
@@ -1029,27 +988,15 @@ export const register: Register = on => {
       ])
     }
 
-    // Xin phép: đồng hồ dừng, chờ học viên quay lại.
+    // Xin phép: lớp chờ học viên quay lại.
     if (lesson.pause === 'xin-phep') {
       return board([
         <Text bold color={CHALK_Y}>{`Đang xin phép · ${lesson.pauseNote}`}</Text>,
-        <Text color={CHALK_DIM}>{`Đồng hồ lớp đang dừng · ${t} chờ ${address.toLowerCase()}`}</Text>,
+        <Text color={CHALK_DIM}>{`${T} giữ chỗ cho ${address.toLowerCase()}`}</Text>,
         <Box flexDirection="row" gap={1}>
           <Button key="quay-lai" label="Quay lại lớp" variant="primary" onPress={async () => {
             if (await resume($)) await sendPressCue($, 'Học viên trở lại')
           }} />
-          {xinNghi}
-        </Box>,
-      ])
-    }
-
-    // Điểm danh: 60 giây để bấm Có mặt.
-    if (lesson.rollCallAt != null) {
-      return board([
-        <Text bold color={CHALK_Y}>{`${T}: ${address} còn ở lớp không?`}</Text>,
-        <Text color={CHALK}>{`Còn ${mmss(ROLLCALL_MS - (now - lesson.rollCallAt))} · không ai bấm thì lớp tạm nghỉ`}</Text>,
-        <Box flexDirection="row" gap={1}>
-          <Button key="co-mat" label="Có mặt" variant="primary" onPress={() => touch($)} />
           {xinNghi}
         </Box>,
       ])
@@ -1123,24 +1070,16 @@ export const register: Register = on => {
       ])
     }
 
-    // Bình thường: phần học, vòng giờ, lượt của học viên, nút.
-    const plan = lessonPlan(lesson.minutes)
+    // Bình thường: phần học (giáo viên ghi khi đạt mốc), lượt của học viên, nút.
     const shown = seg ?? S0
     const drive = shown.drive
-    const segStartMs = segmentStart(plan, lesson.announced)
-    const segTotal = shown.minutes * MIN
-    const segElapsed = Math.min(segTotal, Math.max(0, lessonElapsed(lesson, now) - segStartMs))
     const ask = await read($, askAtom)
     const working = e.props.isWorking
     const parts = s?.status === 'active' ? (s.result_parts ?? []) : []
     const panel = s?.panel ?? null
     const isPractice = shown.id === '2' || shown.id === '3'
-
-    let ring = <Text color={CHALK_DIM}>{`còn ${Math.max(0, Math.ceil((segTotal - segElapsed) / MIN))} phút`}</Text>
-    if (isDesktop) {
-      const { Svg } = $.ui.resolve(e)
-      ring = <Svg key="ring" source={segmentClockSvg({ elapsedMs: segElapsed, totalMs: segTotal, drive })} alt="Thời gian còn lại của phần học" width={44} height={44} />
-    }
+    const timedAsk = timedKind(live.activity?.kind)
+    const loops = typeof s?.loops_done === 'number' && s.loops_done > 0 ? s.loops_done : 0
 
     let panelRows: RenderChildren[] = []
     if (panel === 'usage') {
@@ -1259,13 +1198,20 @@ export const register: Register = on => {
     const header = (
       <Box flexDirection="row" gap={1} alignItems="center">
         <Text backgroundColor={DRIVE_COLOR[drive]} color={INK}>{` Phần ${shown.id} · ${shown.title} `}</Text>
-        {ring}
-        <Text color={CHALK_DIM}>{`${T} · buổi ${lesson.minutes} phút`}</Text>
+        <Text color={CHALK_DIM}>{loops ? `${T} · đã chốt ${loops} vòng việc` : T}</Text>
       </Box>
     )
     const headRow = <Text bold={!working} color={working ? CHALK_DIM : CHALK_Y}>{headline}</Text>
-    const askRow = ask && !ask.handled ? <Text color={CHALK}>{`${T} chọn giúp sau ${mmss(ANSWER_MS - (now - ask.openedAt))}`}</Text> : null
-    const helpRow = s?.help_needed ? <Text bold color={INK} backgroundColor={ALERT}>{' Đang cần người đứng lớp hỗ trợ '}</Text> : null
+    const askRow = ask && !ask.handled && timedAsk ? <Text color={CHALK}>{`${T} chọn giúp sau ${mmss(ANSWER_MS - (now - ask.openedAt))}`}</Text> : null
+    const helpRow = s?.help_needed ? (
+      <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+        <Text bold color={INK} backgroundColor={ALERT}>{' Đang cần người hỗ trợ '}</Text>
+        <Button key="nho-ho-tro" label="Soạn tin nhờ hỗ trợ" onPress={async () => {
+          await touch($)
+          await $.prompt.submit({ text: `${TAG}Soạn tin nhờ hỗ trợ`, asUser: true })
+        }} />
+      </Box>
+    ) : null
     const destRow = s?.destination ? <Text color={CHALK_DIM}>{`Đích: ${cut(s.destination, 80)}`}</Text> : null
     const partsRow = parts.length ? (
       <Box flexDirection="row" gap={2} flexWrap="wrap">
@@ -1312,6 +1258,10 @@ export const register: Register = on => {
             await touch($)
             await $.prompt.fill({ text: `Thưa ${t}, chỗ này chưa đúng: `, mode: 'replace' })
           }} /> : null}
+          <Button key="phieu" label="Phiếu kết quả" onPress={async () => {
+            await touch($)
+            await $.prompt.submit({ text: `${TAG}Xuất phiếu kết quả`, asUser: true })
+          }} />
         </Box>
       ),
     ], crowded ? 0 : 1)
@@ -1368,19 +1318,7 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     const text = e.props.text ?? ''
     const at = text.indexOf(CUE.trim())
-    if (at >= 0 && at < 200) {
-      const body = text.slice(at + CUE.trim().length).trim()
-      const m = /^Bắt đầu phần\s+(\S+)\s+·\s+([^·\n]+)/.exec(body)
-      if (m) {
-        const label = m[1] === BREAK.id ? `— ${BREAK.title} —` : `— Phần ${m[1]} · ${(m[2] ?? '').trim()} —`
-        return (
-          <Box flexDirection="row" justifyContent="center">
-            <Text dimColor>{label}</Text>
-          </Box>
-        )
-      }
-      return <Box />
-    }
+    if (at >= 0 && at < 200) return <Box />
     if (e.props.isExpanded) return next(e)
     if (text.startsWith(TAG)) {
       return (
@@ -1427,7 +1365,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (e.props.isDraft || e.props.isWorking || !(await read($, isClassroom))) return next(e)
     const isIn = await read($, entered)
-    const hint = !isIn ? 'Chọn giáo viên và thời lượng trên bảng lớp, rồi bấm Vào lớp' : `Bấm nút trên bảng lớp, hoặc kể ${teacherLower(view.teacher)} nghe ở đây`
+    const hint = !isIn ? 'Chọn thầy hoặc cô trên bảng lớp, rồi bấm Vào lớp' : `Bấm nút trên bảng lớp, hoặc kể ${teacherLower(view.teacher)} nghe ở đây`
     return next({ ...e, props: { ...e.props, hint } })
   })
 
@@ -1438,20 +1376,21 @@ export const register: Register = on => {
     const lesson = await read($, lessonAtom)
     const s = await loadState($)
     const skills = s?.skills ?? []
-    const plan = lesson ? lessonPlan(lesson.minutes) : lessonPlan(30)
-    const cur = lesson ? (lesson.over ? plan.length : lesson.announced) : -1
+    const curId = lesson && !lesson.over ? (s?.segment?.id ?? '0') : null
+    const cur = curId == null ? -1 : SEGMENTS.findIndex(p => p.id === curId)
+    const loops = typeof s?.loops_done === 'number' ? s.loops_done : 0
 
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold color="#006D11">{TITLE}</Text>
-        {lesson ? <Text>{`${teacherName(lesson.teacher)} · buổi ${lesson.minutes} phút`}</Text> : <Text dimColor>Chưa vào lớp. Chọn giáo viên và thời lượng trên bảng lớp, rồi bấm Vào lớp.</Text>}
+        {lesson ? <Text>{`${teacherName(lesson.teacher)} · lớp luôn mở · đã chốt ${loops} vòng việc`}</Text> : <Text dimColor>Chưa vào lớp. Chọn thầy hoặc cô trên bảng lớp, rồi bấm Vào lớp.</Text>}
         <Box flexDirection="column">
-          <Text dimColor>Giáo án hôm nay</Text>
-          {plan.map((p, n) => {
-            const mark = n < cur ? '✓' : n === cur ? '→' : '○'
+          <Text dimColor>Một vòng việc</Text>
+          {SEGMENTS.map((p, n) => {
+            const mark = cur < 0 ? '○' : n < cur ? '✓' : n === cur ? '→' : '○'
             return (
-              <Text key={`seg-${p.id}`} bold={n === cur} color={n < cur ? 'success' : undefined} dimColor={n > cur}>
-                {`${mark} Phần ${p.id} · ${p.title} · ${p.minutes} phút`}
+              <Text key={`seg-${p.id}`} bold={n === cur} color={n < cur ? 'success' : undefined} dimColor={cur >= 0 && n > cur}>
+                {`${mark} Phần ${p.id} · ${p.title}`}
               </Text>
             )
           })}

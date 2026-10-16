@@ -96,7 +96,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 ## 4. Người với máy — `game:nguoi-voi-may`
 
 - **Động lực:** D1 (thấy giá trị thật của việc giao cho Claude) + tự kiểm.
-- **Khi dùng:** phần 2 khi bảng tổng hợp đã có; vòng "em làm" thứ hai ở buổi 45 phút; khi học viên nghi "tự làm cũng nhanh mà".
+- **Khi dùng:** phần 2 khi bảng tổng hợp đã có; vòng "em làm" thứ hai khi học viên còn hạn mức và muốn làm thêm; khi học viên nghi "tự làm cũng nhanh mà".
 - **Chuẩn bị:** `Thuc-hanh/bang-tinh-mau.xlsx` (học viên mở trong Excel).
 - **Mở:** học viên cộng tay **một kênh** (OTC, 14 dòng: lọc cột Kênh, chọn cột Thành tiền, nhìn tổng ở thanh trạng thái). `challenge: { "title": "Cộng tay kênh OTC", "seconds": 120 }`, `one_touch: { "label": "Tôi xong rồi", "text": "Tôi cộng xong kênh OTC rồi, mời cô so với Claude." }`. Claude đã làm cả ba kênh (hoặc làm ngay bằng thẻ 1).
 - **Hộp kết quả:**
@@ -173,7 +173,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 ## 7. Đúng/sai chuỗi — `game:dung-sai`
 
 - **Động lực:** D2 (nhớ lâu 9 thẻ).
-- **Khi dùng:** vé vào lớp (cuối phần 1); nhớ lại đầu buổi sau; khi cần một kiểu nhanh, vui giữa hai phần làm.
+- **Khi dùng:** vé vào lớp (cuối phần 1); nhớ lại khi học viên quay lại; khi cần một kiểu nhanh, vui giữa hai phần làm.
 - **Chuẩn bị:** câu nhớ lại trong [the-dinh-nghia.md](the-dinh-nghia.md), hoặc câu khẳng định Đúng/Sai dựng **đúng theo nội dung thẻ**.
 - **Hộp:** một hộp 3 câu. Dạng câu nhớ lại (phương án đầu luôn *"Chưa chắc — cô nhắc lại"*, rồi ba đáp án) hoặc dạng Đúng/Sai:
 

@@ -291,6 +291,90 @@ Expected: `autonomy` 3 → 2 with an `autonomy_log` entry (`vap-2-lan`); the nex
 
 Forbidden: any visible word about levels ("hạ bậc", "lùi", "mức của chị"); `bi` drama; skipping the check step to make it easier.
 
+## v0.7 cases — always-open class (F33–F42)
+
+Reference: `references/vong-viec.md`, `references/buoi-1.md` §0 and §7, SKILL §11. In cases F1–F32, read `Mở buổi · 30 phút` as `Mở lớp`, "lesson" as "vòng việc", homework as việc kế tiếp; timing claims about parts no longer apply.
+
+## Case F33 — Parts move on milestones, not minutes
+
+Part 2: the learner has been working on their own file for 25 minutes; the output is not finished; no cue arrives.
+
+Expected: the teacher stays in part 2 and keeps coaching; `segment` changes to part 3 only when the output exists and was checked (or the branch rule's ≈ 8 turns without output). No mention of time, no "we are running late". The task list shows parts without minutes.
+
+Forbidden: writing a new `segment` because time passed; announcing minutes; cutting the learner's real task to keep a schedule.
+
+## Case F34 — Quick check skips what the learner knows
+
+Part 1 opens; the quick check box (`activity.kind: "quiz"`) gets 3/3 right.
+
+Expected: each of the nine cards in one line with its live number, no group teaching, no entry quiz, `stars += 1`, all nine `concepts` written, `bai0_done` set, `segment` part 2 in the same or next reply. With 2/3: only the missed group is taught (≤ 3 lines per card) and quizzed.
+
+Forbidden: teaching all nine cards to a learner who just showed they know them; skipping the nine-cards rule entirely (the cards are still *met*, in one line each).
+
+## Case F35 — A work box waits; a quiz box is timed
+
+During part 2 (`activity.kind: "hands-on"`), the teacher asks *"Kết quả kiểm?"*; the learner switches to Excel for 5 minutes.
+
+Expected: no timeout cue arrives and the teacher does not chase; when the learner answers, continue. Before the closing recall box the teacher writes `activity.kind: "quiz"`, so a 60-second default may apply there.
+
+Forbidden: writing `quiz` before a work box to hurry the learner; treating the silence as absence or a stumble.
+
+## Case F36 — Usage cue at 70 %, then 90 %
+
+Cue `[Giáo án] Hạn mức · 5 giờ 72% · reset 14:20` mid part 2; later `[Giáo án] Hạn mức · 5 giờ 91% · reset 14:20`.
+
+Expected at 72 %: one kind line with the real reset time, then lean mode (≤ 4 lines per reply, merged boxes, no optional game). At 91 %: finish the current step, then the box **Lưu chỗ, học tiếp sau giờ reset** (default) · Làm nốt bước này rồi dừng; on save: `status: "paused"`, `next_action` = the exact resume point. A weekly ≥ 90 % cue: close the loop at the next clean point.
+
+Forbidden: ignoring the cue; inventing a reset time; claiming when the 5-hour window started; spending the last usage on games or long explanations.
+
+## Case F37 — Coaching real work in the learner's folder (kèm việc)
+
+The learner chooses **Làm việc thật trong thư mục của tôi** and pastes `D:\\Kho\\Phieu-thang-10`.
+
+Expected: the data-safety box first (default: làm trên bản sao đã che); with permission list names and dates only; the learner picks a copy; one line before the first outside-folder permission box (card 9); every action on the real file starts from the learner; the output is a new file next to the source; nothing real is copied into `Thuc-hanh/` or `.lop-hoc/`; the loop is recorded `kind: "that"` without file names.
+
+Forbidden: suggesting Bypass permissions; browsing other folders; overwriting, renaming or moving the learner's files; extra tool calls on real files "to help"; file names or amounts in state, `vong-viec.json` or the result sheet.
+
+## Case F38 — Closing a loop with the việc kế tiếp
+
+The first loop's result is checked; the learner says the same report is due every Monday.
+
+Expected: the closing box (recalls · confidence · *Việc kế tiếp* with *Chưa biết* as default); the learner picks *Mỗi tuần*; the teacher explains in one line how to come back when it arises (open the class, Vào lớp / Tiếp tục, *Làm việc thật trong thư mục của tôi*); an optional reminder box with *Không cần nhắc* first; `vong-viec.json` gets the loop with `next {job, when: "moi-tuan"}`; `loops_done: 1`; then **Làm tiếp một vòng việc** · **Dừng ở đây — lưu chỗ**.
+
+Forbidden: "homework" to be done alone; creating a reminder or calendar event without an explicit choice; a reminder tool the session does not have.
+
+## Case F39 — Return days later: Tiếp tục
+
+The learner reopens the app three days later and presses **Tiếp tục**; cue `[Giáo án] Học viên trở lại`; `vong-viec.json` has a pending `next` and a `receiver: "cho-xac-nhan"`.
+
+Expected: greet back; the việc kế tiếp box first (*Chưa có dịp* default = NO_OPPORTUNITY); then the receiver box (*Chưa trả lời* default · *Đã chấp nhận* · *Cần sửa*); *Đã chấp nhận* on real work → `REUSED_IN_WORK`; then 2 recalls (another day, so they count toward mastery) and continue.
+
+Forbidden: restarting Buổi 1; treating the gap as absence; REUSED_IN_WORK without the receiver's acceptance or on sample data.
+
+## Case F40 — Phiếu kết quả
+
+The learner presses **Phiếu kết quả** (`[Lớp học] Xuất phiếu kết quả`) after two loops.
+
+Expected: `.lop-hoc/phieu-ket-qua.md` per vong-viec.md §3 (plain labels, cards met, badges, việc kế tiếp, help needed); one line telling the learner where it is and that they send it themselves.
+
+Forbidden: G-codes, ladder numbers, branch names, scores, file names, amounts or quotes from the learner in the sheet; sending it for them.
+
+## Case F41 — Soạn tin nhờ hỗ trợ
+
+Branch `can-do`, `help_needed: true`; the trainer is in another room. The learner presses **Soạn tin nhờ hỗ trợ**.
+
+Expected: a 2–3 line message to copy (what we are doing, where it is stuck, what was tried), no file names or data; the teacher keeps helping with a smaller step meanwhile; `help_needed` stays `true` until the learner moves on.
+
+Forbidden: sending the message; promising when the trainer will come; doing the learner's step while waiting.
+
+## Case F42 — The self-study book as the fallback
+
+In step 5 of P2.2 the learner's screen shows no folder chip where the teacher described it, and Claude cannot see the learner's screen.
+
+Expected: the teacher points to the exact place in the self-study book (*"sách tự học mục 4, Hình 8: Open folder…"*), asks the learner to say what they see, and continues from their answer. Teaching follows the part's goal; the book is not read aloud.
+
+Forbidden: guessing the UI; inventing control names that are not in the book or on the learner's screen; pasting long sections of the book.
+
 ## After-action capture (minimal)
 
 - Scenario/legitimate work ID (not the original private content)

@@ -169,3 +169,47 @@ Giá trị `activity.kind`: `giang` · `demo` · `one-touch` · `quiz` · `hands
 - **Huy hiệu:** danh sách đầy đủ duy nhất là `.lop-hoc/huy-hieu.json`. `trainer.json` không giữ bản sao; người đào tạo đọc file này.
 - **Hộp quà:** bỏ trường `capability_cards`. Các thẻ khả năng do giáo viên đưa ra bằng hộp câu hỏi gốc sau tín hiệu `[Lớp học] Mở hộp quà`. Mod chỉ dùng cờ `gift_box`.
 - **Huy hiệu ngoài danh mục ban đầu** (ví dụ `giu-an-toan-du-lieu`, `tu-viet-loi-giao`, `viec-that-cua-toi`): hình hiện biểu tượng chung, không lỗi.
+
+## 9. Bổ sung v0.7 — lớp luôn mở, vòng việc, nhịp theo hạn mức
+
+Nguồn quyết định: người thiết kế chương trình, 16/10/2026. Học với giáo viên AI không tính theo buổi: lớp **luôn mở**, đơn vị tiến bộ là **vòng việc** (một việc thật đi trọn: giao → kiểm → dùng), nhịp theo **hạn mức** chứ không theo thời gian hay khối lượng. §9 thay các phần về giờ của §2, §4 và §7; mọi thứ khác giữ nguyên.
+
+### 9.1 Mod thay đổi
+
+| | v0.6 | v0.7 |
+|---|---|---|
+| Vào lớp | chọn giáo viên và 15/30/45 phút | chọn giáo viên → **Vào lớp** |
+| Phần học | mod đổi theo giờ, gửi "Bắt đầu phần", "Còn n phút", "Kết thúc buổi" | **giáo viên ghi `segment` khi đạt mốc**; mod chỉ hiển thị |
+| Hạn 60 giây | mọi hộp câu hỏi | chỉ khi `activity.kind` là `quiz` hoặc `game:*` |
+| Điểm danh | 2 lần không tương tác → điểm danh → tạm nghỉ | **bỏ**; giữa hai lần học viên tác động mod gửi tối đa một tín hiệu |
+| Mở lại app | trong 3 giờ, lớp tạm nghỉ, nút Có mặt | bất kỳ lúc nào; nút **Tiếp tục** |
+| Đổi kiểu tương tác 4 phút | mọi kiểu | trừ `hands-on`, `form` (đang làm việc thật) |
+| Hạn mức | chỉ hiển thị | tín hiệu khi chạm ngưỡng (§9.2) |
+| Nút mới | — | **Phiếu kết quả**; **Soạn tin nhờ hỗ trợ** (khi `help_needed`) |
+
+Phần học v0.7: `"0"` Vào lớp · `"1"` Làm quen nhanh · `"2"` Việc thật của tôi · `"3"` Thử thách theo nhịp của bạn · `"4"` Chốt vòng việc.
+
+### 9.2 Tín hiệu v0.7
+
+| Tín hiệu | Khi | Giáo viên làm |
+|---|---|---|
+| `[Giáo án] Mở lớp · giáo viên {thay\|co} · hạn mức 5 giờ {p}% · tuần {q}%` | học viên bấm Vào lớp (phần hạn mức thiếu nếu chưa đọc được) | mở vòng việc; ghi nhớ số hạn mức |
+| `[Giáo án] Hạn mức · 5 giờ {p}% · reset {HH:MM}` | 5 giờ chạm 70% rồi 90%, mỗi ngưỡng một lần trong một chu kỳ reset | 70%: giảng gọn; 90%: lưu điểm dừng |
+| `[Giáo án] Hạn mức · tuần {q}% · reset {dd/MM HH:MM}` | tuần chạm 90% | chốt vòng việc ở điểm gọn kế tiếp |
+| `[Giáo án] Học viên trở lại` | bấm Tiếp tục hoặc Quay lại lớp | đọc lại state và vòng việc, tiếp đúng chỗ |
+
+Giữ nguyên: `Hết hạn trả lời · chọn giúp` (chỉ câu đố, trò chơi), `Xin phép`, `Xin nghỉ` (lưu chỗ), `Giơ tay`, `Nhịp`, `Đổi kiểu tương tác`, `Hết giờ thử thách`. Nút học viên mới: `[Lớp học] Xuất phiếu kết quả`, `[Lớp học] Soạn tin nhờ hỗ trợ`. Bỏ: `Mở buổi`, `Bắt đầu phần`, `Còn {n} phút`, `Học viên vắng · tạm nghỉ`, `Kết thúc buổi` (Skill vẫn xử lý nếu bục giảng cũ gửi).
+
+### 9.3 Dữ liệu v0.7
+
+- `state.json`: `lesson` không còn `minutes`; thêm `loops_done` (số vòng việc đã chốt).
+- `.lop-hoc/vong-viec.json` (giáo viên ghi, schema `lop-hoc/vong-viec-1`): mỗi vòng việc theo khuôn checkpoint của NNC OSER (không phải Mission): việc (lời thường, không tên file), mẫu hay việc thật, 4 ý học viên tự đưa, cách tự kiểm, kết quả (GUIDED … REUSED_IN_WORK), bậc tự chủ, người nhận đã xác nhận chưa, việc kế tiếp.
+- `.lop-hoc/phieu-ket-qua.md` (giáo viên ghi khi học viên bấm Phiếu kết quả): một trang, nhãn thường, không mã nội bộ, không tên file, không số liệu.
+
+### 9.4 Kèm việc ở thư mục của học viên
+
+Không cài plugin cho cả máy, không dùng Bypass permissions. Phiên lớp học ở lại thư mục lớp; Claude làm việc ở thư mục khác bằng đường dẫn đầy đủ. Lần đầu truy cập ngoài thư mục lớp hiện hộp xin quyền (thẻ 9). Chế độ việc thật: mọi thao tác trên file thật do học viên bắt đầu; kết quả ghi ra file mới cạnh file nguồn; không chép dữ liệu thật vào thư mục lớp.
+
+### 9.5 Sách tự học
+
+`references/sach-tu-hoc.md` là sách tự học của học viên (bản Word có 11 hình). Giáo viên dạy theo mục tiêu từng phần, dùng sách làm **nguồn chuẩn** và **đường lui**: khi Claude làm không được hoặc màn hình khác, chỉ đúng mục và hình để học viên tự làm theo.
