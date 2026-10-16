@@ -8,6 +8,7 @@ Lớp học **luôn mở**: giáo viên AI đứng lớp cho từng người, kh
 ## Cập nhật
 - Gói từ 0.7.2 trở đi **tự cập nhật** theo nhánh phát hành; không cần phát gói mới cho mỗi bản.
 - Máy đã cài bản trước 0.7.2: phát gói mới một lần, học viên giải nén đè lên thư mục cũ.
+- Kiểm bản đang chạy trên một máy: mở `%USERPROFILE%\.claude\plugins\installed_plugins.json` bằng Notepad (chỉ xem, không sửa), tìm `lop-hoc@nnc-claude-plugins` → `version`.
 
 ## Trước khi học (mỗi máy, khoảng 10 phút)
 - [ ] Claude Desktop đã cài, đăng nhập đúng tài khoản; tab **Code** mở được. Mỗi học viên một tài khoản còn hạn mức.

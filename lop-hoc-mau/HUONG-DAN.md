@@ -37,4 +37,4 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 ## Cập nhật lớp học
 - Lớp học **tự cập nhật**: khi có bản mới, Claude tự tải về trong lúc bạn học. Lần mở phiên sau là bản mới. Chỗ học của bạn giữ nguyên.
 - Máy đã cài bản trước 0.7.2: giải nén gói mới **đè lên** thư mục **Lop-hoc-NNC** cũ (chọn *Thay thế*). Chỗ học trong thư mục `.lop-hoc` không mất. Mở phiên mới trong thư mục; Claude hỏi cài công cụ thì **đồng ý**. Từ đó về sau máy tự cập nhật.
-- Không chắc mình đang dùng bản nào: hỏi giáo viên *"Lớp học đang ở bản nào?"* hoặc nhờ người hỗ trợ.
+- Không chắc mình đang dùng bản nào: nhờ người hỗ trợ kiểm.
