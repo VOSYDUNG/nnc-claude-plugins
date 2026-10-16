@@ -213,3 +213,14 @@ Không cài plugin cho cả máy, không dùng Bypass permissions. Phiên lớp 
 ### 9.5 Sách tự học
 
 `references/sach-tu-hoc.md` là sách tự học của học viên (bản Word có 11 hình). Giáo viên dạy theo mục tiêu từng phần, dùng sách làm **nguồn chuẩn** và **đường lui**: khi Claude làm không được hoặc màn hình khác, chỉ đúng mục và hình để học viên tự làm theo.
+
+### 9.6 Bổ sung v0.7.1 (rủi ro khi triển khai)
+
+| Tín hiệu / thay đổi | Khi | Giáo viên làm |
+|---|---|---|
+| `[Giáo án] Hạn mức · context {c}%` | context của phiên chạm 70% (một lần) | khi chốt vòng việc, đề nghị mở phiên mới; lớp khôi phục từ file |
+| `[Giáo án] Kiểm phần học · phần {id} · {n} phút` | phần 0 quá 8 phút, phần 1 quá 15 phút (một lần mỗi phần) | đã đạt mốc thì ghi `segment` kế tiếp; chưa thì làm tiếp |
+| Phiếu kết quả | — | ghi `Phieu-ket-qua.md` ở thư mục lớp (gói cho phép sửa file này), đọc lại để bỏ tên file, số liệu |
+| Làm quen hai chiều | lần gặp đầu | giáo viên tự giới thiệu; hai hộp làm quen; hồ sơ nhỏ ở `trainer.json` `learner` |
+| Dữ liệu mẫu | máy không có Python | đọc bằng Excel qua PowerShell, hoặc bản `.csv` đi kèm mỗi file mẫu |
+

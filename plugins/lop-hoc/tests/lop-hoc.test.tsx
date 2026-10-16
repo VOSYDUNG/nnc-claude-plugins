@@ -427,6 +427,44 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
+  test(`${surface}: phần 0 đứng yên quá 8 phút thì nhắc giáo viên kiểm phần học một lần; phần 2 dài không nhắc`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC' }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    await run($ as never, io, 7 * MIN)
+    expect(io.sent.filter(x => x.includes('Kiểm phần học'))).toHaveLength(0)
+    await run($ as never, io, 2 * MIN)
+    expect(io.sent.filter(x => x.includes('Kiểm phần học'))).toEqual(['[Giáo án] Kiểm phần học · phần 0 · 8 phút'])
+    files['.lop-hoc/state.json'] = v7({})
+    io.box.text = 'vâng'
+    await io.clock.advance(10 * SEC)
+    io.box.text = ''
+    await run($ as never, io, 40 * MIN)
+    expect(io.sent.filter(x => x.includes('Kiểm phần học'))).toHaveLength(1)
+    await ui.unmount()
+  })
+
+  test(`${surface}: context của phiên đầy 70% thì báo giáo viên một lần`, LONG, async ($, on) => {
+    const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': STATE2 })
+    let ctx = 40
+    on('session.usage', async () => ({ value: { startedAt: 0, context: { window: 200000, percent: ctx }, rateLimits: [] } }))
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    await io.clock.settle()
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    ctx = 75
+    await run($ as never, io, 2 * MIN)
+    expect(io.sent.filter(x => x.includes('context'))).toEqual(['[Giáo án] Hạn mức · context 75%'])
+    io.box.text = 'vâng'
+    await io.clock.advance(10 * SEC)
+    io.box.text = ''
+    await run($ as never, io, 3 * MIN)
+    expect(io.sent.filter(x => x.includes('context'))).toHaveLength(1)
+    await ui.unmount()
+  })
+
   test(`${surface}: ngoài thư mục lớp học thì không vẽ gì, không gửi gì`, LONG, async ($, on) => {
     const io = classroom(on, { 'README.md': 'x' })
     await $.session.start({ cwd: 'D:/other', surface, isInteractive: true } as never)

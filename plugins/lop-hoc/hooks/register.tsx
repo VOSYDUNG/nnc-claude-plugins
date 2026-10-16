@@ -64,6 +64,10 @@ const CUE_GAP_MS = 20_000
 // Ngưỡng hạn mức (%) báo giáo viên: 5 giờ ở 70 (giảng gọn) và 90 (lưu điểm dừng); tuần ở 90.
 const FIVE_STEPS = [70, 90]
 const WEEK_STEPS = [90]
+// Context của phiên đầy tới mức này thì báo giáo viên một lần (đề nghị mở phiên mới khi chốt vòng việc).
+const CONTEXT_STEP = 70
+// Phần 0 và 1 vốn ngắn: đứng yên quá lâu thì nhắc giáo viên kiểm lại phần học một lần (phòng giáo viên quên ghi segment).
+export const SEGMENT_CHECK_MIN: Record<string, number> = { '0': 8, '1': 15 }
 const ACTIVITY_MS = 4 * 60_000
 const CHALLENGE_STALE_MS = 10 * 60_000
 const MIN = 60_000
@@ -136,14 +140,24 @@ export function usageCue(u: UsageInfo | null, sent: string[]): UsageCue | null {
     if (sent.includes(top)) return null
     return { key: top, text: `Hạn mức · ${label} ${Math.round(r.percentUsed)}%${when ? ` · reset ${when}` : ''}`, also: keys.slice(0, -1) }
   }
-  return pick('uw', u.week, WEEK_STEPS, 'tuần', resetDay(u.week?.resetsAt)) ?? pick('u5', u.five, FIVE_STEPS, '5 giờ', resetTime(u.five?.resetsAt))
+  const ctx = u.context != null && u.context >= CONTEXT_STEP && !sent.includes(`ctx-${CONTEXT_STEP}`)
+    ? { key: `ctx-${CONTEXT_STEP}`, text: `Hạn mức · context ${Math.round(u.context)}%`, also: [] }
+    : null
+  return pick('uw', u.week, WEEK_STEPS, 'tuần', resetDay(u.week?.resetsAt)) ?? pick('u5', u.five, FIVE_STEPS, '5 giờ', resetTime(u.five?.resetsAt)) ?? ctx
 }
 
 // Các khoá hạn mức đã vượt lúc mở lớp (số liệu đã gửi kèm "Mở lớp", không báo lại).
 export function usageKeysCrossed(u: UsageInfo | null): string[] {
   if (!u) return []
   const keys = (scope: string, r: UsageInfo['five'], steps: number[]) => (r ? steps.filter(s => r.percentUsed >= s).map(s => `${scope}-${s}-${r.resetsAt ?? ''}`) : [])
-  return [...keys('u5', u.five, FIVE_STEPS), ...keys('uw', u.week, WEEK_STEPS)]
+  return [...keys('u5', u.five, FIVE_STEPS), ...keys('uw', u.week, WEEK_STEPS), ...(u.context != null && u.context >= CONTEXT_STEP ? [`ctx-${CONTEXT_STEP}`] : [])]
+}
+
+// Phần học đang hiển thị và lúc (giờ lớp mở) thấy nó lần đầu.
+let segTrack: { id: string; fromEl: number } | null = null
+export function trackSegment(prev: { id: string; fromEl: number } | null, id: string | null, el: number): { id: string; fromEl: number } | null {
+  if (id == null) return null
+  return prev && prev.id === id ? prev : { id, fromEl: el }
 }
 
 // ── Đọc .lop-hoc/state.json (lop-hoc/2, vẫn nhận lop-hoc/1) ──────────────────
@@ -666,6 +680,13 @@ async function tickBody($: EngineInterface) {
   if (live.challenge && ch && ch.leftMs <= 0) {
     if (await sendKeyedCue($, `ch-${challengeKey(live.challenge)}`, `Hết giờ thử thách · ${live.challenge.title}`, now, {})) return
   }
+  // Phần 0 / 1 đứng yên quá lâu: nhắc giáo viên kiểm lại phần học (một lần mỗi phần).
+  segTrack = trackSegment(segTrack, live.segment?.id ?? S0.id, el)
+  const limit = segTrack ? SEGMENT_CHECK_MIN[segTrack.id] : undefined
+  if (segTrack && limit != null && el - segTrack.fromEl > limit * MIN) {
+    const n = Math.floor((el - segTrack.fromEl) / MIN)
+    if (await sendKeyedCue($, `segchk-${segTrack.id}`, `Kiểm phần học · phần ${segTrack.id} · ${n} phút`, now, {})) return
+  }
   // Cùng một kiểu tương tác quá 4 phút → nhắc giáo viên đổi kiểu (một lần). Lúc làm việc thật thì không nhắc.
   if (live.activity && switchableKind(live.activity.kind) && track && el - track.fromEl > ACTIVITY_MS) {
     const n = Math.floor((el - track.fromEl) / MIN)
@@ -780,6 +801,7 @@ async function startLesson($: EngineInterface) {
   await update($, activityTrack, () => null)
   await update($, giftAtom, () => 'closed')
   view = { teacher, seg: S0 }
+  segTrack = null
   try {
     await $.store.set('teacher', teacher)
   } catch {}

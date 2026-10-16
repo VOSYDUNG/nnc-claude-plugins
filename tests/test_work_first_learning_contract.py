@@ -84,7 +84,7 @@ class WorkFirstLearningContract(unittest.TestCase):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.7.0", frontmatter)
+        self.assertIn("version: 0.7.1", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
         self.assertNotIn("version: 0.5.0", frontmatter)
         self.assertNotIn("version: 0.4.0", frontmatter)
@@ -159,7 +159,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn(state, self.scenarios)
 
     def test_scenarios_and_host_not_claimed(self):
-        for i in range(1, 43):
+        for i in range(1, 46):
             self.assertIn("Case F{} ".format(i), self.scenarios)
         self.assertIn("NOT_TESTED", self.scenarios)
         self.assertIn("INSTALL_NOT_VERIFIED", self.pilot)
@@ -372,7 +372,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn("| " + part + " |", plan, part)
 
     def test_interactions_v06(self):
-        for code in range(1, 54):
+        for code in range(1, 57):
             self.assertIn("### T{:02d} ".format(code), self.interactions, code)
         for phrase in ("Đưa lệnh một chạm", "Mở trò chơi", "Đóng trò", "Hết giờ thử thách",
                        "Trao huy hiệu", "Trao sao", "Mở hộp quà", "Đổi kiểu tương tác",
@@ -430,6 +430,28 @@ class WorkFirstLearningContract(unittest.TestCase):
         for phrase in ("Always open.", "milestones you reach", "usage limits", "Auto",
                        "Xuất phiếu kết quả", "sach-tu-hoc.md"):
             self.assertIn(phrase, self.template, phrase)
+
+    # --- v0.7.1: deployment risks and getting to know each other ----------
+
+    def test_getting_to_know_each_other(self):
+        for phrase in ("Getting to know each other (human standard)", "trainer.json` `learner`",
+                       "no job title", "This is not discovery of the job", "When you meet again",
+                       "Hạn mức · context", "Kiểm phần học", "Phieu-ket-qua.md"):
+            self.assertIn(phrase, self.skill, phrase)
+        for phrase in ("Introduce yourself", "Box A — getting to know the learner", "Kinh nghiệm",
+                       "Mong muốn", "Điều ngại", "Loại việc", "Người hỗ trợ"):
+            self.assertIn(phrase, self.buoi1, phrase)
+        for phrase in ("Giáo viên tự giới thiệu", "Làm quen học viên", "Gặp lại"):
+            self.assertIn(phrase, self.interactions, phrase)
+        self.assertIn("Get to know each other first", self.template)
+
+    def test_samples_readable_without_python(self):
+        for asset in SAMPLE_ASSETS:
+            if asset.endswith(".xlsx"):
+                twin = SKILL.parent / "assets" / "mau" / asset.replace(".xlsx", ".csv")
+                self.assertTrue(twin.is_file(), twin)
+        self.assertIn("no Python", self.capabilities)
+        self.assertIn(".csv` twin", self.capabilities)
 
 
 if __name__ == "__main__":

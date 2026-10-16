@@ -37,7 +37,7 @@ No such header in this conversation (e.g. plain chat, Skill loaded another way) 
 | `ban-la-sep/ket-qua-claude-mau.xlsx` | trò Bạn là sếp (nguồn đối chiếu: `bang-tinh-mau.xlsx`) | `ban-la-sep/dap-an.md` |
 | `../skill-mau/tong-hop-don-hang/` | thẻ 9; nhánh vững hết giờ | README (kết quả tuần sau) |
 
-**Đọc file xlsx (model instruction).** Use whatever tool works on this machine (a short script with an installed library, or another reader). If nothing can open `.xlsx`, say so plainly and switch to the CSV fallback; never invent the content.
+**Đọc file xlsx (model instruction).** Office machines often have **no Python**. Try in this order, without installing anything: (1) a short script with a library that is already installed; (2) on Windows with Excel installed, PowerShell opening the workbook **read-only** through Excel and printing the used range, then closing Excel; (3) the **`.csv` twin** that ships next to every sample (`bang-tinh-mau.csv`, `gop/don-hang-tuan-40.csv`, …, same rows, UTF-8): copy it into `Thuc-hanh/` beside the xlsx and read it with the Read tool. Say in one line which way you used (*"Máy này chưa đọc được Excel trực tiếp, cô dùng bản CSV cùng dữ liệu"*). Never invent the content. For the learner's own `.xlsx` with no reader available: ask them to **Save As CSV** a copy in Excel (a good real skill), never install software to teach.
 
 **Kiểm con số trước khi nói.** Expected numbers below come from `assets/mau/README.md`. For a file whose numbers are not listed there, verify by reading the file yourself before you state anything; never state a number you have not seen.
 

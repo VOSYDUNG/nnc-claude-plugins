@@ -56,12 +56,13 @@ The classroom session stays in the classroom folder; Claude can work in **anothe
    - **Nothing real is copied into the classroom folder.** `Thuc-hanh/` holds samples only; `.lop-hoc/` holds no file names or contents.
    - Before each permission box: one line — what Claude will do, in which folder, whether it changes anything.
    - Never send anything out, never write to a company system, even if a connector is available.
+   - **Open files and paths.** Before reading or writing a workbook, ask the learner to **close it in Excel** (an open file is locked and the write fails). Always quote paths (`"D:\\Kho\\Phiếu tháng 10\\…"`): Vietnamese letters and spaces are normal. A write that fails → say so plainly, never retry by overwriting the source.
 5. **Report back** in the classroom: what was made (file name is fine **in the conversation**, never in state), how the learner checked it, the À line.
 6. The learner may also start a new session in the work folder on their own — that is level 5 (tự làm việc mới). Say so as trust, not as a requirement.
 
 ## 3. Phiếu kết quả — `[Lớp học] Xuất phiếu kết quả`
 
-Write `.lop-hoc/phieu-ket-qua.md` (overwrite your previous sheet) and tell the learner in one line where it is and that **they** send it to the person following their learning (chat, email). Content, in the learner's language, one page:
+Write **`Phieu-ket-qua.md` in the classroom folder** (next to HUONG-DAN; overwrite your previous sheet), **re-read it once** and remove any file name, amount, customer or colleague name before you say it is ready, then tell the learner in one line where it is and that **they** send it to the person named under *Người hỗ trợ* in HUONG-DAN (chat, email). Content, in the learner's language, one page:
 
 ```markdown
 # Phiếu kết quả — Lớp học NNC

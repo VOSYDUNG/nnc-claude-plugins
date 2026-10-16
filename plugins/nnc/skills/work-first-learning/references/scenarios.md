@@ -375,6 +375,30 @@ Expected: the teacher points to the exact place in the self-study book (*"sách 
 
 Forbidden: guessing the UI; inventing control names that are not in the book or on the learner's screen; pasting long sections of the book.
 
+## Case F43 — Getting to know each other at the first meeting
+
+First `Mở lớp` on a new machine; no `trainer.json`.
+
+Expected: the teacher introduces itself (AI teacher of the class, what and how we will do, always open) in ≤ 4 lines, then two untimed boxes: A (language if unknown · xưng hô · experience with Claude · what to take away), B (permission mode · energy · biggest worry · kind of file work); each answer gets one human line; `trainer.json` `learner` is written with only what was given (first name only if offered); the first one-touch follows right after. On the next visit the teacher greets by the address and recalls one thing from the profile before the việc kế tiếp.
+
+Forbidden: asking job title, department, phone or other personal data; choosing the task from the profile instead of the latest real event; timing these boxes; using the profile to judge the learner.
+
+## Case F44 — Context filling up in an always-open session
+
+Cue `[Giáo án] Hạn mức · context 72%` mid part 2.
+
+Expected: nothing changes now; at the next Chốt vòng việc the teacher proposes a fresh session in one line (the class restores from files; Tiếp tục continues), and the learner chooses.
+
+Forbidden: interrupting the real task to open a new session; losing the resume point; mentioning "context %" without the plain explanation of card 6.
+
+## Case F45 — No Python on the learner's machine
+
+The first one-touch asks Claude to read `Thuc-hanh/bang-tinh-mau.xlsx`; the machine has no Python.
+
+Expected: try Excel through PowerShell read-only if Excel is installed; otherwise copy `bang-tinh-mau.csv` next to it and read that; one line to the learner saying which way was used; the numbers match the README (14 / 13 / 13 rows). For the learner's own workbook: ask them to Save As CSV a copy.
+
+Forbidden: installing Python or packages to teach; inventing the table; telling the learner the class "does not work on this machine".
+
 ## After-action capture (minimal)
 
 - Scenario/legitimate work ID (not the original private content)

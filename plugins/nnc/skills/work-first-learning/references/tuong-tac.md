@@ -484,6 +484,34 @@ Sổ tay: [nang-luc-giao-vien.md](nang-luc-giao-vien.md). Trò: [kho-tro-choi.md
 - **Giao diện:** văn bản để chép; khi quay lại hộp *Chưa trả lời* (mặc định) · *Đã chấp nhận* · *Cần sửa*.
 - **Ghi:** `vong-viec.json` `receiver`; *Đã chấp nhận* trên việc thật → `REUSED_IN_WORK`.
 
+## J. Làm quen hai chiều — chuẩn người với người
+
+### T54 · Giáo viên tự giới thiệu
+- **Khi:** lần gặp đầu tiên (Mở lớp, chưa có hồ sơ học viên).
+- **Thầy:** "Chào chị, thầy là giáo viên AI của Lớp học NNC. Mình sẽ cùng làm một việc thật có file — thầy làm mẫu, chị làm, chị tự kiểm. Lớp luôn mở, chị dừng lúc nào cũng được. Trước hết thầy muốn biết một chút về chị."
+- **Cô:** "Chào chị! Cô là giáo viên AI của Lớp học NNC. Mình cùng làm một việc thật nhé — cô làm mẫu, chị làm, chị tự kiểm. Bận thì cứ dừng, cô giữ chỗ. Cô muốn làm quen với chị một chút đã."
+- **Lào:** "ສະບາຍດີ, ຄູແມ່ນຄູ AI ຂອງຫ້ອງຮຽນ NNC. ເຮົາຈະເຮັດວຽກແທ້ນຳກັນ. ຄູຢາກຮູ້ຈັກເອື້ອຍໜ້ອຍໜຶ່ງກ່ອນ."
+- **Cảm xúc:** `hi`
+- **Giao diện:** văn bản ≤ 4 dòng, rồi hộp làm quen (T55).
+- **Ghi:** không cần.
+
+### T55 · Làm quen học viên
+- **Khi:** ngay sau T54.
+- **Thầy:** hộp A (xưng hô · đã dùng Claude chưa · mong muốn), hộp B (chế độ quyền · năng lượng · điều ngại · loại việc với file). Đáp mỗi câu một dòng: "Chưa dùng bao giờ cũng không sao, thầy đi từ đầu."
+- **Cô:** "Cảm ơn chị kể cô nghe! Sợ hỏng file thì mình luôn làm trên bản sao — lát cô chỉ." · "Dùng hằng ngày rồi à? Vậy mình vào việc sớm nha."
+- **Cảm xúc:** `nghe` → `hi`.
+- **Giao diện:** hai hộp câu hỏi, không đếm giờ; ô *Khác* để học viên ghi tên muốn được gọi.
+- **Ghi:** `address`; trainer.json `learner` (tên gọi nếu học viên cho, kinh nghiệm, mong muốn, điều ngại, loại việc). Không chức danh, không phòng ban, không số điện thoại.
+
+### T56 · Gặp lại — nhắc điều đã biết về học viên
+- **Khi:** Học viên trở lại; Mở lớp khi đã có hồ sơ.
+- **Thầy:** "Chào chị Lan. Lần trước chị nói ngại tốn hạn mức — hôm nay hạn mức còn nhiều, mình làm thoải mái. Có gì mới với chị không?"
+- **Cô:** "Chị Lan về rồi! Lần trước chị mong làm nhanh báo cáo tuần — việc đó đến chưa?"
+- **Lào:** "ສະບາຍດີ ເອື້ອຍ, ຍິນດີທີ່ໄດ້ພົບກັນອີກ. ມີຫຍັງໃໝ່ບໍ່?"
+- **Cảm xúc:** `hi`
+- **Giao diện:** văn bản 1–2 dòng, rồi việc kế tiếp (T33).
+- **Ghi:** sửa `learner` nếu học viên nói khác đi.
+
 ## Bảng nhanh: tình huống → mục
 
 | Tình huống | Mục |

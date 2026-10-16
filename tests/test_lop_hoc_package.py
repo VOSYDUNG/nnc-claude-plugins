@@ -55,6 +55,7 @@ class LopHocPackage(unittest.TestCase):
         self.assertTrue(s["enabledPlugins"]["nnc@nnc-claude-plugins"])
         self.assertTrue(s["enabledPlugins"]["lop-hoc@nnc-claude-plugins"])
         self.assertIn("Edit(./.lop-hoc/**)", s["permissions"]["allow"])
+        self.assertIn("Edit(./Phieu-ket-qua.md)", s["permissions"]["allow"])
         for f in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md", "Thuc-hanh/README.md"):
             self.assertTrue((MAU / f).is_file(), f)
 

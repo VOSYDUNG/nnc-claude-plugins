@@ -1,0 +1,42 @@
+﻿Ngày,Kênh,Khách hàng,Mã hàng,Tên hàng,Số lượng,Đơn vị,Giá bán,Thành tiền
+12/10/2026,OTC,Nhà thuốc A — mẫu,MAU-OTC-02,Canxi D3 — mẫu,50,hộp,120000,6000000
+12/10/2026,OTC,Nhà thuốc D — mẫu,MAU-OTC-02,Canxi D3 — mẫu,10,hộp,120000,1200000
+12/10/2026,HC,Bệnh viện H — mẫu,MAU-HC-03,Bơm tiêm 5ml — mẫu,30,hộp,,
+12/10/2026,HC,Phòng khám B — mẫu,MAU-HC-04,Bông gạc vô trùng — mẫu,20,hộp,55000,1100000
+12/10/2026,SPM,Tạp hoá C — mẫu,MAU-SPM-02,Kem đánh răng — mẫu,12,hộp,20000,240000
+13/10/2026,OTC,Nhà thuốc G — mẫu,MAU-OTC-02,Canxi D3 — mẫu,40,hộp,120000,4800000
+13/10/2026,HC,Phòng khám B — mẫu,MAU-HC-02,Khẩu trang y tế — mẫu,40,hộp,40000,1600000
+13/10/2026,HC,Phòng khám E — mẫu,MAU-HC-04,Bông gạc vô trùng — mẫu,60,hộp,55000,3300000
+13/10/2026,SPM,Siêu thị M — mẫu,MAU-SPM-02,Kem đánh răng — mẫu,60,hộp,20000,1200000
+13/10/2026,SPM,Tạp hoá K — mẫu,MAU-SPM-04,Khăn giấy — mẫu,72,hộp,15000,1080000
+13/10/2026,SPM,Siêu thị M — mẫu,MAU-SPM-02,Kem đánh răng — mẫu,60,hộp,20000,1200000
+14/10/2026,OTC,Nhà thuốc A — mẫu,MAU-OTC-05,Men tiêu hoá — mẫu,10,hộp,60000,600000
+14/10/2026,OTC,Nhà thuốc B — mẫu,MAU-OTC-02,Canxi D3 — mẫu,10,hộp,120000,1200000
+14/10/2026,OTC,Nhà thuốc D — mẫu,MAU-OTC-03,Viên ngậm thảo dược — mẫu,20,hộp,,
+14/10/2026,HC,Bệnh viện H — mẫu,MAU-HC-03,Bơm tiêm 5ml — mẫu,100,hộp,150000,15000000
+14/10/2026,HC,Phòng khám B — mẫu,MAU-HC-02,Khẩu trang y tế — mẫu,10,hộp,40000,400000
+14/10/2026,HC,Phòng khám B — mẫu,MAU-HC-04,Bông gạc vô trùng — mẫu,80,hộp,55000,4400000
+14/10/2026,HC,Phòng khám E — mẫu,MAU-HC-01,Găng tay y tế — mẫu,50,hộp,85000,4250000
+14/10/2026,SPM,Siêu thị M — mẫu,MAU-SPM-03,Dầu gội — mẫu,12,hộp,50000,600000
+14/10/2026,SPM,Siêu thị M — mẫu,MAU-SPM-04,Khăn giấy — mẫu,36,hộp,,
+14/10/2026,SPM,Tạp hoá C — mẫu,MAU-SPM-05,Sữa bột — mẫu,24,hộp,180000,4320000
+14/10/2026,SPM,Tạp hoá K — mẫu,MAU-SPM-05,Sữa bột — mẫu,48,hộp,180000,8640000
+15/10/2026,OTC,Nhà thuốc A — mẫu,MAU-OTC-01,Vitamin C 500mg — mẫu,20,hộp,45000,900000
+15/10/2026,OTC,Nhà thuốc B — mẫu,MAU-OTC-05,Men tiêu hoá — mẫu,25,hộp,60000,1500000
+15/10/2026,OTC,Nhà thuốc G — mẫu,MAU-OTC-05,Men tiêu hoá — mẫu,5,hộp,60000,300000
+15/10/2026,HC,Bệnh viện H — mẫu,MAU-HC-02,Khẩu trang y tế — mẫu,40,hộp,40000,1600000
+15/10/2026,SPM,Siêu thị M — mẫu,MAU-SPM-02,Kem đánh răng — mẫu,12,hộp,20000,240000
+15/10/2026,SPM,Tạp hoá C — mẫu,MAU-SPM-04,Khăn giấy — mẫu,12,hộp,15000,180000
+16/10/2026,OTC,Nhà thuốc D — mẫu,MAU-OTC-01,Vitamin C 500mg — mẫu,5,hộp,45000,225000
+16/10/2026,OTC,Nhà thuốc G — mẫu,MAU-OTC-04,Paracetamol 500mg — mẫu,20,vỉ,3000,60000
+16/10/2026,HC,Bệnh viện H — mẫu,MAU-HC-01,Găng tay y tế — mẫu,20,hộp,85000,1700000
+16/10/2026,HC,Phòng khám B — mẫu,MAU-HC-02,Khẩu trang y tế — mẫu,60,hộp,40000,2400000
+16/10/2026,HC,Phòng khám E — mẫu,MAU-HC-03,Bơm tiêm 5ml — mẫu,80,hộp,150000,12000000
+16/10/2026,SPM,Tạp hoá C — mẫu,MAU-SPM-01,Nước rửa tay — mẫu,12,hộp,30000,360000
+17/10/2026,OTC,Nhà thuốc G — mẫu,MAU-OTC-02,Canxi D3 — mẫu,5,hộp,120000,600000
+17/10/2026,OTC,Nhà thuốc G — mẫu,MAU-OTC-04,Paracetamol 500mg — mẫu,5,hộp,25000,125000
+17/10/2026,OTC,Nhà thuốc G — mẫu,MAU-OTC-05,Men tiêu hoá — mẫu,40,hộp,60000,2400000
+17/10/2026,HC,Phòng khám E — mẫu,MAU-HC-03,Bơm tiêm 5ml — mẫu,100,hộp,150000,15000000
+17/10/2026,SPM,Siêu thị M — mẫu,MAU-SPM-03,Dầu gội — mẫu,60,hộp,50000,3000000
+17/10/2026,SPM,Siêu thị M — mẫu,MAU-SPM-04,Khăn giấy — mẫu,72,hộp,15000,1080000
+17/10/2026,SPM,Tạp hoá K — mẫu,MAU-SPM-04,Khăn giấy — mẫu,60,hộp,15000,900000

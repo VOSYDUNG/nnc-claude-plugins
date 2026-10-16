@@ -1,5 +1,7 @@
 # Vào Lớp học NNC — 4 bước
 
+**Người hỗ trợ của bạn:** ______________________ (kênh liên hệ: ______________) — người phụ trách điền trước khi phát gói.
+
 Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở**: học lúc nào cũng được, dừng lúc nào cũng được, quay lại thì học tiếp đúng chỗ. Một giáo viên, thầy hoặc cô do bạn chọn, dẫn bạn làm việc thật cùng Claude. Bạn không cần biết gõ lệnh. Sách tự học *Tài liệu đào tạo Claude cơ bản* đi kèm để tra lại bất cứ lúc nào.
 
 ## 1. Chuẩn bị máy (một lần)
@@ -21,10 +23,12 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 - Giáo viên dẫn từng bước. Khi thấy nút **"▶ …"**, bấm nút rồi bấm **Enter** là bạn đã giao việc cho Claude.
 - Có việc thật trong thư mục của bạn? Chọn **Làm việc thật trong thư mục của tôi**, giáo viên kèm bạn làm ngay trong thư mục đó.
 - Cần hỏi thì **Giơ tay**. Cần đi đâu một lát thì **Xin phép**. Phải dừng thì **Xin nghỉ**, giáo viên lưu chỗ.
-- Muốn gửi kết quả cho người theo dõi việc học của bạn: bấm **Phiếu kết quả**, rồi tự gửi file phiếu.
+- Muốn gửi kết quả cho người hỗ trợ: bấm **Phiếu kết quả**; file `Phieu-ket-qua.md` nằm ngay trong thư mục Lop-hoc-NNC, bạn xem lại rồi tự gửi.
+- Bị vướng mà giáo viên báo cần người hỗ trợ: bấm **Soạn tin nhờ hỗ trợ**, chép tin và gửi cho người hỗ trợ ở đầu trang này.
 
 ## Nhớ giúp
 - Chỉ dùng file bạn được phép dùng. Tốt nhất là **bản sao** đã che thông tin khách hàng và nhân sự.
 - Claude hỏi trước khi làm những việc có rủi ro. Bạn **đọc rồi mới đồng ý**.
 - Mỗi lần học tốn một phần hạn mức Claude của bạn. Giáo viên sẽ nói gọn lại khi hạn mức gần hết.
+- Mỗi lần chỉ mở **một** phiên trong thư mục lớp học.
 - Giáo viên là nhân vật AI của Lớp học NNC.

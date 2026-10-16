@@ -1,6 +1,6 @@
 """Dựng thư mục lớp học mẫu `lop-hoc-mau/` từ nguồn duy nhất (template trong Skill).
 
-Chạy: python tools/build_lop_hoc_mau.py [--tag lop-hoc-v0.7.0] [--zip ĐƯỜNG_DẪN.zip]
+Chạy: python tools/build_lop_hoc_mau.py [--tag lop-hoc-v0.7.1] [--zip ĐƯỜNG_DẪN.zip]
 `CLAUDE.md` của lớp luôn sinh ra từ templates/classroom-CLAUDE.md; test kiểm tra hai bản khớp nhau.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ TEMPLATE = ROOT / "plugins" / "nnc" / "skills" / "work-first-learning" / "templa
 OUT = ROOT / "lop-hoc-mau"
 REPO = "VOSYDUNG/nnc-claude-plugins"
 MARKETPLACE = "nnc-claude-plugins"
-DEFAULT_TAG = "lop-hoc-v0.7.0"
+DEFAULT_TAG = "lop-hoc-v0.7.1"
 
 
 def claude_md() -> str:
@@ -29,7 +29,7 @@ def settings(tag: str) -> dict:
             MARKETPLACE: {"source": {"source": "git", "url": f"https://github.com/{REPO}.git", "ref": tag}}
         },
         "enabledPlugins": {f"nnc@{MARKETPLACE}": True, f"lop-hoc@{MARKETPLACE}": True},
-        "permissions": {"allow": ["Edit(./.lop-hoc/**)", "Edit(./Thuc-hanh/**)"]},
+        "permissions": {"allow": ["Edit(./.lop-hoc/**)", "Edit(./Thuc-hanh/**)", "Edit(./Phieu-ket-qua.md)"]},
     }
 
 

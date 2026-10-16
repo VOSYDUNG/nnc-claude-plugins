@@ -1,13 +1,13 @@
 # Lớp học NNC — đóng gói, cài đặt và pilot (v0.7)
 
 **Nơi chạy:** Claude Desktop trên Windows, tab **Code**, phiên **Local**. Giao diện lớp học (mod) cần Claude Code 2.1.286 trở lên.
-**Bản phát hành pilot:** tag `lop-hoc-v0.7.0` trên nhánh `feat/learning-work-first-v0.1` (chưa merge `main`).
+**Bản phát hành pilot:** tag `lop-hoc-v0.7.1` trên nhánh `feat/learning-work-first-v0.1` (chưa merge `main`).
 **Thành phần** (cùng một marketplace `nnc-claude-plugins`, nguồn đường dẫn tương đối):
 
 | Plugin | Phiên bản | Chứa |
 |---|---|---|
-| `nnc` | `5.1.0-alpha.2+lophoc.0.7.0` | NNC OSER alpha.2 + Skill **`nnc:work-first-learning`** 0.7.0 (giáo viên, vòng việc, kho trò, thẻ định nghĩa, sách tự học, dữ liệu mẫu) |
-| `lop-hoc` | `0.7.0` | Mod giao diện: lớp luôn mở, bục giảng, phần học theo mốc, tín hiệu hạn mức, một chạm, thử thách, sao, huy hiệu, phiếu kết quả |
+| `nnc` | `5.1.0-alpha.2+lophoc.0.7.1` | NNC OSER alpha.2 + Skill **`nnc:work-first-learning`** 0.7.1 (giáo viên, vòng việc, kho trò, thẻ định nghĩa, sách tự học, dữ liệu mẫu) |
+| `lop-hoc` | `0.7.1` | Mod giao diện: lớp luôn mở, bục giảng, phần học theo mốc, tín hiệu hạn mức, một chạm, thử thách, sao, huy hiệu, phiếu kết quả |
 
 **Trạng thái:** test tĩnh, test engine của mod và test dữ liệu mẫu đều qua; **chưa có học viên thật**. Test hay một lần cài thành công là **not proof of learner independence**.
 
@@ -22,7 +22,7 @@ Lop-hoc-NNC/
 ├── NGUOI-DUNG-LOP.md    ← checklist người đứng lớp
 ├── Thuc-hanh/           ← nơi giáo viên chép file mẫu
 └── .claude/settings.json
-       ├── extraKnownMarketplaces: nnc-claude-plugins ← git HTTPS github.com/VOSYDUNG/nnc-claude-plugins.git @ lop-hoc-v0.7.0
+       ├── extraKnownMarketplaces: nnc-claude-plugins ← git HTTPS github.com/VOSYDUNG/nnc-claude-plugins.git @ lop-hoc-v0.7.1
        ├── enabledPlugins: nnc@nnc-claude-plugins, lop-hoc@nnc-claude-plugins
        └── permissions.allow: Edit(./.lop-hoc/**), Edit(./Thuc-hanh/**)
 ~~~
@@ -40,6 +40,9 @@ Người mới mở thư mục trong **Claude Desktop → Code → New session �
 5. Không bật Experience Observer, không chạy OSER init, không cấp quyền rộng, không đưa dữ liệu riêng lên, không ghi vào hệ thống thật.
 
 ## 3. Phát hành bản mới
+
+**Máy đã cài bản cũ.** Nguồn cài `nnc-claude-plugins` được ghi lại trên máy cùng tag của lần cài đầu; mở gói mới **chưa chắc** đổi được tag đó (chưa có tài liệu chính thức). Khi nâng cấp một máy đã học bản cũ: gỡ nguồn cài cũ (**+ → Plugins → Manage plugins**, hoặc `claude plugin marketplace remove nnc-claude-plugins`), rồi mở thư mục lớp mới và đồng ý cài lại. Huy hiệu và vòng việc nằm trong thư mục lớp cũ: chép thư mục `.lop-hoc/` sang lớp mới nếu muốn giữ. Trước V1 cân nhắc ghim gói vào một nhánh phát hành cố định thay cho tag, để mọi máy nhận bản mới bằng một lần cập nhật nguồn.
+
 
 1. Đổi `version` của `nnc` và/hoặc `lop-hoc` (cả `plugin.json` và `marketplace.json`). Plugin GitHub được chép vào cache theo phiên bản, nên **không đổi phiên bản thì máy đã cài giữ bản cũ**.
 2. Chạy toàn bộ test: `python -m unittest discover -s tests`, rồi `claude plugin test plugins/lop-hoc` và `claude plugin validate plugins/lop-hoc` bằng bản `claude` đi kèm Desktop.
