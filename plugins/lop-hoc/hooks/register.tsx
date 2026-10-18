@@ -81,6 +81,15 @@ const WATCH_MS = 1_500
 const LONG_BOX_MS = 90_000
 const ANSWER_MS = 60_000
 const CUE_GAP_MS = 20_000
+// v0.11 — thang im lặng: học viên không tác động từ lúc giáo viên nói xong. Nấc 1 sau 90 giây, nấc 2 sau 3 phút,
+// nấc 3 sau 5 phút nữa; lúc thử thách có giờ hoặc làm việc thật (hands-on | form) thì nấc 1 chờ 3 phút.
+const SILENCE_FIRST_MS = 90_000
+const SILENCE_WORK_MS = 3 * 60_000
+const SILENCE_WAIT_MS = [SILENCE_FIRST_MS, 3 * 60_000, 5 * 60_000] as const
+// v0.11 — lời giáo viên dài hơn ngưỡng này (ký tự) thì gập: 3 dòng đầu + nút "Xem đầy đủ".
+const FOLD_CHARS = 600
+const FOLD_LINES = 3
+const FOLD_LINE_CHARS = 200
 // Ngưỡng hạn mức (%) báo giáo viên: 5 giờ ở 70 (giảng gọn) và 90 (lưu điểm dừng); tuần ở 90.
 const FIVE_STEPS = [70, 90]
 const WEEK_STEPS = [90]
@@ -132,6 +141,12 @@ const stateVer = atom({ plugin: 'lop-hoc', key: 'stateVer' } as const, 0)
 const choiceDone = atom({ plugin: 'lop-hoc', key: 'choiceDone' } as const, '')
 const choiceExpired = atom({ plugin: 'lop-hoc', key: 'choiceExpired' } as const, '')
 const moreOpen = atom({ plugin: 'lop-hoc', key: 'moreOpen' } as const, false)
+// v0.11
+// Lần tác động cuối của học viên hoặc lúc giáo viên nói xong (at, giờ đồng hồ) và nấc im lặng đã gửi (0 = chưa).
+type Silence = { at: number; rung: 0 | 1 | 2 | 3 }
+const silenceAtom = atom({ plugin: 'lop-hoc', key: 'silence' } as const, { at: 0, rung: 0 } as Silence)
+// Lời giáo viên dài đã được học viên mở ra (theo requestId của khối).
+const foldOpen = atom({ plugin: 'lop-hoc', key: 'foldOpen' } as const, [] as string[])
 
 // ── Phần học (v0.7: giáo viên chuyển phần khi đạt mốc; mod chỉ hiển thị) ────────
 const S0: PlanSegment = { id: '0', title: 'Vào lớp', drive: 'ket-noi' }
@@ -155,6 +170,24 @@ export function timedKind(kind: string | undefined | null): boolean {
 // Luật "cùng một kiểu quá 4 phút thì đổi" không áp cho lúc học viên đang làm việc thật.
 export function switchableKind(kind: string | undefined | null): boolean {
   return !!kind && kind !== 'hands-on' && kind !== 'form'
+}
+
+// Lời dài thì gập: 3 dòng đầu (mỗi dòng cắt ở 200 ký tự). Trả null khi không cần gập (ngắn, hoặc gập rồi không ẩn gì).
+export function foldPreview(text: string): string | null {
+  if (text.length <= FOLD_CHARS) return null
+  const lines = text.replace(/^\s*\n/, '').split('\n')
+  const first = lines.slice(0, FOLD_LINES)
+  const cutLine = first.some(x => x.length > FOLD_LINE_CHARS)
+  if (lines.length <= FOLD_LINES && !cutLine) return null
+  const head = first.map(x => (x.length > FOLD_LINE_CHARS ? `${x.slice(0, FOLD_LINE_CHARS).trimEnd()}…` : x)).join('\n').trimEnd()
+  return lines.length > FOLD_LINES && !cutLine ? `${head}\n…` : head
+}
+
+// Nấc im lặng kế tiếp đã đến giờ chưa (đủ điều kiện khác do nơi gọi kiểm). slow = thử thách có giờ / làm việc thật.
+export function silenceDue(sil: Silence, now: number, slow: boolean): 1 | 2 | 3 | null {
+  if (sil.rung >= 3) return null
+  const wait = sil.rung === 0 && slow ? SILENCE_WORK_MS : SILENCE_WAIT_MS[sil.rung]!
+  return now - sil.at >= wait ? ((sil.rung + 1) as 1 | 2 | 3) : null
 }
 
 type UsageCue = { key: string; text: string; also: string[] }
@@ -756,12 +789,34 @@ async function sendKeyedCue($: EngineInterface, key: string, text: string, now: 
 async function sendPressCue($: EngineInterface, text: string, patch: Partial<Lesson> = {}) {
   const now = await $.clock.now()
   await update($, lessonAtom, l => (l ? { ...l, ...patch, lastCueAt: now, quiet: false } : l))
+  await update($, silenceAtom, () => ({ at: now, rung: 0 }))
   await submitCue($, text)
 }
 
 // Học viên vừa tác động: lớp được gửi tín hiệu kế tiếp.
 async function touch($: EngineInterface) {
   await update($, lessonAtom, l => (l && !l.over && l.quiet ? { ...l, quiet: false } : l))
+  await silenceReset($)
+}
+
+// Học viên vừa tác động (gửi, bấm, chọn, gõ): thang im lặng tính lại từ đầu.
+async function silenceReset($: EngineInterface) {
+  const now = await $.clock.now()
+  await update($, silenceAtom, () => ({ at: now, rung: 0 }))
+}
+
+// Tín hiệu im lặng: không khoá `sent`, vượt qua `quiet` (chỉ ba tín hiệu này), vẫn đặt quiet để các tín hiệu khác chờ.
+async function sendSilenceCue($: EngineInterface, rung: 1 | 2 | 3, now: number): Promise<boolean> {
+  let ok = false
+  await update($, lessonAtom, l => {
+    if (!l || l.over || l.pause) return l
+    ok = true
+    return { ...l, lastCueAt: now, quiet: true }
+  })
+  if (!ok) return false
+  await update($, silenceAtom, () => ({ at: now, rung }))
+  void submitCue($, `Học viên im lặng · nấc ${rung}`)
+  return true
 }
 
 // Quay lại sau Xin phép, hoặc Tiếp tục sau khi mở lại app.
@@ -776,6 +831,7 @@ async function resume($: EngineInterface): Promise<Lesson['pause']> {
     was = l.pause
     return { ...l, pause: null, pauseNote: '', shiftMs: l.shiftMs + (now - (l.pausedAt ?? now)), pausedAt: null, quiet: false }
   })
+  if (was) await update($, silenceAtom, () => ({ at: now, rung: 0 }))
   return was
 }
 
@@ -846,9 +902,11 @@ async function tickBody($: EngineInterface) {
     box = (await $.prompt.read()).text.trim()
   } catch {}
   // Đang gõ = học viên đang tác động.
-  if (box && !l.pause && l.quiet) {
-    await touch($)
-    l = (await read($, lessonAtom)) ?? l
+  if (box && !l.pause) {
+    if (l.quiet) {
+      await touch($)
+      l = (await read($, lessonAtom)) ?? l
+    } else await silenceReset($)
   }
 
   // A. Câu đố / trò chơi: đếm ngược 60 giây, hết hạn thì chọn giúp. Câu hỏi lúc làm việc thật: chờ, không đếm.
@@ -877,24 +935,32 @@ async function tickBody($: EngineInterface) {
     l = (await read($, lessonAtom)) ?? l
   }
 
-  // B. Tín hiệu do mod gửi: chỉ khi giáo viên rảnh, ô nhập trống, lớp không xin phép/chờ, học viên đã tác động
-  //    từ tín hiệu trước (lớp không giảng vào phòng trống), cách tín hiệu trước ≥ 20 giây.
-  if (l.pause || working || ask || box || l.quiet || now - l.lastCueAt < CUE_GAP_MS) return
-  // Hạn mức chạm ngưỡng.
-  const uc = usageCue(await read($, usageAtom), l.sent)
-  if (uc) {
-    await update($, lessonAtom, x => (x ? { ...x, sent: [...x.sent, ...uc.also.filter(k => !x.sent.includes(k))] } : x))
-    if (await sendKeyedCue($, uc.key, uc.text, now, {})) return
+  // B. Tín hiệu do mod gửi: chỉ khi giáo viên rảnh, ô nhập trống, lớp không xin phép/chờ, không có hộp câu hỏi mở,
+  //    cách tín hiệu trước ≥ 20 giây (mỗi lúc một tín hiệu). Các tín hiệu theo giờ còn cần học viên đã tác động
+  //    từ tín hiệu trước (lớp không giảng vào phòng trống); riêng thang im lặng (v0.11) đi qua chốt đó.
+  if (l.pause || working || ask || box || now - l.lastCueAt < CUE_GAP_MS) return
+  if (!l.quiet) {
+    // Hạn mức chạm ngưỡng.
+    const uc = usageCue(await read($, usageAtom), l.sent)
+    if (uc) {
+      await update($, lessonAtom, x => (x ? { ...x, sent: [...x.sent, ...uc.also.filter(k => !x.sent.includes(k))] } : x))
+      if (await sendKeyedCue($, uc.key, uc.text, now, {})) return
+    }
+    // Hết giờ thử thách (một lần, bỏ thử thách cũ quá 10 phút).
+    if (live.challenge && ch && ch.leftMs <= 0) {
+      if (await sendKeyedCue($, `ch-${challengeKey(live.challenge)}`, `Hết giờ thử thách · ${live.challenge.title}`, now, {})) return
+    }
+    // Cùng một kiểu tương tác quá 4 phút → nhắc giáo viên đổi kiểu (một lần). Lúc làm việc thật thì không nhắc.
+    if (live.activity && switchableKind(live.activity.kind) && track && el - track.fromEl > ACTIVITY_MS) {
+      const n = Math.floor((el - track.fromEl) / MIN)
+      if (await sendKeyedCue($, `act-${track.key}`, `Đổi kiểu tương tác · ${live.activity.kind} · ${n} phút`, now, {})) return
+    }
   }
-  // Hết giờ thử thách (một lần, bỏ thử thách cũ quá 10 phút).
-  if (live.challenge && ch && ch.leftMs <= 0) {
-    if (await sendKeyedCue($, `ch-${challengeKey(live.challenge)}`, `Hết giờ thử thách · ${live.challenge.title}`, now, {})) return
-  }
-  // Cùng một kiểu tương tác quá 4 phút → nhắc giáo viên đổi kiểu (một lần). Lúc làm việc thật thì không nhắc.
-  if (live.activity && switchableKind(live.activity.kind) && track && el - track.fromEl > ACTIVITY_MS) {
-    const n = Math.floor((el - track.fromEl) / MIN)
-    await sendKeyedCue($, `act-${track.key}`, `Đổi kiểu tương tác · ${live.activity.kind} · ${n} phút`, now, {})
-  }
+  // Thang im lặng: nấc 1 · 2 · 3 sau lần giáo viên nói xong, dừng sau nấc 3 đến khi học viên tác động.
+  if (!(await read($, entered))) return
+  const slow = !!(ch && ch.leftMs > 0) || live.activity?.kind === 'hands-on' || live.activity?.kind === 'form'
+  const rung = silenceDue(await read($, silenceAtom), now, slow)
+  if (rung) await sendSilenceCue($, rung, now)
 }
 
 // Đồng hồ giây khi có thử thách đang chạy: vòng đếm ngược nhảy từng giây; về 0 thì xét gửi tín hiệu ngay.
@@ -1103,6 +1169,7 @@ async function startLesson($: EngineInterface) {
   await update($, entered, () => true)
   await update($, modeAtom, () => 'normal')
   await update($, nowAtom, () => now)
+  await update($, silenceAtom, () => ({ at: now, rung: 0 }))
   await update($, activityTrack, () => null)
   await update($, giftAtom, () => 'closed')
   view = { teacher, seg: S0 }
@@ -1222,6 +1289,9 @@ export const register: Register = on => {
     await update($, turnIdAtom, () => '')
     askSeen = null
     if (await read($, isClassroom)) {
+      // Giáo viên nói xong: thang im lặng đếm từ đây (nấc đã gửi giữ nguyên, chỉ học viên tác động mới xoá).
+      const doneAt = await $.clock.now()
+      await update($, silenceAtom, x => ({ ...x, at: doneAt }))
       await update($, askAtom, () => null)
       await syncState($)
       await update($, rev, n => n + 1)
@@ -1781,8 +1851,22 @@ export const register: Register = on => {
   // ── Lời giáo viên: bọc lời Claude, giữ nguyên định dạng gốc ──────────────────
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (!(await read($, isClassroom))) return next(e)
-    const theirs = await next(e)
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    // v0.11: lời giáo viên dài (> ~600 ký tự) gập thành 3 dòng đầu + nút "Xem đầy đủ". Chỉ trên Desktop: nút bấm được ở đó;
+    // dòng chữ ở terminal là lịch sử cuộn, chưa chắc bấm được nút nên không gập (tránh giấu chữ mà không mở ra được).
+    // Khối tóm tắt (isSummary) và kết quả công cụ không đụng tới.
+    const text = typeof e.props.text === 'string' ? e.props.text : ''
+    const preview = e.surface === 'desktop' && !e.props.isSummary ? foldPreview(text) : null
+    const opened = preview === null ? true : (await read($, foldOpen)).includes(e.requestId)
+    const theirs = preview !== null && !opened ? await next({ ...e, props: { ...e.props, text: preview } }) : await next(e)
+    const fold =
+      preview === null ? null : (
+        <Button
+          key="fold"
+          label={opened ? L().foldLess : L().foldMore}
+          onPress={() => update($, foldOpen, ids => (ids.includes(e.requestId) ? ids.filter(x => x !== e.requestId) : [...ids, e.requestId]))}
+        />
+      )
     const first = e.props.isFirstOfReply
     const v = await classView($)
     const T = teacherName(v.teacher)
@@ -1808,6 +1892,7 @@ export const register: Register = on => {
         <Box flexDirection="column" flexGrow={1} borderStyle="quote" borderColor="#008816" paddingLeft={1}>
           {first ? <Text bold backgroundColor={color} color={INK}>{title}</Text> : null}
           {theirs}
+          {fold}
         </Box>
       </Box>
     )

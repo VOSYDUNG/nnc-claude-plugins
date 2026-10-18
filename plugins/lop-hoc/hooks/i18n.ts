@@ -78,6 +78,8 @@ export type Strings = {
   // v0.8 — sân khấu bục giảng do giáo viên dựng.
   more: string
   moreClose: string
+  foldMore: string
+  foldLess: string
   bypassChip: (label: string) => string
   facts: { mode: string; effort: string; model: string; context: string; usage5: string; usageWeek: string }
   barNote: string
@@ -181,6 +183,8 @@ const vi: Strings = {
   },
   more: '⋯ Thêm',
   moreClose: 'Thu gọn',
+  foldMore: '▸ Xem đầy đủ',
+  foldLess: '▾ Thu gọn',
   bypassChip: label => ` ⚠ ${label} · Claude làm không hỏi lại quyền, đọc kỹ trước khi giao việc `,
   facts: { mode: 'Chế độ', effort: 'Effort', model: 'Model', context: 'Context', usage5: '5 giờ', usageWeek: 'Tuần' },
   barNote: 'ở thanh dưới ô nhập',
@@ -283,6 +287,8 @@ const lo: Strings = {
   },
   more: '⋯ ເພີ່ມ',
   moreClose: 'ຫຍໍ້',
+  foldMore: '▸ ເບິ່ງທັງໝົດ',
+  foldLess: '▾ ຫຍໍ້',
   bypassChip: label => ` ⚠ ${label} · Claude ຈະເຮັດໂດຍບໍ່ຖາມສິດ, ອ່ານໃຫ້ດີກ່ອນມອບວຽກ `,
   facts: { mode: 'ໂໝດສິດ', effort: 'Effort', model: 'Model', context: 'Context', usage5: '5 ຊົ່ວໂມງ', usageWeek: 'ອາທິດ' },
   barNote: 'ຢູ່ແຖບລຸ່ມຊ່ອງພິມ',

@@ -158,6 +158,9 @@ declare module 'claude-code' {
       choiceDone: string
       choiceExpired: string
       moreOpen: boolean
+      // v0.11: thang im lặng (lần tác động cuối / lúc giáo viên nói xong, nấc đã gửi) và lời dài đã mở (requestId).
+      silence: { at: number; rung: 0 | 1 | 2 | 3 }
+      foldOpen: string[]
     }
   }
 }

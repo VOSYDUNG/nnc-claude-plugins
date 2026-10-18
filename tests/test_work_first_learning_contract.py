@@ -108,14 +108,14 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
-        self.assertIn("+lophoc.0.10.1", self.plugin)
+        self.assertIn("+lophoc.0.11.0", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.10.1", frontmatter)
+        self.assertIn("version: 0.11.0", frontmatter)
         self.assertNotIn("version: 0.9.0", frontmatter)
         self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
@@ -341,7 +341,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             "cham-lai", "tu-lam-vuot", "Signals → moves", "fit test", "Job context",
             "Time left", "Last kind", "re-author", "Invariants", "Nine definitions before practice",
             "Usage facts only from the official pages", "never claims to be human",
-            "6 lines", "Đổi kiểu tương tác", "Hết giờ thử thách", "Mở hộp quà",
+            "3 short lines", "Đổi kiểu tương tác", "Hết giờ thử thách", "Mở hộp quà",
             "badges_new", "gift_box", "one_touch", "challenge", "thủ kho",
         ):
             self.assertIn(phrase, self.competency, phrase)
@@ -514,14 +514,14 @@ class StageV08Tests(unittest.TestCase):
     # --- versions --------------------------------------------------------
 
     def test_versions(self):
-        self.assertIn("version: 0.10.1", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.11.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.8", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.1")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.11.0")
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
         self.assertNotIn("alpha.3", nnc)
-        self.assertIn("evaluation cases F1–F60", self.skill)
+        self.assertIn("evaluation cases F1–F66", self.skill)
 
     # --- the visual toolbox ----------------------------------------------
 
@@ -877,10 +877,10 @@ class RealScreenV10Tests(unittest.TestCase):
         cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
 
     def test_versions(self):
-        self.assertIn("version: 0.10.1", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.11.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.10", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.1")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.11.0")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -985,6 +985,206 @@ class RealScreenV10Tests(unittest.TestCase):
             data = (SCRIPTS / name).read_bytes()
             self.assertTrue(data.strip(), name)
             data.decode("ascii")  # Windows PowerShell 5.1 reads BOM-less files as ANSI
+
+
+RESEARCH_REF = REFS / "nghien-cuu-tai-lieu.md"
+MAU_CLAUDE = ROOT / "lop-hoc-mau" / "CLAUDE.md"
+SILENCE_CUES = ("[Giáo án] Học viên im lặng · nấc 1", "[Giáo án] Học viên im lặng · nấc 2",
+                "[Giáo án] Học viên im lặng · nấc 3")
+
+
+class SelfDrivingV11Tests(unittest.TestCase):
+    """v0.11: silence ladder, endless loop, brevity rule, independent view (contract LOP-HOC-V11-THIET-KE.md)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.buoi1 = BUOI1.read_text(encoding="utf-8")
+        cls.inter = INTERACTIONS.read_text(encoding="utf-8")
+        cls.scen = SCENARIOS.read_text(encoding="utf-8")
+        cls.template = TEMPLATE.read_text(encoding="utf-8")
+        cls.research = RESEARCH_REF.read_text(encoding="utf-8")
+        cls.plugin = PLUGIN.read_text(encoding="utf-8")
+        cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
+        cls.s13 = cls.skill.split("## 13. A self-driving teacher", 1)[1].split("For installation, release gates", 1)[0]
+
+    def test_versions(self):
+        self.assertIn("version: 0.11.0", self.skill.split("---", 2)[1])
+        self.assertIn("What changed in v0.11", self.skill)
+        nnc = json.loads(self.plugin)["version"]
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.11.0")
+        self.assertNotIn("alpha.3", nnc)
+        entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
+        self.assertEqual(entry["version"], nnc)
+
+    # --- silence ladder --------------------------------------------------
+
+    def test_cue_table_has_the_three_silence_cues_exact(self):
+        row = next(l for l in self.skill.splitlines() if l.startswith("| `[Giáo án] Học viên im lặng"))
+        self.assertIn("nấc 1\\|2\\|3", row)
+        for cue in SILENCE_CUES:
+            self.assertIn(cue, self.skill, cue)
+            self.assertIn(cue, self.s13, cue)
+        for phrase in ("**Nấc 1 · khai thác:**", "**Nấc 2 · làm nhỏ / làm mẫu:**", "**Nấc 3 · lưu chỗ:**",
+                       "what this step is for", "podium `choices`", "one-touch demo",
+                       "Lớp vẫn mở, lúc nào quay lại mình học tiếp đúng chỗ này", 'status: "paused"',
+                       "never repeat the same instruction", "never a paragraph", "never add more text",
+                       "does not yet understand"):
+            self.assertIn(phrase, row, phrase)
+        self.assertIn('**Never** *"Thầy đang đợi"*', row)
+        self.assertIn("≤ 3 short lines", row)
+
+    def test_silence_ladder_section_and_timing(self):
+        for phrase in ("13.1", "Silence = the learner does not yet understand", "about 90 s", "3 min", "5 min after",
+                       "After nấc 3 nothing more comes", "any action resets", 'never *"Thầy đang đợi"*',
+                       "never the same instruction twice", "never a paragraph"):
+            self.assertIn(phrase, self.s13, phrase)
+        self.assertIn("never teach into an empty room", self.skill)
+        self.assertIn("three bounded silence cues of §13.1", self.skill)
+
+    # --- the endless loop -------------------------------------------------
+
+    def test_loop_proposal_guardrails_and_stop_conditions(self):
+        part = self.s13.split("### 13.2", 1)[1].split("### 13.3", 1)[0]
+        for phrase in ("you propose the next loop yourself", "default (continue)", "next open book sections",
+                       "ban-do-sach.md", 'Never an open *"bạn muốn làm gì tiếp?"*',
+                       "five guardrails", "Public information only", "source and the date shown under the visual",
+                       "thông tin công khai, không phải số liệu NNC", "Never put learner or company data into a search query",
+                       "At most 3 lookups per turn", "none at 70 % usage or more", "No search tool", "class library, silently",
+                       "stops only", "Xin nghỉ", "usage at or above 90 %", "silence nấc 3"):
+            self.assertIn(phrase, part, phrase)
+        self.assertEqual(len(re.findall(r"^[1-5]\. \*\*", part, re.M)), 5, "exactly five guardrails")
+
+    def test_chot_vong_viec_proposes_the_next_loop(self):
+        part = self.buoi1.split("## 5. Part 4 — Chốt vòng việc", 1)[1].split("## 6. Later visits", 1)[0]
+        for phrase in ("proposes the next loop itself", "Làm tiếp vòng sau", "Dừng ở đây — lưu chỗ",
+                       "never an open", "default is to continue", "one click", "usage ≥ 90 %", "silence nấc 3",
+                       "five guardrails", "≤ 3 short lines"):
+            self.assertIn(phrase, part, phrase)
+        self.assertNotIn("one box: **Làm tiếp", part)
+        self.assertNotIn("Làm tiếp một vòng việc", self.buoi1)
+        self.assertNotIn("Làm tiếp một vòng việc", self.skill)
+        later = self.buoi1.split("## 6. Later visits and returning", 1)[1].split("## 7.", 1)[0]
+        for phrase in ("the loop you proposed last time", "Học viên im lặng · nấc 1|2|3"):
+            self.assertIn(phrase, later, phrase)
+        self.assertIn("you propose the next loop yourself", self.skill.split("### 4.5", 1)[1].split("## 5.", 1)[0])
+
+    def test_research_reference_has_the_guarded_web_row(self):
+        for heading in ("| 4 | Official product pages", "| 5 | Public web research (guarded)"):
+            self.assertIn(heading, self.research, heading)
+        self.assertLess(self.research.index("| 4 | Official product pages"), self.research.index("| 5 | Public web research"))
+        part = self.research.split("## 10. Public research for the next loop", 1)[1]
+        for phrase in ("Public information only", "Label it", "thông tin công khai, không phải số liệu NNC",
+                       "Never put learner or company data into a search query", "At most 3 lookups per turn",
+                       "none at 70 % usage or more", "No search tool in this session", "class library, silently",
+                       '"source": "web"'):
+            self.assertIn(phrase, part, phrase)
+        self.assertEqual(len(re.findall(r"^[1-5]\. \*\*", part, re.M)), 5)
+        for bad in ("http://", "https://"):
+            self.assertNotIn(bad, self.research)
+
+    # --- brevity ----------------------------------------------------------
+
+    def test_brevity_rule(self):
+        part = self.s13.split("### 13.3", 1)[1].split("### 13.4", 1)[0]
+        for phrase in ("at most 3 short lines (about 45 words)", "plus one touch", "one idea", "Ask, don't lecture",
+                       "Never show Claude's own long work output raw", "one-line summary", "result explainer",
+                       "about 600 characters"):
+            self.assertIn(phrase, part, phrase)
+        self.assertNotIn("at most 6 lines", self.skill)
+        self.assertNotIn("≤ 8 lines", self.buoi1)
+
+    def test_every_quoted_sample_line_is_short(self):
+        checked = 0
+        for line in self.inter.splitlines():
+            if not re.match(r'- \*\*(Thầy|Cô|Lào)[^:]*:\*\*\s*"', line):
+                continue
+            for quote in re.findall(r'"([^"]+)"', line):
+                checked += 1
+                self.assertLessEqual(len(quote.split()), 45, quote[:60])
+        self.assertGreater(checked, 60)
+
+    # --- independent view -------------------------------------------------
+
+    def test_independent_view_four_lines(self):
+        part = self.s13.split("### 13.4", 1)[1]
+        items = re.findall(r"^\d\. ", part, re.M)
+        self.assertEqual(len(items), 4)
+        for phrase in ("**evidence**", "not the learner's insistence", "never mark a wrong answer right",
+                       "never award a star or badge under pressure", "**new evidence**",
+                       "say why in one line", "you decide correctness and safety",
+                       "consent and right to stop stay absolute"):
+            self.assertIn(phrase, part.replace("Never mark", "never mark").replace("and never award", "never award"), phrase)
+
+    # --- interaction library ----------------------------------------------
+
+    def test_interaction_lines_for_rungs_and_next_loop(self):
+        self.assertIn("## M. Giáo viên tự chủ v0.11", self.inter)
+        for code, title in (("T68", "Im lặng nấc 1 — khai thác"), ("T69", "Im lặng nấc 2 — làm nhỏ hoặc làm mẫu"),
+                            ("T70", "Im lặng nấc 3 — lưu chỗ"), ("T71", "Đề nghị vòng tiếp theo"),
+                            ("T72", "Giữ bằng chứng")):
+            self.assertIn("### %s · %s" % (code, title), self.inter, code)
+            block = self.inter.split("### %s ·" % code, 1)[1].split("\n### ", 1)[0].split("\n## ", 1)[0]
+            self.assertRegex(block, LAO, code + " Lao")
+            for label in ("- **Thầy:**", "- **Cô:**", "- **Lào:**", "- **Giao diện:**", "- **Ghi:**"):
+                self.assertIn(label, block, code + label)
+            for label in ("Thầy", "Cô", "Lào"):
+                text = re.search(r'- \*\*%s:\*\*\s*"([^"]+)"' % label, block).group(1)
+                self.assertLessEqual(len(text.split()), 45, code)
+                self.assertNotRegex(text.lower(), r"đang đợi|đang chờ", code)
+        t70 = self.inter.split("### T70 ·", 1)[1].split("### T71", 1)[0]
+        self.assertIn('status: "paused"', t70)
+        t68 = self.inter.split("### T68 ·", 1)[1].split("### T69", 1)[0]
+        for phrase in ("Chưa rõ bước này để làm gì", "Màn hình khác với hình", "choices"):
+            self.assertIn(phrase, t68, phrase)
+        t71 = self.inter.split("### T71 ·", 1)[1].split("### T72", 1)[0]
+        for phrase in ("Làm tiếp vòng sau", "Dừng ở đây — lưu chỗ", "thông tin công khai, không phải số liệu NNC"):
+            self.assertIn(phrase, t71, phrase)
+        t26 = self.inter.split("### T26 ·", 1)[1].split("### T27", 1)[0]
+        self.assertIn("T68 → T69 → T70", t26)
+        self.assertNotIn("Thầy chờ chị ở đây", self.inter)
+
+    # --- scenarios ----------------------------------------------------------
+
+    def test_scenarios_f61_to_f66(self):
+        titles = ("Case F61 — Silence rung 1", "Case F62 — Silence rung 2", "Case F63 — Silence rung 3",
+                  "Case F64 — The loop ends: the teacher proposes the next loop",
+                  "Case F65 — The learner insists on a wrong fact", "Case F66 — Claude's output is long")
+        for title in titles:
+            self.assertIn("## " + title, self.scen, title)
+        order = [self.scen.index("## " + t) for t in titles]
+        self.assertEqual(order, sorted(order))
+        self.assertNotIn("Case F67", self.scen)
+        self.assertIn("F61–F66", self.skill)
+        f61 = self.scen.split("## Case F61", 1)[1].split("## Case F62", 1)[0]
+        for phrase in ("[Giáo án] Học viên im lặng · nấc 1", "Thầy đang đợi", "what this step is for"):
+            self.assertIn(phrase, f61, phrase)
+        f63 = self.scen.split("## Case F63", 1)[1].split("## Case F64", 1)[0]
+        for phrase in ('status: "paused"', "stops", "nấc 3"):
+            self.assertIn(phrase, f63, phrase)
+        f64 = self.scen.split("## Case F64", 1)[1].split("## Case F65", 1)[0]
+        for phrase in ("Làm tiếp vòng sau", "thông tin công khai, không phải số liệu NNC", "≤ 3 lookups", "72 %", "90 %",
+                       "silence rung 3"):
+            self.assertIn(phrase, f64, phrase)
+        f65 = self.scen.split("## Case F65", 1)[1].split("## Case F66", 1)[0]
+        for phrase in ("evidence", "no star", "new"):
+            self.assertIn(phrase, f65, phrase)
+        f66 = self.scen.split("## Case F66", 1)[1].split("## After-action", 1)[0]
+        for phrase in ("one line of summary", "result explainer", "3 short lines"):
+            self.assertIn(phrase, f66, phrase)
+
+    # --- classroom template --------------------------------------------------
+
+    def test_template_lines_and_generated_classroom_copy(self):
+        for phrase in ('Silence means "not understanding yet" (v0.11)', "Học viên im lặng · nấc 1|2|3", 'never *"đang đợi"*',
+                       "Brevity and the next loop (v0.11)", "≤ 3 short lines (≈ 45 words) plus one touch",
+                       "propose the next loop yourself, default continue", "Evidence over insistence (v0.11)",
+                       "change position only on new evidence"):
+            self.assertIn(phrase, self.template, phrase)
+        self.assertIn("(v0.11)", self.template.splitlines()[0])
+        generated = MAU_CLAUDE.read_text(encoding="utf-8")
+        self.assertEqual(generated.count("Evidence over insistence (v0.11)"), 1)
+        self.assertIn("Silence means", generated)
 
 
 if __name__ == "__main__":

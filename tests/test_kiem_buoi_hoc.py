@@ -217,7 +217,8 @@ def test_good_session_all_pass(tmp_path):
     assert bad == 0
     a = kbh.analyze(rows, bad)
     st = statuses(a)
-    assert st == {f"R{i}": "PASS" for i in range(1, 9)}, kbh.judge(a)
+    assert {k: v for k, v in st.items() if int(k[1:]) <= 8} == {f"R{i}": "PASS" for i in range(1, 9)}, kbh.judge(a)
+    assert st["R9"] == "N/A" and st["R10"] == "PASS" and st["R11"] == "PASS", kbh.judge(a)
     assert a["first_visual"]["turn"] == 1
     assert a["first_inter"]["turn"] == 1
     assert a["book_written"] and a["loop_closed"]
@@ -268,7 +269,7 @@ def test_bad_report_content(tmp_path):
     rows_ = [ln for ln in top.splitlines() if ln.startswith("| ") and ln[2].isdigit()]
     assert 1 <= len(rows_) <= 5
     assert "Effort" in rows_[0] and "6 phút" in rows_[0]
-    assert "0 PASS · 8 FAIL" in report
+    assert "2 PASS · 8 FAIL · 1 không áp dụng" in report
 
 
 def test_good_report_has_pass_lines(tmp_path):
@@ -276,7 +277,8 @@ def test_good_report_has_pass_lines(tmp_path):
     rows, bad = kbh.load_rows(path)
     a = kbh.analyze(rows, bad)
     report = kbh.build_report(a, kbh.judge(a), path)
-    assert report.count("**PASS**") == 8
+    assert report.count("**PASS**") == 10
+    assert report.count("**N/A**") == 1
     assert "**FAIL**" not in report
     assert "Không thấy." in report  # no leaks
 
@@ -469,7 +471,7 @@ def test_out_option_writes_report_and_prints_path(tmp_path, capsys):
     assert text.startswith("# Báo cáo chấm buổi học")
     stdout = capsys.readouterr().out
     assert str(out) in stdout
-    assert "8 PASS / 0 FAIL" in stdout
+    assert "10 PASS / 0 FAIL" in stdout
 
 
 def test_default_out_goes_to_cwd(tmp_path, monkeypatch, capsys):
@@ -479,7 +481,7 @@ def test_default_out_goes_to_cwd(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(work)
     assert kbh.main([str(path)]) == 0
     assert (work / "bao-cao-buoi-hoc-abcdef12.md").is_file()
-    assert "0 PASS / 8 FAIL" in capsys.readouterr().out
+    assert "2 PASS / 8 FAIL" in capsys.readouterr().out
 
 
 def test_subprocess_run_utf8_and_exit_zero(tmp_path):
@@ -553,3 +555,204 @@ def test_utf8_bom_and_crlf_are_accepted(tmp_path):
     rows, bad = kbh.load_rows(path)
     assert bad == 0 and rows
     assert statuses(kbh.analyze(rows, bad))["R1"] == "PASS"
+
+
+# ---------------------------------------------------------------------------
+# v0.11 rules: R9 silence cues, R10 message length, R11 loop end
+# ---------------------------------------------------------------------------
+
+
+def run(s: Session, tmp_path) -> dict:
+    return kbh.analyze(*kbh.load_rows(s.dump(tmp_path / "s.jsonl")))
+
+
+def verdict(a: dict, rid: str) -> dict:
+    return next(v for v in kbh.judge(a) if v["id"] == rid)
+
+
+def test_r9_not_applicable_without_silence_cue(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.say("Chào bạn.")
+    assert verdict(run(s, tmp_path), "R9")["status"] == "N/A"
+
+
+def test_r9_pass_each_nac_answered_by_action(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.say("Chào bạn.")
+    s.cue("Học viên im lặng · nấc 1")
+    s.say("Bạn đang ở bước nào?")
+    s.write_state({"choices": {"id": "c1", "prompt": "Bước nào?", "options": [{"label": "A"}, {"label": "B"}]}})
+    s.cue("Học viên im lặng · nấc 2")
+    s.say("Thầy làm mẫu.")
+    s.widget("Mẫu", buttons=False)
+    s.cue("Học viên im lặng · nấc 3")
+    s.say("Lớp vẫn mở, lúc nào quay lại mình học tiếp đúng chỗ này.")
+    s.write_state({"status": "paused", "resume": "bước 2"})
+    a = run(s, tmp_path)
+    assert [c["nac"] for c in a["silence"]] == [1, 2, 3]
+    v = verdict(a, "R9")
+    assert v["status"] == "PASS", v
+    assert "3/3" in v["detail"]
+
+
+def test_r9_pause_write_only_counts_for_nac_3(tmp_path):
+    s = Session()
+    s.cue("Học viên im lặng · nấc 2")
+    s.say("Thầy lưu chỗ nhé.")
+    s.write_state({"status": "paused"})
+    v = verdict(run(s, tmp_path), "R9")
+    assert v["status"] == "FAIL" and "nấc 2" in v["detail"]
+
+
+def test_r9_fail_text_only_waiting_or_no_reply(tmp_path):
+    s = Session()
+    s.cue("Học viên im lặng · nấc 1")
+    s.say("Bạn thử bấm nút trên bục nhé.")  # text only, no action
+    s.cue("Học viên im lặng · nấc 2")
+    s.say("Thầy đang đợi bạn.")
+    s.widget("Hình", buttons=False)  # action, but says "đợi"
+    s.cue("Học viên im lặng · nấc 3")  # no teacher reply at all
+    a = run(s, tmp_path)
+    v = verdict(a, "R9")
+    assert v["status"] == "FAIL"
+    assert "3/3 cue không được đáp đúng" in v["detail"]
+    assert "chỉ có chữ" in v["detail"] and "đợi" in v["detail"] and "không đáp" in v["detail"]
+    st = statuses(a)
+    assert st["R9"] == "FAIL"
+
+
+def test_r9_one_touch_counts_as_action(tmp_path):
+    s = Session()
+    s.cue("Học viên im lặng · nấc 2")
+    s.say("Thầy làm mẫu một chạm.")
+    s.write_state({"podium": {"one_touch": {"label": "Mở thử", "text": "mở thử đi"}}})
+    assert verdict(run(s, tmp_path), "R9")["status"] == "PASS"
+
+
+def words(n: int, word: str = "chữ") -> str:
+    return " ".join([word] * n)
+
+
+def test_r10_pass_median_and_long_text_with_visual(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    for _ in range(4):
+        s.say(words(20))
+    s.say(words(150, "dài"))  # > 120 words but the same turn has a visual
+    s.widget("Hình", buttons=False)
+    a = run(s, tmp_path)
+    v = verdict(a, "R10")
+    assert v["status"] == "PASS", v
+    assert a["median_words"] == 20 and a["max_words"] == 150
+    assert "dài nhất 150 từ" in v["detail"] and "trung vị 20,00" in v["detail"]
+    assert len(a["longest3"]) == 3
+    assert all(len(m["text"][:80]) <= 80 for m in a["longest3"])
+
+
+def test_r10_fail_long_text_without_visual(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    for _ in range(4):
+        s.say(words(10))
+    s.say(words(130))
+    a = run(s, tmp_path)
+    v = verdict(a, "R10")
+    assert v["status"] == "FAIL" and "> 120 từ" in v["detail"]
+    assert len(a["long_no_visual"]) == 1
+
+
+def test_r10_fail_median_too_high(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    for _ in range(3):
+        s.say(words(60))
+    s.say(words(10))
+    s.widget("Hình", buttons=False)
+    a = run(s, tmp_path)
+    v = verdict(a, "R10")
+    assert v["status"] == "FAIL" and "trung vị" in v["detail"]
+    assert a["median_words"] == 60 and a["long_no_visual"] == []
+
+
+def test_r10_not_applicable_without_teacher_text(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.widget("Chỉ hình", buttons=False)
+    assert verdict(run(s, tmp_path), "R10")["status"] == "N/A"
+
+
+def trainer_outcome(s: Session):
+    s.write_state({"book": {"1": "done"}, "outcome": "GUIDED"}, path=TRAINER)
+
+
+def test_r11_not_applicable_without_loop_end(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.say("Bạn muốn làm gì tiếp?")
+    assert verdict(run(s, tmp_path), "R11")["status"] == "N/A"
+
+
+def test_r11_fail_open_question_at_loop_end(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    trainer_outcome(s)
+    s.say("Xong vòng việc rồi. Bạn muốn làm gì tiếp?")
+    v = verdict(run(s, tmp_path), "R11")
+    assert v["status"] == "FAIL" and "câu hỏi mở" in v["detail"]
+
+
+def test_r11_fail_when_segment_4_write_ends_with_open_question(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.write_state({"segment": {"id": "3", "title": "Thử thách"}})
+    s.say("Mình chốt vòng.")
+    s.write_state({"segment": {"id": "4", "title": "Chốt vòng việc"}})
+    s.say("Giờ mình làm gì tiếp nhỉ?")
+    a = run(s, tmp_path)
+    assert len(a["loop_ends"]) == 1
+    assert verdict(a, "R11")["status"] == "FAIL"
+
+
+def test_r11_pass_choices_with_default(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.say("Bạn muốn làm gì tiếp?")
+    trainer_outcome(s)
+    s.write_state({"choices": {"id": "n1", "prompt": "Vòng tiếp?", "options": [{"label": "Tiếp"}, {"label": "Nghỉ"}], "default": 0}})
+    v = verdict(run(s, tmp_path), "R11")
+    assert v["status"] == "PASS", v
+
+
+def test_r11_choices_without_default_do_not_rescue_open_question(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    trainer_outcome(s)
+    s.write_state({"choices": {"id": "n1", "prompt": "?", "options": [{"label": "Tiếp"}, {"label": "Nghỉ"}], "default": None}})
+    s.say("Muốn làm gì tiếp?")
+    assert verdict(run(s, tmp_path), "R11")["status"] == "FAIL"
+
+
+def test_r11_pass_text_proposes_concrete_next_loop(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    trainer_outcome(s)
+    s.say("Thầy đề xuất vòng tiếp: đọc phiếu nhận hàng thứ hai, bạn muốn làm gì khác thì nói thầy.")
+    assert verdict(run(s, tmp_path), "R11")["status"] == "PASS"
+
+
+def test_report_has_v011_numbers_and_rule_lines(tmp_path):
+    s = Session()
+    s.cue("Học viên im lặng · nấc 1")
+    s.say("Bạn đang ở bước nào?")
+    s.widget("Hình", buttons=False)
+    trainer_outcome(s)
+    path = s.dump(tmp_path / "s.jsonl")
+    a = kbh.analyze(*kbh.load_rows(path))
+    report = kbh.build_report(a, kbh.judge(a), path)
+    for label in ("Cue im lặng (nấc 1/2/3)", "Độ dài tin thầy (từ)", "Lần cuối vòng việc (R11)"):
+        assert label in report
+    for rid in ("R9", "R10", "R11"):
+        assert re.search(rf"\*\*(PASS|FAIL|N/A)\*\* · {rid} ", report), rid
+    assert "trung vị" in report

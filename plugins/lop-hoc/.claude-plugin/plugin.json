@@ -1,6 +1,6 @@
 {
   "name": "lop-hoc",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Lớp học NNC — lớp luôn mở trong Claude Code: bục giảng yên tĩnh do giáo viên dựng mỗi lượt (bảng nhỏ, lựa chọn nút lớn, chỉ vào thanh dưới ô nhập), phần học theo mốc, chế độ quyền, tín hiệu hạn mức, lời giáo viên, dòng công cụ dễ hiểu; đọc .lop-hoc/state.json, gửi tin nhắn nút.",
   "author": {
     "name": "NNC Lao Group - Ban R&D AI"

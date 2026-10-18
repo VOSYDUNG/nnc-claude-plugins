@@ -199,6 +199,30 @@ BOOK_RE = re.compile(r'"book"\s*:\s*\{(?P<body>[^{}]*)\}', re.S)
 BOOK_KEY_RE = re.compile(r'"[^"]+"\s*:')
 BOOK_COMPLETE_RE = re.compile(r'"book_complete"\s*:\s*"[^"]+"')
 OUTCOME_RE = re.compile(r'"outcome"\s*:\s*"([A-Za-z_]+)"')
+PAUSED_RE = re.compile(r'"status"\s*:\s*"paused"')
+DEFAULT_RE = re.compile(r'"default"\s*:\s*(?!null\b)[^\s,}\]]')
+
+# v0.11: thang im lang (R9), do dai tin thay (R10), cuoi vong viec (R11)
+SILENCE_CUE_RE = re.compile(r"Học viên im lặng\s*·\s*nấc\s*(\d)", re.I)
+WAITING_RE = re.compile(r"đang đợi|đợi bạn", re.I)
+MEDIAN_WORDS_MAX = 45
+LONG_MSG_WORDS = 120
+# Cau hoi mo o cuoi vong (heuristic): "lam gi tiep", "muon lam gi"...
+OPEN_NEXT_RE = re.compile(
+    r"làm gì (tiếp|nữa|bây giờ)|muốn làm gì|muốn (học|làm) (gì|tiếp)|bạn (làm|học) gì|"
+    r"tiếp (theo )?(mình|ta) (làm|học) gì",
+    re.I,
+)
+# De xuat cu the cho vong ke tiep (heuristic): thay tu de xuat va dat mac dinh.
+PROPOSAL_RE = re.compile(
+    r"vòng (tiếp|sau|kế)|đề xuất|mặc định|nếu bạn không (chọn|nói)|mình (sẽ )?(làm|học|đi|sang) tiếp|"
+    r"mình sẽ (làm|học|sang|đi)|sang (vòng|mục|phần) ",
+    re.I,
+)
+
+
+def count_words(text: str) -> int:
+    return len(re.findall(r"\S+", text or ""))
 
 
 def write_text(inp: dict) -> str:
@@ -315,6 +339,16 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
     artifacts = 0
     state_visual_writes = 0
     choices_writes = 0
+    turn_info: dict[int, dict] = {}
+    silence_cues: list[dict] = []
+    loop_end_turns: set[int] = set()
+    last_outcome = None
+
+    def ti(n: int) -> dict:
+        if n not in turn_info:
+            turn_info[n] = {"texts": [], "visual": False, "choices": False, "choices_default": False,
+                            "one_touch": False, "pause": False}
+        return turn_info[n]
 
     def ensure(pid: str, title: str = "", ts: datetime | None = None) -> Part:
         if pid not in parts:
@@ -329,6 +363,8 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
 
     def add(kind: str, sub: str, ts, turn: int):
         events.append({"kind": kind, "sub": sub, "ts": ts, "turn": turn, "part": cur_part})
+        if kind == "visual":
+            ti(turn)["visual"] = True
         p = ensure(cur_part, ts=ts)
         if kind == "visual":
             p.visuals += 1
@@ -375,6 +411,9 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
                 in_turn = False  # moi tin nhan that mo ra mot luot thay moi
                 if kind == "cue":
                     cues.append(label)
+                    sm = SILENCE_CUE_RE.search(label)
+                    if sm:
+                        silence_cues.append({"nac": int(sm.group(1)), "turn": turns_done + 1, "ts": ts})
                     if first_cue_ts is None and ts:
                         first_cue_ts = ts
                     if CLOSE_RE.search(label):
@@ -407,6 +446,7 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
                 text = b.get("text") if isinstance(b.get("text"), str) else ""
                 if text.strip():
                     teacher_text_blocks += 1
+                    ti(turns_done)["texts"].append(text.strip())
                 for label, snip in scan_leaks(text):
                     leaks.append({"label": label, "snippet": snip, "turn": turns_done, "ts": ts})
                 continue
@@ -485,7 +525,10 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
                                 title = json.loads('"' + tm.group(1) + '"')
                             except ValueError:
                                 title = tm.group(1)
-                        cur_part = idm.group(1)
+                        new_id = idm.group(1)
+                        if new_id != cur_part and (new_id == "4" or re.search(r"Chốt vòng việc", title, re.I)):
+                            loop_end_turns.add(turns_done)
+                        cur_part = new_id
                         np_ = ensure(cur_part, title, ts)
                         if in_turn and cur_part not in turn_parts:
                             turn_parts.add(cur_part)
@@ -499,8 +542,14 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
                     add("visual", "+".join(x for x, f in (("board", has_board), ("point", has_point)) if f), ts, turns_done)
                 if CHOICES_RE.search(text):
                     choices_writes += 1
+                    ti(turns_done)["choices"] = True
+                    if DEFAULT_RE.search(text):
+                        ti(turns_done)["choices_default"] = True
                     add("inter", "choices", ts, turns_done)
+                if PAUSED_RE.search(text):
+                    ti(turns_done)["pause"] = True
                 for m in ONE_TOUCH_RE.finditer(text):
+                    ti(turns_done)["one_touch"] = True
                     tm = ONE_TOUCH_TEXT_RE.search(m.group("body"))
                     if tm:
                         try:
@@ -515,8 +564,12 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
                 if BOOK_COMPLETE_RE.search(text):
                     book_written = True
                     book_complete = True
-                if OUTCOME_RE.search(text):
+                om = OUTCOME_RE.search(text)
+                if om:
                     loop_closed = True
+                    if om.group(1) != last_outcome:
+                        last_outcome = om.group(1)
+                        loop_end_turns.add(turns_done)
 
     # --- tong hop ---
     start = min(all_ts) if all_ts else None
@@ -540,7 +593,59 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
     if not reached:
         reached = []
 
+    # v0.11: R9 - moi cue im lang phai duoc dap bang hanh dong trong luot thay ke tiep
+    silence = []
+    for c in silence_cues:
+        info = turn_info.get(c["turn"])
+        res = dict(c)
+        if info is None:
+            res.update(ok=False, why="thầy không đáp trong lượt kế tiếp")
+        else:
+            acts = [n for n, f in (("hình", info["visual"]), ("choices", info["choices"]),
+                                   ("một chạm", info["one_touch"]),
+                                   ("lưu chỗ/paused", info["pause"] and c["nac"] == 3)) if f]
+            waiting = WAITING_RE.search(" ".join(info["texts"]))
+            if waiting:
+                res.update(ok=False, why="lời đáp có chữ \"đợi\"" + ("" if acts else " và không có hành động"))
+            elif not acts:
+                res.update(ok=False, why="chỉ có chữ, không có hành động")
+            else:
+                res.update(ok=True, why="hành động: " + ", ".join(acts))
+        silence.append(res)
+
+    # v0.11: R10 - do dai moi tin chu cua thay (moi khoi text la mot tin)
+    msgs = []
+    for n in sorted(turn_info):
+        for t in turn_info[n]["texts"]:
+            msgs.append({"turn": n, "words": count_words(t), "text": norm_ws(t), "visual": turn_info[n]["visual"]})
+    words_sorted = sorted(m["words"] for m in msgs)
+    if words_sorted:
+        k = len(words_sorted)
+        median_words = float(words_sorted[k // 2]) if k % 2 else (words_sorted[k // 2 - 1] + words_sorted[k // 2]) / 2
+    else:
+        median_words = None
+    long_no_visual = [m for m in msgs if m["words"] > LONG_MSG_WORDS and not m["visual"]]
+    longest3 = sorted(msgs, key=lambda m: (-m["words"], m["turn"]))[:3]
+
+    # v0.11: R11 - cuoi vong viec khong duoc hoi mo "lam gi tiep" ma khong de xuat mac dinh
+    loop_ends = []
+    for n in sorted(loop_end_turns):
+        info = turn_info.get(n) or {"texts": [], "choices_default": False}
+        texts = info["texts"]
+        last = texts[-1] if texts else ""
+        open_q = bool(OPEN_NEXT_RE.search(last))
+        proposal = bool(info["choices_default"] or PROPOSAL_RE.search(" ".join(texts)))
+        loop_ends.append({"turn": n, "open_q": open_q, "proposal": proposal, "ok": (not open_q) or proposal,
+                          "snippet": norm_ws(last)[-80:]})
+
     return {
+        "silence": silence,
+        "msgs": msgs,
+        "median_words": median_words,
+        "max_words": max(words_sorted) if words_sorted else None,
+        "long_no_visual": long_no_visual,
+        "longest3": longest3,
+        "loop_ends": loop_ends,
         "bad_lines": bad_lines,
         "start": start,
         "end": end,
@@ -692,6 +797,49 @@ def judge(a: dict) -> list[dict]:
     else:
         mx = max((b["wait"] for b in waits), default=None)
         rule("R8", f"Không hộp gốc nào mở quá {LONG_WAIT_S} giây", "PASS", f"{len(waits)} hộp có đo được, lâu nhất {fmt_dur(mx)}")
+
+    # --- v0.11 ---
+    t9 = "Mỗi cue im lặng được đáp bằng hành động, không bằng \"đợi\""
+    sil = a["silence"]
+    if not sil:
+        rule("R9", t9, "N/A", "không có cue `Học viên im lặng · nấc N`")
+    else:
+        bad = [c for c in sil if not c["ok"]]
+        if bad:
+            rule("R9", t9, "FAIL",
+                 f"{len(bad)}/{len(sil)} cue không được đáp đúng: " + "; ".join(f"nấc {c['nac']} (lượt {c['turn']}): {c['why']}" for c in bad))
+        else:
+            rule("R9", t9, "PASS",
+                 f"{len(sil)}/{len(sil)} cue được đáp: " + "; ".join(f"nấc {c['nac']} → {c['why']}" for c in sil))
+
+    t10 = f"Tin của thầy ngắn: trung vị ≤ {MEDIAN_WORDS_MAX} từ, không tin nào > {LONG_MSG_WORDS} từ nếu lượt đó không có hình"
+    if not a["msgs"]:
+        rule("R10", t10, "N/A", "thầy chưa có tin chữ nào")
+    else:
+        top = "; ".join(f"{m['words']} từ (lượt {m['turn']}): \"{m['text'][:80]}\"" for m in a["longest3"])
+        base = f"{len(a['msgs'])} tin; trung vị {dec(a['median_words'])} từ, dài nhất {a['max_words']} từ; 3 tin dài nhất: {top}"
+        probs = []
+        if a["median_words"] > MEDIAN_WORDS_MAX:
+            probs.append(f"trung vị {dec(a['median_words'])} > {MEDIAN_WORDS_MAX}")
+        if a["long_no_visual"]:
+            probs.append(f"{len(a['long_no_visual'])} tin > {LONG_MSG_WORDS} từ trong lượt không có hình")
+        if probs:
+            rule("R10", t10, "FAIL", "; ".join(probs) + " | " + base)
+        else:
+            rule("R10", t10, "PASS", base)
+
+    t11 = "Cuối vòng việc, thầy không hỏi mở \"làm gì tiếp\" mà không đề xuất mặc định"
+    le = a["loop_ends"]
+    if not le:
+        rule("R11", t11, "N/A", "chưa thấy ghi sổ đóng vòng (phần 4 / Chốt vòng việc / outcome)")
+    else:
+        bad = [x for x in le if not x["ok"]]
+        if bad:
+            rule("R11", t11, "FAIL",
+                 f"{len(bad)}/{len(le)} lần cuối vòng kết bằng câu hỏi mở không có mặc định: " + "; ".join(f"lượt {x['turn']}: \"…{x['snippet']}\"" for x in bad))
+        else:
+            rule("R11", t11, "PASS",
+                 f"{len(le)}/{len(le)} lần cuối vòng ổn: " + "; ".join(f"lượt {x['turn']} ({'có đề xuất/mặc định' if x['proposal'] else 'không hỏi mở'})" for x in le))
     return out
 
 
@@ -753,6 +901,9 @@ def build_report(a: dict, verdicts: list[dict], source: Path) -> str:
         ("Thời gian tới hình đầu tiên", (f"{fmt_dur(a['first_visual_s'])} (lượt {a['first_visual']['turn']})") if a["first_visual"] else "chưa có hình"),
         ("Thời gian tới tương tác không-hộp đầu tiên", (f"{fmt_dur(a['first_inter_s'])} (lượt {a['first_inter']['turn']})") if a["first_inter"] else "chưa có tương tác"),
         ("Chỗ rò rỉ", len(a["leaks"])),
+        ("Cue im lặng (nấc 1/2/3)", (f"{len(a['silence'])} cue ({sum(1 for c in a['silence'] if c['nac'] == 1)}/{sum(1 for c in a['silence'] if c['nac'] == 2)}/{sum(1 for c in a['silence'] if c['nac'] == 3)}) · đáp đúng bằng hành động {sum(1 for c in a['silence'] if c['ok'])}/{len(a['silence'])}") if a["silence"] else "không có"),
+        ("Độ dài tin thầy (từ)", (f"{len(a['msgs'])} tin · trung vị {dec(a['median_words'])} · dài nhất {a['max_words']} · > {LONG_MSG_WORDS} từ không có hình: {len(a['long_no_visual'])}") if a["msgs"] else "chưa có tin chữ"),
+        ("Lần cuối vòng việc (R11)", (f"{len(a['loop_ends'])} lần · kết bằng câu hỏi mở không mặc định: {sum(1 for x in a['loop_ends'] if not x['ok'])}") if a["loop_ends"] else "không có"),
     ]
     for k, v in rows:
         L.append(f"| {esc(k)} | {esc(v)} |")
@@ -825,6 +976,9 @@ def build_report(a: dict, verdicts: list[dict], source: Path) -> str:
     L.append("- **Hộp gốc**: lời gọi `AskUserQuestion`; thời gian chờ là từ lúc mở đến lúc có kết quả. Hộp có chữ đồng ý / cho phép / an toàn / giao việc / biểu mẫu ở tiêu đề hoặc câu hỏi không tính vào luật R4; hộp kiểm bài (Đúng hay sai, Câu n, Thẻ n) và hộp hồ sơ nhiều ô vẫn tính.")
     L.append("- **Ghi sổ lớp**: mọi Write/Edit có đường dẫn chứa `.lop-hoc`. **Phần** theo lần ghi `segment` gần nhất (trước đó mặc định là phần 0).")
     L.append("- **Đóng vòng việc**: thấy `outcome` được ghi (GUIDED, REUSED_IN_WORK…) hoặc tin có chữ \"Chốt vòng\".")
+    L.append("- **R9 (cue im lặng)**: mỗi cue `Học viên im lặng · nấc N` phải có, trong lượt thầy kế tiếp, một hành động (hình, widget, ghi `choices`/`board`/`point`, một chạm; nấc 3 còn nhận ghi `status: paused`) và lời đáp không có chữ \"đang đợi\" / \"đợi bạn\". Không có cue thì N/A.")
+    L.append(f"- **R10 (độ dài)**: mỗi khối chữ của thầy là một tin, đếm từ theo khoảng trắng; trung vị ≤ {MEDIAN_WORDS_MAX} từ; tin > {LONG_MSG_WORDS} từ chỉ được nằm trong lượt có hình.")
+    L.append("- **R11 (cuối vòng)**: cuối vòng được nhận ra từ lần ghi sổ đổi sang phần \"4\" / \"Chốt vòng việc\" hoặc đặt `outcome`. Heuristic theo từ khóa: FAIL khi tin chữ cuối của lượt đó là câu hỏi mở (\"làm gì tiếp\", \"muốn làm gì\"…) và lượt đó không ghi `choices` có `default` cũng không có chữ đề xuất vòng kế (\"vòng tiếp\", \"đề xuất\", \"mặc định\"…).")
     L.append("")
     return "\n".join(L)
 

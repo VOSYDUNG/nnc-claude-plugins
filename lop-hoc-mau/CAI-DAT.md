@@ -17,7 +17,7 @@ The paths below are for Windows (PowerShell). Constants:
 
 `CLAUDE` below means the full path of `claude.exe`, found in step 1.1. The CLI is usually **not on PATH**, so always call it by full path: in PowerShell `& $CLAUDE plugin list`, in Bash `"$CLAUDE" plugin list < /dev/null` (`< /dev/null` is Bash only — never type it in PowerShell).
 
-**Expected versions:** the ZIP name carries the class version, e.g. `Lop-hoc-NNC-v0.10.1.zip` → `nnc` ends with `+lophoc.0.10.1`; `lop-hoc` is the podium's own version (may be lower). If `nnc` is older than the ZIP, run `plugin marketplace update nnc-claude-plugins` then `plugin update nnc@nnc-claude-plugins --scope project` once; still older → the release has not reached GitHub yet: say so in one line and continue (it updates by itself later).
+**Expected versions:** the ZIP name carries the class version, e.g. `Lop-hoc-NNC-v0.11.0.zip` → `nnc` ends with `+lophoc.0.11.0`; `lop-hoc` is the podium's own version (may be lower). If `nnc` is older than the ZIP, run `plugin marketplace update nnc-claude-plugins` then `plugin update nnc@nnc-claude-plugins --scope project` once; still older → the release has not reached GitHub yet: say so in one line and continue (it updates by itself later).
 
 ---
 
