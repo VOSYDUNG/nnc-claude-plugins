@@ -295,3 +295,10 @@ test('lọc SVG của bảng: bỏ script, foreignObject, thuộc tính on…, h
   expect(svgBox('<svg width="100" height="50">', 200)).toEqual({ width: 100, height: 50 })
   expect(svgBox('<svg>', 200, 150)).toEqual({ width: 200, height: 150 })
 })
+
+test('sanitizeSvg: thẻ xấu có khoảng trắng bị bỏ cả nội dung; biểu thức lọc là regex thật (không lỗi cú pháp)', () => {
+  const out = sanitizeSvg('<svg viewBox="0 0 9 9">< script >var x=1</ script ><rect width="1" height="1"/></svg>') ?? ''
+  expect(out).not.toContain('var x')
+  expect(out).not.toMatch(/script/i)
+  expect(out).toContain('<rect')
+})

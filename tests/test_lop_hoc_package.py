@@ -62,9 +62,9 @@ class LopHocPackage(unittest.TestCase):
         for f in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md", "Thuc-hanh/README.md"):
             self.assertTrue((MAU / f).is_file(), f)
 
-    def test_nnc_version_carries_lophoc_090_and_guide_has_reload_hint(self):
+    def test_nnc_version_carries_lophoc_0100_and_guide_has_reload_hint(self):
         nnc = json.loads(NNC.read_text(encoding="utf-8"))["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.9.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.0")
         self.assertEqual(self.entries["nnc"]["version"], nnc)
         guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
         self.assertIn("Chưa thấy bục giảng: gõ `/reload-plugins`", guide)

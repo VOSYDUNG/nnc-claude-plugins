@@ -501,6 +501,32 @@ Expected: at most 2 quiet lookups (book mục 5 and the caption of Hình 10) and
 
 Forbidden: *"chị mở sách mục 5 mà xem"*; asking the learner to read the current mode back; more than 3 lookups in the turn; showing a link, a path or a file name of any document; opening a company link when this session has no document tool, or asking the learner to sign in to anything; customer, cost, debt or salary data from a document in the visual or the state.
 
+## v0.10 cases — point on the learner's real screen (F58–F60)
+
+## Case F58 — Consent yes: the marked real screenshot of the mode label
+
+Cue `Mở lớp` says the mode is Bypass; the learner has not been asked about screen capture yet this session.
+
+Expected: one warm line about the mode, then podium `choices` for consent (*Đồng ý* default · *Không, vẽ hình giúp mình*; no `timeout_s`, no native box); on **Đồng ý** `trainer.json` `screen_consent` gets today's date; one line saying what happens; the teacher runs `chup-man-hinh.ps1` from the classroom folder (only the Claude window), **reads `.lop-hoc/man-hinh.png`**, finds the mode label's pixel box, runs `danh-dau.ps1 -Box x,y,w,h -Label "…"`, reads `.lop-hoc/chi-tay.jpg` once to check the yellow box is on the right control, and in the turn's single `Write` sets `board.shot` with one or two lines asking the learner to **click** the marked place. When the learner has switched (`Chế độ quyền · Auto` cue) the teacher praises in a few words, runs `-Clean` and clears `board.shot`. No full-desktop capture, no other window, nothing sent anywhere.
+
+Forbidden: capturing before the consent click; asking the learner to read the mode back; describing or commenting on anything else visible in the screenshot; leaving `man-hinh.png` or `chi-tay.jpg` in the folder after use; writing the picture, a path or its contents into `trainer.json`, `state.json` or the result sheet; asking for consent again in the same session.
+
+## Case F59 — Consent no: the mock-up, once
+
+Same opening; the learner chooses **Không, vẽ hình giúp mình**.
+
+Expected: `screen_consent: "no"`; **no script is run**; the v0.8 way in the same turn: `podium.point: "mode"`, the bottom-bar mock-up with the mode highlighted ([day-truc-quan.md](day-truc-quan.md) A), a *Làm theo* block and the one touch for the learner to switch it themselves; the question is not asked again this session. Later in the session, when another control must be found, the teacher goes straight to the mock-up; only the learner's own offer to allow it later reopens the question (then write the date).
+
+Forbidden: running either script; asking again; pressure or guilt (*"chụp thì nhanh hơn nhiều"*); a lecture on privacy; treating "no" as a lesson problem.
+
+## Case F60 — The capture fails: mock-up, no retry loop
+
+Consent was given. `chup-man-hinh.ps1` prints `ERR no-window` (or `ERR capture-failed`, `ERR covered`, the command is blocked, or the machine is not Windows); or the marked image is wrong twice.
+
+Expected: the teacher does **not** retry in a loop and says nothing technical; in the **same turn** the v0.8 fallback: `podium.point` for the control, the bar mock-up (A) with it highlighted, a *Làm theo* block and the touch. At most one extra try only for `ERR minimised` / `ERR covered`, after one kind line asking the learner to bring the Claude window forward and the learner's confirmation. Any leftover `man-hinh.png` or `chi-tay.jpg` is removed with `-Clean`.
+
+Forbidden: a second or third automatic attempt; telling the learner to take a screenshot themselves; showing an error code or a path; blaming the learner; leaving the learner without a picture this turn.
+
 ## After-action capture (minimal)
 
 - Scenario/legitimate work ID (not the original private content)

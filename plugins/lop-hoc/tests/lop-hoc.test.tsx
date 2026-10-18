@@ -2,6 +2,7 @@ import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { challengeLeft, permissionLabel, modelLabel, touchesLedger, podiumOf, boardOf, choicesOf } from '../hooks/register'
 import { STR } from '../hooks/i18n'
+import { jpegBytes, pngBytes, toB64 } from './shot-fixtures'
 
 // Lớp học NNC v0.7 — lớp luôn mở: phần học theo mốc giáo viên ghi, không điểm danh, hạn 60 giây chỉ cho câu đố,
 // tín hiệu hạn mức; v0.6 giữ: một chạm, đổi kiểu, thử thách, sao, huy hiệu, hộp quà.
@@ -36,10 +37,16 @@ type Io = {
   onAbort: () => void
   // Props mới nhất mà nơi vẽ gốc (engine giả) nhận được, theo thành phần.
   renders: Record<string, Record<string, unknown>>
+  // Số lần mod đọc byte của tệp nhị phân giả (ảnh chụp).
+  blobReads: number
 }
 
-function classroom(on: On, files: Record<string, string>, store: Record<string, unknown> = {}): Io {
-  const io: Io = { sent: [], filled: [], toasts: [], writes: [], aborted: [], box: { text: '' }, clock: mock.clock(on, { now: T0 }), onAbort: () => {}, renders: {} }
+// Tệp nhị phân giả (ảnh chụp): base64 + giờ sửa; fs.read { as: 'bytes' } và fs.stat đọc từ đây.
+type Blob = { b64: string; mtime: number }
+const blobBytes = (b64: string) => Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0)
+
+function classroom(on: On, files: Record<string, string>, store: Record<string, unknown> = {}, blobs: Record<string, Blob> = {}): Io {
+  const io: Io = { sent: [], filled: [], toasts: [], writes: [], aborted: [], box: { text: '' }, clock: mock.clock(on, { now: T0 }), onAbort: () => {}, renders: {}, blobReads: 0 }
   mock.store(on, store)
   on('session.cwd', async () => ({ value: 'D:/sandbox' }) as never)
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
@@ -53,8 +60,20 @@ function classroom(on: On, files: Record<string, string>, store: Record<string, 
   const rel = (p: string) => p.split('\\').join('/')
   const find = (p: string) => Object.keys(files).find(k => rel(p) === k || rel(p).endsWith('/' + k))
   const isDir = (p: string) => Object.keys(files).some(k => k.includes('/') && rel(p).endsWith('/' + k.split('/')[0]))
-  on('fs.exists', async (_$, e) => ({ value: find(e.path) !== undefined || isDir(e.path) }))
+  const findBlob = (p: string) => Object.keys(blobs).find(k => rel(p) === k || rel(p).endsWith('/' + k))
+  on('fs.exists', async (_$, e) => ({ value: find(e.path) !== undefined || findBlob(e.path) !== undefined || isDir(e.path) }))
+  on('fs.stat', async (_$, e) => {
+    const b = findBlob(e.path)
+    if (b === undefined) return { deny: 'ENOENT ' + e.path }
+    return { value: { kind: 'file', size: blobBytes(blobs[b]!.b64), mtimeMs: blobs[b]!.mtime, isLink: false } } as never
+  })
   on('fs.read', async (_$, e) => {
+    if ((e as { as?: string }).as === 'bytes') {
+      const b = findBlob(e.path)
+      if (b === undefined) return { deny: 'missing ' + e.path }
+      io.blobReads += 1
+      return { value: { base64: blobs[b]!.b64 } } as never
+    }
     const k = find(e.path)
     const t = k === undefined ? undefined : files[k]
     if (t === undefined) return { deny: 'missing ' + e.path }
@@ -1017,6 +1036,141 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
+  test(`${surface}: board.shot — ảnh chụp có đánh dấu thắng svg; tiêu đề và dòng vẫn hiện; terminal chỉ có dòng chữ; đổi tệp hoặc state thì đọc lại, không đổi thì không đọc`, LONG, async ($, on) => {
+    const PATH = '.lop-hoc/chi-tay.jpg'
+    const board = { title: 'Chỗ cần bấm', lines: ['Bấm ô vàng', 'Ở góc phải'], svg: SVG_DIRTY, shot: PATH }
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({ board }) }
+    const blobs: Record<string, { b64: string; mtime: number }> = { [PATH]: { b64: toB64(jpegBytes(960, 540, { total: 20_000 })), mtime: 1000 } }
+    const io = classroom(on, files, {}, blobs)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    expect(await ui.find({ text: 'Chỗ cần bấm' })).toBeDefined()
+    expect(await ui.find({ text: 'Bấm ô vàng' })).toBeDefined()
+    expect(await ui.find({ text: 'Ở góc phải' })).toBeDefined()
+    if (surface === 'terminal') {
+      expect(await ui.find({ text: 'Cô đã đánh dấu trên ảnh màn hình — xem trong Claude Desktop' })).toBeDefined()
+      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
+      expect(io.blobReads).toBe(0)
+    } else {
+      expect(await ui.find({ text: /đánh dấu trên ảnh màn hình/ })).toBeUndefined()
+      const pic = await svgByAlt(ui, /^Ảnh màn hình có đánh dấu: Chỗ cần bấm$/)
+      const src = String(pic?.props.source)
+      expect(src).toContain('viewBox="0 0 960 540"')
+      expect(src).toContain('href="data:image/jpeg;base64,')
+      // Một Svg của giáo viên (bục) + một Svg ảnh; svg của giáo viên (đã lọc) không vẽ khi có ảnh.
+      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
+      expect(await svgByAlt(ui, /^Bảng của lớp/)).toBeUndefined()
+      expect(src).not.toContain('<circle')
+      // Ảnh co theo hộp bảng (không to quá cỡ rộng 560 × 340).
+      expect(Number(pic?.props.width)).toBeLessThanOrEqual(560)
+      expect(Number(pic?.props.height)).toBeLessThanOrEqual(340)
+      const reads = io.blobReads
+      expect(reads).toBeGreaterThan(0)
+      // Không đổi gì: các nhịp sau không đọc lại byte.
+      await io.clock.advance(10 * SEC)
+      expect(io.blobReads).toBe(reads)
+      // Giáo viên ghi đè ảnh (cùng đường dẫn, state.json không đổi): vẽ lại bằng ảnh mới.
+      blobs[PATH] = { b64: toB64(pngBytes(800, 450, 5000)), mtime: 2000 }
+      await io.clock.advance(3 * SEC)
+      const pic2 = await svgByAlt(ui, /^Ảnh màn hình có đánh dấu/)
+      expect(String(pic2?.props.source)).toContain('viewBox="0 0 800 450"')
+      expect(String(pic2?.props.source)).toContain('href="data:image/png;base64,')
+      expect(io.blobReads).toBeGreaterThan(reads)
+      // state.json được ghi lại (tệp ảnh y nguyên): đọc lại theo hợp đồng.
+      const before = io.blobReads
+      files['.lop-hoc/state.json'] = v8({ board: { ...board, lines: ['Bấm ô vàng', 'Ở góc phải', 'Rồi báo thầy'] } })
+      await io.clock.advance(3 * SEC)
+      expect(await ui.find({ text: 'Rồi báo thầy' })).toBeDefined()
+      expect(io.blobReads).toBeGreaterThan(before)
+      expect(String((await svgByAlt(ui, /^Ảnh màn hình có đánh dấu/))?.props.source)).toContain('viewBox="0 0 800 450"')
+      // Xoá tệp (dọn sau khi học viên bấm xong): quay về svg của giáo viên.
+      delete blobs[PATH]
+      await io.clock.advance(3 * SEC)
+      expect(await svgByAlt(ui, /^Ảnh màn hình có đánh dấu/)).toBeUndefined()
+      expect(String((await svgByAlt(ui, /^Bảng của lớp/))?.props.source)).toContain('<circle')
+    }
+    // Xoá board.shot khỏi state: không còn ảnh, không còn dòng chữ.
+    files['.lop-hoc/state.json'] = v8({ board: { title: 'Chỗ cần bấm', lines: ['Bấm ô vàng'] } })
+    await io.clock.advance(3 * SEC)
+    expect(await ui.find({ text: /đánh dấu trên ảnh màn hình/ })).toBeUndefined()
+    expect(await svgByAlt(ui, /^Ảnh màn hình có đánh dấu/)).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test(`${surface}: board.shot — đường dẫn ngoài .lop-hoc/, có .., sai đuôi, ảnh quá 96 KB, rác, thiếu tệp: bỏ qua ảnh (không đọc byte khi đã biết quá lớn); svg giáo viên vẫn lọc href data:`, LONG, async ($, on) => {
+    const small = toB64(jpegBytes(960, 540, { total: 10_000 }))
+    const blobs: Record<string, { b64: string; mtime: number }> = {
+      '.lop-hoc/ok.jpg': { b64: small, mtime: 1 },
+      '.lop-hoc/lon.jpg': { b64: toB64(jpegBytes(960, 540, { total: 96 * 1024 + 1 })), mtime: 1 },
+      '.lop-hoc/rac.png': { b64: toB64(new TextEncoder().encode('day khong phai anh')), mtime: 1 },
+      'ngoai/ok.jpg': { b64: small, mtime: 1 },
+      'x.jpg': { b64: small, mtime: 1 },
+      '.lop-hoc/ok.gif': { b64: small, mtime: 1 },
+    }
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({}) }
+    const io = classroom(on, files, {}, blobs)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    const pics = async () => (surface === 'desktop' ? (await ui.findAll({ type: 'Svg' })).filter(x => /^Ảnh màn hình/.test(String(x.props.alt))) : [])
+    for (const shot of ['ngoai/ok.jpg', 'x.jpg', '../.lop-hoc/ok.jpg', '.lop-hoc/../x.jpg', '.lop-hoc/ok.gif', 'D:/sandbox/.lop-hoc/ok.jpg', 7, '']) {
+      files['.lop-hoc/state.json'] = v8({ board: { title: `Ảnh bị bỏ ${String(shot)}`, lines: ['chữ vẫn hiện'], svg: SVG_DIRTY, shot } })
+      await io.clock.advance(2 * SEC)
+      expect(await ui.find({ text: 'chữ vẫn hiện' })).toBeDefined()
+      expect(await pics()).toHaveLength(0)
+      expect(await ui.find({ text: /đánh dấu trên ảnh màn hình/ })).toBeUndefined()
+      // Đường dẫn bị bỏ qua thì svg của giáo viên (đã lọc) vẫn vẽ như v0.8.
+      if (surface === 'desktop') expect(String((await svgByAlt(ui, /^Bảng của lớp/))?.props.source)).toContain('<circle')
+    }
+    expect(io.blobReads).toBe(0)
+    // Hợp lệ nhưng tệp quá 96 KB: không đọc byte, không vẽ ảnh, không có dòng chữ "đã đánh dấu".
+    files['.lop-hoc/state.json'] = v8({ board: { title: 'Quá lớn', lines: ['chữ vẫn hiện'], shot: '.lop-hoc/lon.jpg' } })
+    await io.clock.advance(2 * SEC)
+    expect(await ui.find({ text: 'Quá lớn' })).toBeDefined()
+    expect(await pics()).toHaveLength(0)
+    expect(await ui.find({ text: /đánh dấu trên ảnh màn hình/ })).toBeUndefined()
+    expect(io.blobReads).toBe(0)
+    // Không phải JPEG/PNG dù đuôi .png: không vẽ.
+    files['.lop-hoc/state.json'] = v8({ board: { title: 'Rác', lines: ['chữ vẫn hiện'], shot: '.lop-hoc/rac.png' } })
+    await io.clock.advance(2 * SEC)
+    expect(await pics()).toHaveLength(0)
+    // Thiếu tệp: không vẽ, không có dòng chữ.
+    files['.lop-hoc/state.json'] = v8({ board: { title: 'Thiếu', lines: ['chữ vẫn hiện'], shot: '.lop-hoc/khong-co.jpg' } })
+    await io.clock.advance(2 * SEC)
+    expect(await pics()).toHaveLength(0)
+    expect(await ui.find({ text: /đánh dấu trên ảnh màn hình/ })).toBeUndefined()
+    // Ảnh nhỏ hợp lệ: vẽ (desktop) hoặc có dòng chữ (terminal).
+    files['.lop-hoc/state.json'] = v8({ board: { title: 'Sau', lines: ['chữ vẫn hiện'], shot: '.lop-hoc/ok.jpg' } })
+    await io.clock.advance(2 * SEC)
+    expect(await pics()).toHaveLength(surface === 'desktop' ? 1 : 0)
+    if (surface === 'terminal') expect(await ui.find({ text: 'Cô đã đánh dấu trên ảnh màn hình — xem trong Claude Desktop' })).toBeDefined()
+    // svg của giáo viên không bao giờ mang được ảnh data: vào (chỉ mod dựng Svg ảnh).
+    const sneaky = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10"><image href="data:image/png;base64,AAAA" xlink:href="data:image/png;base64,AAAA" width="10" height="10"/><rect width="5" height="5"/></svg>'
+    files['.lop-hoc/state.json'] = v8({ board: { title: 'Lén', lines: ['chữ vẫn hiện'], svg: sneaky } })
+    await io.clock.advance(2 * SEC)
+    if (surface === 'desktop') {
+      const src = String((await svgByAlt(ui, /^Bảng của lớp: Lén$/))?.props.source)
+      expect(src).toContain('<rect')
+      expect(src).not.toContain('data:')
+    }
+    await ui.unmount()
+  })
+
+  test(`${surface}: board.shot — lớp tiếng Lào: dòng chữ và lời mô tả ảnh bằng tiếng Lào`, LONG, async ($, on) => {
+    const PATH = '.lop-hoc/chi-tay.png'
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({ language: 'lo', board: { title: 'ກົດບ່ອນນີ້', lines: [], shot: PATH } }) }
+    const blobs = { [PATH]: { b64: toB64(pngBytes(640, 360, 3000)), mtime: 5 } }
+    const io = classroom(on, files, {}, blobs)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    await io.clock.advance(3 * SEC)
+    if (surface === 'terminal') expect(await ui.find({ text: STR.lo.shotNote('ຄູ') })).toBeDefined()
+    else expect(await svgByAlt(ui, /^ຮູບໜ້າຈໍທີ່ມີການໝາຍ: ກົດບ່ອນນີ້$/)).toBeDefined()
+    await ui.unmount()
+  })
+
   test(`${surface}: dòng công cụ ghi vào .lop-hoc/ chỉ còn một dòng mờ "ghi sổ lớp"; công cụ khác giữ nguyên`, LONG, async ($, on) => {
     classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
     await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
@@ -1154,14 +1308,15 @@ test('i18n: mọi chữ mới của v0.8 có đủ tiếng Việt và tiếng L�
   expect(Object.keys(STR.lo).sort()).toEqual(Object.keys(STR.vi).sort())
   const LAO = /[\u0E80-\u0EFF]/
   for (const [name, S] of Object.entries(STR)) {
-    const strings = [S.more, S.moreClose, S.barNote, S.bypassChip('Bypass permissions'), S.barAlt('x'), S.boardAlt('x'), S.choiceExpired('cô'), S.ledger('Cô'), ...Object.values(S.facts)]
+    const strings = [S.more, S.moreClose, S.barNote, S.bypassChip('Bypass permissions'), S.barAlt('x'), S.boardAlt('x'), S.shotAlt('x'), S.shotNote('Cô'), S.choiceExpired('cô'), S.ledger('Cô'), ...Object.values(S.facts)]
     for (const t of strings) expect(typeof t === 'string' && t.length > 0).toBe(true)
     expect(S.bypassChip('Bypass permissions')).toContain('Bypass permissions')
     expect(Object.keys(S.facts).sort()).toEqual(['context', 'effort', 'mode', 'model', 'usage5', 'usageWeek'])
-    if (name === 'lo') for (const t of [S.more, S.moreClose, S.barNote, S.bypassChip('x'), S.barAlt('x'), S.boardAlt('x'), S.choiceExpired('ຄູ'), S.ledger('ຄູ'), S.facts.mode, S.facts.usage5, S.facts.usageWeek]) expect(LAO.test(t)).toBe(true)
+    if (name === 'lo') for (const t of [S.more, S.moreClose, S.barNote, S.bypassChip('x'), S.barAlt('x'), S.boardAlt('x'), S.shotAlt('x'), S.shotNote('ຄູ'), S.choiceExpired('ຄູ'), S.ledger('ຄູ'), S.facts.mode, S.facts.usage5, S.facts.usageWeek]) expect(LAO.test(t)).toBe(true)
   }
   expect(STR.vi.ledger('Thầy')).toBe('Thầy ghi sổ lớp')
   expect(STR.vi.barNote).toBe('ở thanh dưới ô nhập')
+  expect(STR.vi.shotNote('Thầy')).toBe('Thầy đã đánh dấu trên ảnh màn hình — xem trong Claude Desktop')
 })
 
 for (const surface of ['terminal', 'desktop'] as const) {

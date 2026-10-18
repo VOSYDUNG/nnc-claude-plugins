@@ -879,7 +879,8 @@ export function bottomBarSvg(o: { mode?: string; model?: string; effort?: string
   const modeW = Math.max(70, mode.length * cw + 24)
   const effW = Math.max(54, effort.length * cw + 20)
   const modW = Math.max(60, model.length * cw + 20)
-  const effX = 450 - effW
+  // Chừa khoảng trống trước vòng hạn mức (cx 454, r 9): ô effort tô sáng không được chạm vòng tròn.
+  const effX = 428 - effW
   const modX = effX - 4 - modW
   const area = o.point ? BAR_AREA[o.point] : undefined
   const zones: Record<BarArea, { x: number; w: number }> = {
@@ -931,7 +932,7 @@ export function sanitizeSvg(src: unknown): string | null {
   if (!/^<svg[\s>]/i.test(s) || !/<\/svg>$/i.test(s)) return null
   if (/<!doctype|<!entity|<\?|<!\[cdata/i.test(s)) return null
   s = s.replace(/<!--[\s\S]*?-->/g, '')
-  const badEl = new RegExp(`<\s*(${BAD_TAGS})\b[\s\S]*?<\s*/\s*\1\s*>`, 'gi')
+  const badEl = new RegExp(String.raw`<\s*(${BAD_TAGS})\b[\s\S]*?<\s*/\s*\1\s*>`, 'gi')
   const badStyle = /<\s*style\b[^>]*>[^]*?(@import|url\s*\()[^]*?<\s*\/\s*style\s*>/gi
   for (let i = 0; i < 6; i++) {
     const before = s
@@ -961,7 +962,7 @@ export function sanitizeSvg(src: unknown): string | null {
   }
   s = s.trim()
   if (!/^<svg[\s>]/i.test(s) || !/<\/svg>$/i.test(s)) return null
-  if (new RegExp(`<\s*/?\s*(${BAD_TAGS})`, 'i').test(s) || /\son[a-z0-9_-]+\s*=/i.test(s) || /javascript:/i.test(s)) return null
+  if (new RegExp(String.raw`<\s*/?\s*(${BAD_TAGS})`, 'i').test(s) || /\son[a-z0-9_-]+\s*=/i.test(s) || /javascript:/i.test(s)) return null
   return byteLen(s) <= SVG_MAX_BYTES ? s : null
 }
 

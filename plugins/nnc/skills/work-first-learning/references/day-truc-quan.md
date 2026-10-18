@@ -12,12 +12,15 @@ Contract: `docs/oser-r2/LOP-HOC-V08-THIET-KE.md` §1, §2, §5. Model instructio
 4. **Honest and sample-only.** Sample numbers are labelled *ví dụ*. A visual never shows a real file name, real customer, cost, debt or salary data. Usage and limit facts come only from the official pages ([the-dinh-nghia.md](the-dinh-nghia.md)); live numbers come from the `Mở lớp` cue or `podium.show`, never from memory.
 5. **Palette and type** (the classroom's own colours): green `#008816` · dark green `#006D11` · deep `#0B3B16` · yellow `#FFEA00` · dark yellow `#C9A800` · paper `#FFFDF0` · ink `#1f2a1f`; drive colours D1 `#3CC85A` · D2 `#4A90E2` · D3 `#F5A524`. Font stack for every visual (Vietnamese and Lao): `"Leelawadee UI","Phetsarath OT","Noto Sans Lao",sans-serif`. Give each card its own paper background (`#FFFDF0`) so it reads the same in a light or dark chat.
 6. **Density.** Every part has at least one visual and one non-native interaction; the first of each within your first two turns ([SKILL.md](../SKILL.md) §12.4). A visual is a move, not decoration: it replaces a paragraph of talk, it does not add one.
+7. **Set every colour yourself.** The chat may be in dark mode: on a light background give every text element (tables and cells included) an explicit `color` (`#1f2a1f`); never rely on inherited colour.
+8. **Real screen first (v0.10).** When the learner must find something on their own screen, the **marked real screenshot** of their Claude window is the **first choice** ([chi-tren-man-hinh.md](chi-tren-man-hinh.md): consent once per session, capture, mark, `board.shot`, clean). The bar mock-up below (Template A) with `podium.point` is the **fallback** — consent "no", the script cannot run, or the capture fails.
 
 ## 1. Which surface
 
 | Surface | Use for | How |
 |---|---|---|
 | **Podium `board`** (state field) | one small slide that stays beside the input while the learner works: a 3-line rule, a tiny picture, a checklist | `board {title ≤ 60, lines ≤ 5 × 90, svg ≤ 16 KB}`; the mod sanitises the SVG (no `<script>`, no `<foreignObject>`, no event attributes, no external `href`) and drops it when invalid → always give `lines` too |
+| **Podium `board.shot`** (v0.10) | the learner's own screen with the place marked in yellow — the first choice for "find this control" | `board {title, lines, shot: ".lop-hoc/chi-tay.jpg"}`; only after consent; see [chi-tren-man-hinh.md](chi-tren-man-hinh.md); `shot` wins over `svg` |
 | **Podium `choices`** | the default way to ask: big non-blocking buttons | `choices {id, prompt, options[2–5], default, timeout_s}` — click → `[Lớp học] Chọn · <id> · <label>` |
 | **Podium `point`** | "click this real control": the mod highlights the fact on the podium **and** draws the bottom-bar picture with an arrow and the line *"ở thanh dưới ô nhập"* | `podium.point: "mode" \| "effort" \| "model" \| "context" \| "usage5" \| "usageWeek"`; `null` clears |
 | **Lesson canvas** (the session's visual tool `show_widget`) | slides, annotated mock-ups, result explainers, answer-button widgets, 60-second games | see below |
@@ -29,7 +32,7 @@ Contract: `docs/oser-r2/LOP-HOC-V08-THIET-KE.md` §1, §2, §5. Model instructio
 
 ## 2. Template A — bottom-bar mock-up (Claude Desktop)
 
-The real Desktop layout: **left** = permission mode label; **right** = model name · effort · the round usage circle. Folder and *This computer* sit in the session header, not in this bar. Use it for the card the learner must find on screen (mode, model, effort, usage). Pair it with `podium.point` so the real control is lit as well.
+The real Desktop layout: **left** = permission mode label; **right** = model name · effort · the round usage circle. Folder and *This computer* sit in the session header, not in this bar. Use it as the **fallback** (v0.10: the marked real screenshot comes first, [chi-tren-man-hinh.md](chi-tren-man-hinh.md)) for the card the learner must find on screen (mode, model, effort, usage). Pair it with `podium.point` so the real control is lit as well.
 
 Highlight an area: on that area's `<rect id="hl-…">` set `fill="#FFEA00" fill-opacity=".45" stroke="#C9A800" stroke-width="3"` (the others stay `fill="none" stroke="none"`), then move the arrow and its caption. The example below highlights **effort**.
 
@@ -112,7 +115,7 @@ Show it after **every** Claude result, before any question. Source rows on the l
   <div style="display:flex;gap:12px;padding:14px 18px;flex-wrap:wrap">
     <div style="flex:1;min-width:230px">
       <div style="font-weight:700;color:#006D11;margin-bottom:4px">Nguồn (file gốc)</div>
-      <table style="width:100%;border-collapse:collapse;font-size:16px">
+      <table style="width:100%;border-collapse:collapse;font-size:16px;color:#1f2a1f">
         <tr style="background:#fff"><td style="padding:5px 8px;border:1px solid #cfd8cf">Phiếu 001 · 12 hộp</td></tr>
         <tr style="background:#FFEA00"><td style="padding:5px 8px;border:1px solid #C9A800">Phiếu 002 · 8 hộp</td></tr>
         <tr style="background:#fff"><td style="padding:5px 8px;border:1px solid #cfd8cf">Phiếu 003 · 20 hộp</td></tr>
@@ -120,7 +123,7 @@ Show it after **every** Claude result, before any question. Source rows on the l
     </div>
     <div style="flex:1;min-width:230px">
       <div style="font-weight:700;color:#006D11;margin-bottom:4px">Kết quả (bảng của Claude)</div>
-      <table style="width:100%;border-collapse:collapse;font-size:16px">
+      <table style="width:100%;border-collapse:collapse;font-size:16px;color:#1f2a1f">
         <tr style="background:#fff"><td style="padding:5px 8px;border:1px solid #cfd8cf">001 · 12</td></tr>
         <tr style="background:#FFEA00"><td style="padding:5px 8px;border:1px solid #C9A800">002 · 8 <b>← kiểm dòng này</b></td></tr>
         <tr style="background:#fff"><td style="padding:5px 8px;border:1px solid #cfd8cf">003 · 20</td></tr>

@@ -108,14 +108,15 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
-        self.assertIn("+lophoc.0.9.0", self.plugin)
+        self.assertIn("+lophoc.0.10.0", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.9.0", frontmatter)
+        self.assertIn("version: 0.10.0", frontmatter)
+        self.assertNotIn("version: 0.9.0", frontmatter)
         self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
         self.assertNotIn("version: 0.5.0", frontmatter)
@@ -192,7 +193,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn(state, self.scenarios)
 
     def test_scenarios_and_host_not_claimed(self):
-        for i in range(1, 57):
+        for i in range(1, 61):
             self.assertIn("Case F{} ".format(i), self.scenarios)
         self.assertIn("NOT_TESTED", self.scenarios)
         self.assertIn("INSTALL_NOT_VERIFIED", self.pilot)
@@ -513,14 +514,14 @@ class StageV08Tests(unittest.TestCase):
     # --- versions --------------------------------------------------------
 
     def test_versions(self):
-        self.assertIn("version: 0.9.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.10.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.8", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.9.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.0")
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
         self.assertNotIn("alpha.3", nnc)
-        self.assertIn("evaluation cases F1–F57", self.skill)
+        self.assertIn("evaluation cases F1–F60", self.skill)
 
     # --- the visual toolbox ----------------------------------------------
 
@@ -853,7 +854,130 @@ class ResearchV09Tests(unittest.TestCase):
                        "never send the learner to the book", "At most 3 lookups per turn",
                        "never ask the learner to sign in", "internal links never shown to the learner"):
             self.assertIn(phrase, self.template, phrase)
-        self.assertIn("(v0.9)", self.template)
+        self.assertIn("(v0.10)", self.template)
+
+
+SHOTREF = REFS / "chi-tren-man-hinh.md"
+SCRIPTS = SKILL.parent / "assets" / "scripts"
+
+
+class RealScreenV10Tests(unittest.TestCase):
+    """v0.10: the marked real screenshot is the first choice for "find this control"; the mock-up is the fallback."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.ref = SHOTREF.read_text(encoding="utf-8")
+        cls.toolbox = TOOLBOX.read_text(encoding="utf-8")
+        cls.buoi1 = BUOI1.read_text(encoding="utf-8")
+        cls.interactions = INTERACTIONS.read_text(encoding="utf-8")
+        cls.scenarios = SCENARIOS.read_text(encoding="utf-8")
+        cls.template = TEMPLATE.read_text(encoding="utf-8")
+        cls.plugin = PLUGIN.read_text(encoding="utf-8")
+        cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
+
+    def test_versions(self):
+        self.assertIn("version: 0.10.0", self.skill.split("---", 2)[1])
+        self.assertIn("What changed in v0.10", self.skill)
+        nnc = json.loads(self.plugin)["version"]
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.0")
+        self.assertNotIn("alpha.3", nnc)
+        entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
+        self.assertEqual(entry["version"], nnc)
+
+    def test_reference_exists_is_linked_and_has_sections(self):
+        self.assertTrue(SHOTREF.is_file())
+        self.assertIn("references/chi-tren-man-hinh.md", self.skill)
+        for heading in ("## 1. The rule", "## 2. The flow", "## 3. The two scripts", "## 4. Privacy and safety",
+                        "## 5. Fallbacks", "## 6. Worked example"):
+            self.assertIn(heading, self.ref, heading)
+        self.assertRegex(self.ref, LAO, "Lao consent line")
+
+    def test_marked_real_screenshot_is_first_choice(self):
+        self.assertIn("the first choice is a real screenshot of their Claude window", self.ref)
+        for phrase in ("fallback", "bar mock-up", "podium.point", "marked real screenshot"):
+            self.assertIn(phrase, self.ref, phrase)
+        self.assertIn("Real screen first (v0.10)", self.toolbox)
+        self.assertIn("**first choice**", self.toolbox)
+        self.assertIn("**fallback**", self.toolbox)
+        self.assertIn("Use it as the **fallback**", self.toolbox)
+
+    def test_flow_consent_capture_locate_mark_show_clean(self):
+        order = [self.ref.index(s) for s in ("**Consent — once per session", "**Capture**", "**Locate by reading the image.**",
+                                              "**Mark**", "**Show**", "**Clean**")]
+        self.assertEqual(order, sorted(order))
+        for phrase in ("podium `choices`", "never a native box", "no click means no capture", "screen_consent",
+                       "Đồng ý", "Không, vẽ hình giúp mình", "Không chụp nữa", "board.shot",
+                       "**click it**", "-Clean", "at most twice"):
+            self.assertIn(phrase, self.ref, phrase)
+
+    def test_exact_script_invocations_use_the_skill_base_directory(self):
+        base = 'powershell -NoProfile -ExecutionPolicy Bypass -File "<base>' + "\\" + 'assets' + "\\" + 'scripts' + "\\"
+        self.assertIn(base + 'chup-man-hinh.ps1"', self.ref)
+        self.assertIn(base + 'danh-dau.ps1" -Box', self.ref)
+        self.assertIn(base + 'chup-man-hinh.ps1" -Clean', self.ref)
+        self.assertIn("Base directory for this skill", self.ref)
+        self.assertIn("-Box x,y,w,h", self.ref)
+        self.assertIn("90 KB", self.ref + self.skill)
+
+    def test_privacy_rules(self):
+        part = self.ref.split("## 4. Privacy and safety", 1)[1].split("## 5. Fallbacks", 1)[0]
+        for phrase in ("Only the Claude window", "never sent, uploaded", "result sheet", "Consent once per session, revocable",
+                       "Crop tightly", "never describe, read or comment on anything else", "Delete after use",
+                       "permission box, a login or a password screen"):
+            self.assertIn(phrase, part, phrase)
+
+    def test_fallbacks_without_retry_loop(self):
+        part = self.ref.split("## 5. Fallbacks", 1)[1].split("## 6. Worked example", 1)[0]
+        for phrase in ('Consent "no"', "Not Windows", "no retry loop", "mock-up", "ERR no-window",
+                       "never ask the learner to take a screenshot"):
+            self.assertIn(phrase, part, phrase)
+
+    def test_skill_rules_in_section_12(self):
+        s12 = self.skill.split("## 12. The teacher sets the stage", 1)[1]
+        for phrase in ("12.11", "Real screenshot first", "Consent once per session", "screen_consent",
+                       "chup-man-hinh.ps1", "danh-dau.ps1", "board.shot", "Fallback, no retry loop", "read the image"):
+            self.assertIn(phrase, s12, phrase)
+        self.assertIn("`screen_consent`", self.skill)
+        self.assertIn('"shot": ".lop-hoc/chi-tay.jpg"', self.skill)
+
+    def test_buoi1_cards_use_the_real_screenshot_first(self):
+        self.assertIn("chi-tren-man-hinh.md", self.buoi1)
+        part0 = self.buoi1.split("| Card | Part 0", 1)[1].split("| Card | Part 1", 1)[0]
+        part1 = self.buoi1.split("| Card | Part 1", 1)[1].split("| Card | Part 2", 1)[0]
+        self.assertIn("marked real screenshot", part0)
+        self.assertIn("marked real screenshot", part1)
+        self.assertIn("fallback", part0)
+
+    def test_interactions_consent_vi_and_lao(self):
+        for title in ("T66 · Xin phép chụp cửa sổ Claude", "T67 · Chỉ trên ảnh màn hình thật"):
+            self.assertIn("### " + title, self.interactions, title)
+        t66 = self.interactions.split("### T66", 1)[1].split("### T67", 1)[0]
+        self.assertRegex(t66, LAO)
+        self.assertIn("screen_consent", t66)
+        self.assertIn("Không chụp nữa", t66)
+
+    def test_scenarios_f58_f59_f60(self):
+        for case in ("Case F58 — Consent yes", "Case F59 — Consent no", "Case F60 — The capture fails"):
+            self.assertIn(case, self.scenarios, case)
+        f58 = self.scenarios.split("## Case F58", 1)[1].split("## Case F59", 1)[0]
+        for phrase in ("chup-man-hinh.ps1", "danh-dau.ps1", "board.shot", "-Clean", "screen_consent"):
+            self.assertIn(phrase, f58, phrase)
+        f59 = self.scenarios.split("## Case F59", 1)[1].split("## Case F60", 1)[0]
+        self.assertIn("no script is run", f59)
+        f60 = self.scenarios.split("## Case F60", 1)[1]
+        self.assertIn("no retry loop", f60.lower())
+
+    def test_template_line(self):
+        for phrase in ("Point on the learner's real screen (v0.10)", "chi-tren-man-hinh.md", "marked screenshot",
+                       "only the Claude window", "fallback", "no retry loop"):
+            self.assertIn(phrase, self.template, phrase)
+
+    def test_scripts_exist_and_are_ascii_only(self):
+        for name in ("chup-man-hinh.ps1", "danh-dau.ps1"):
+            data = (SCRIPTS / name).read_bytes()
+            self.assertTrue(data.strip(), name)
+            data.decode("ascii")  # Windows PowerShell 5.1 reads BOM-less files as ANSI
 
 
 if __name__ == "__main__":

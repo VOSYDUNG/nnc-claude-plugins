@@ -83,6 +83,9 @@ export type Strings = {
   barNote: string
   barAlt: (what: string) => string
   boardAlt: (title: string) => string
+  // v0.10 — ảnh chụp màn hình có đánh dấu.
+  shotAlt: (title: string) => string
+  shotNote: (T: string) => string
   choiceExpired: (t: string) => string
   ledger: (T: string) => string
   waitHint: (t: string) => string
@@ -183,6 +186,8 @@ const vi: Strings = {
   barNote: 'ở thanh dưới ô nhập',
   barAlt: what => `Thanh dưới ô nhập, chỗ cần nhìn: ${what}`,
   boardAlt: title => `Bảng của lớp: ${title}`,
+  shotAlt: title => `Ảnh màn hình có đánh dấu: ${title}`,
+  shotNote: T => `${T} đã đánh dấu trên ảnh màn hình — xem trong Claude Desktop`,
   choiceExpired: t => `Hết giờ rồi — ${t} gợi ý ô nổi bật, bạn vẫn tự bấm nhé`,
   ledger: T => `${T} ghi sổ lớp`,
   waitHint: t => `Chưa chắc thì chọn dòng đầu tiên — ${t} sẽ chỉ lại bằng hình.`,
@@ -283,6 +288,8 @@ const lo: Strings = {
   barNote: 'ຢູ່ແຖບລຸ່ມຊ່ອງພິມ',
   barAlt: what => `ແຖບລຸ່ມຊ່ອງພິມ, ບ່ອນທີ່ຕ້ອງເບິ່ງ: ${what}`,
   boardAlt: title => `ກະດານຫ້ອງຮຽນ: ${title}`,
+  shotAlt: title => `ຮູບໜ້າຈໍທີ່ມີການໝາຍ: ${title}`,
+  shotNote: T => `${T}ໄດ້ໝາຍໃສ່ຮູບໜ້າຈໍແລ້ວ — ເບິ່ງໃນ Claude Desktop`,
   choiceExpired: () => 'ໝົດເວລາແລ້ວ — ຄູແນະນຳຊ່ອງທີ່ເດັ່ນ, ເຈົ້າກົດເອງໄດ້',
   ledger: () => 'ຄູຈົດບັນທຶກຫ້ອງຮຽນ',
   waitHint: () => 'ບໍ່ແນ່ໃຈກໍເລືອກແຖວທຳອິດ — ຄູຈະຊີ້ໃຫ້ເບິ່ງອີກດ້ວຍຮູບ.',

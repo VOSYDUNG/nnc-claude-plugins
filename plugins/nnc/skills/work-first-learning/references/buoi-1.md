@@ -42,8 +42,8 @@ Two teacher turns reach the first one-touch: **turn 1** = read, greet, a first v
 |---|---|
 | `Auto` | one line — *"Đã chọn Auto rồi — tốt quá."* — then the normal welcome |
 | `Manual` | fine: *"Manual: Claude hỏi từng bước, học rất hợp."* — then the welcome |
-| **Bypass permissions** | **the safety point before anything else** (SKILL §12.3): one warm line, `podium.point: "mode"`, the bar mock-up with the mode highlighted ([day-truc-quan.md](day-truc-quan.md) A), choices *Cô chỉ cách đổi sang Auto* (default) · *Tôi đã đổi rồi*. The profile comes after the `Chế độ quyền · Auto` cue (praise in a few words, clear the point) — or after the learner declines twice, then carry on gently |
-| no mode in the cue | `podium.point: "mode"` + mock-up, and ask the learner to **click** it and choose Auto (a do, not a read-back); the `Chế độ quyền` cue confirms |
+| **Bypass permissions** | **the safety point before anything else** (SKILL §12.3): one warm line, then **the marked real screenshot of the mode label first** (SKILL §12.11, [chi-tren-man-hinh.md](chi-tren-man-hinh.md): consent choice once per session — *Đồng ý* · *Không, vẽ hình giúp mình* — then capture, mark, `board.shot`); consent "no" or a failed capture → `podium.point: "mode"` and the bar mock-up with the mode highlighted ([day-truc-quan.md](day-truc-quan.md) A). Then choices *Cô chỉ cách đổi sang Auto* (default) · *Tôi đã đổi rồi*. The profile comes after the `Chế độ quyền · Auto` cue (praise in a few words, clear the point) — or after the learner declines twice, then carry on gently |
+| no mode in the cue | the marked real screenshot of the mode label first (same consent and flow as above), mock-up + `podium.point: "mode"` as the fallback; ask the learner to **click** it and choose Auto (a do, not a read-back); the `Chế độ quyền` cue confirms |
 
    State (turn 1, one full `Write`):
 
@@ -133,7 +133,7 @@ State `segment {id:"1", title:"Làm quen nhanh", drive:"D2"}`, `emotion: "giang"
 2. *"Tăng effort thì đổi gì?"* (group B: cards 4–6)
 3. *"Reset tuần của mình là lúc nào?"* (group C: cards 7–9)
 
-**Step 2 — teach only what is not known.** Right answer → the whole group is met: one line per card with its live number (`used += 1`, `learned` today, `recalled_ok += 1` for the asked card). Wrong or *Chưa chắc* → that group's three cards, each a **concept slide** (analogy from [the-dinh-nghia.md](the-dinh-nghia.md), a *Trên máy bạn* line, one picture — [day-truc-quan.md](day-truc-quan.md) B; the bar mock-up A with `podium.point` for model, effort and usage), ≤ 3 lines each, then podium choices *Hiểu rồi* (default) · *Giải thích thêm*. When a card's number is already on the podium or in the cue (mode, model, effort, usage %), **point and ask the learner to do** (*"Chị bấm vào chữ Medium, thấy những mức nào?"*), never to read it back (SKILL §12.3). Group C is always **hands-on**: `podium.point: "usage5"` / `"usageWeek"` and the learner **finds the reset time** — the one number you do not have — in the round usage icon at the end of the bar under the input (sách tự học Hình 5), then says when the five-hour limit resets. Not understood → the scaffold ladder (nang-luc-giao-vien.md §8): another example → a picture → you demonstrate → you do it and they mark what they saw; never the same question twice the same way. **Đoán xem** (`game:doan-xem`, the chart one-touch, capability card 4) is the part's À when any group is taught; with 3/3 right, the chart one-touch is the À in one line.
+**Step 2 — teach only what is not known.** Right answer → the whole group is met: one line per card with its live number (`used += 1`, `learned` today, `recalled_ok += 1` for the asked card). Wrong or *Chưa chắc* → that group's three cards, each a **concept slide** (analogy from [the-dinh-nghia.md](the-dinh-nghia.md), a *Trên máy bạn* line, one picture — [day-truc-quan.md](day-truc-quan.md) B; the bar mock-up A with `podium.point` for model, effort and usage), ≤ 3 lines each, then podium choices *Hiểu rồi* (default) · *Giải thích thêm*. When a card's number is already on the podium or in the cue (mode, model, effort, usage %), **point and ask the learner to do** (*"Chị bấm vào chữ Medium, thấy những mức nào?"*), never to read it back (SKILL §12.3). Group C is always **hands-on**: `podium.point: "usage5"` / `"usageWeek"` and the learner **finds the reset time** (the marked real screenshot of the usage circle first, `podium.point: "usage5"` / `"usageWeek"` + the mock-up as the fallback) — the one number you do not have — in the round usage icon at the end of the bar under the input (sách tự học Hình 5), then says when the five-hour limit resets. Not understood → the scaffold ladder (nang-luc-giao-vien.md §8): another example → a picture → you demonstrate → you do it and they mark what they saw; never the same question twice the same way. **Đoán xem** (`game:doan-xem`, the chart one-touch, capability card 4) is the part's À when any group is taught; with 3/3 right, the chart one-touch is the À in one line.
 
 **Step 3 — entry quiz (vé vào lớp)** only for groups that were taught: 1–3 questions as **Đúng/sai chuỗi** (`game:dung-sai`; the 60-second widget E in [day-truc-quan.md](day-truc-quan.md), or choices). 3/3 in the quick check → no entry quiz, `stars += 1` (T41). Wrong → re-teach in ≤ 30 seconds, then go in. **Never keep the learner at the door more than one minute** after the last card.
 
@@ -291,7 +291,7 @@ A card replaces hunting through many files: open it when the part opens. **Visua
 
 | Card | Part 0 — Vào lớp |
 |---|---|
-| Visual | welcome `board` (today's goal in 3 lines); **A** with the mode highlighted only when the mode needs it (Bypass or missing); **C** small, for the first one-touch result (sample rows beside the three channel counts) |
+| Visual | welcome `board` (today's goal in 3 lines); the **marked real screenshot** (`board.shot`) of the mode label only when the mode needs it (Bypass or missing) — **A** with the mode highlighted is the fallback (consent "no" or capture fails); **C** small, for the first one-touch result (sample rows beside the three channel counts) |
 | Interaction | the profile widget (**D**: ngôn ngữ · xưng hô · kinh nghiệm · năng lượng · điều ngại) or choices in turn; then the one-touch |
 | Game | — |
 | Badge | — |
@@ -299,7 +299,7 @@ A card replaces hunting through many files: open it when the part opens. **Visua
 
 | Card | Part 1 — Làm quen nhanh |
 |---|---|
-| Visual | **D** quick check (a picture per question); **B** one slide per taught card, **A** + `podium.point` for model · effort · usage; the chart from the sample as the À |
+| Visual | **D** quick check (a picture per question); **B** one slide per taught card; for model · effort · usage the **marked real screenshot** first (one place per picture), **A** + `podium.point` as the fallback; the chart from the sample as the À |
 | Interaction | quick-check widget; choices *Hiểu rồi* / *Giải thích thêm*; group C: the learner **clicks** the usage circle and finds the reset time |
 | Game | Đoán xem (`game:doan-xem`), Đúng/sai chuỗi (`game:dung-sai`, widget **E**) |
 | Badge | — (stars only) |

@@ -28,7 +28,9 @@ export type PodiumButtonId = 'raise-hand' | 'ask-leave' | 'leave' | 'slower' | '
 export type PodiumSize = 'mini' | 'normal' | 'wide'
 export type PodiumSpec = { size: PodiumSize; show: FactId[]; point: FactId | null; buttons: PodiumButtonId[] }
 // svg: đã lọc sạch (hoặc null khi bỏ).
-export type BoardSpec = { title: string; lines: string[]; svg: string | null }
+// shot (v0.10): đường dẫn ảnh chụp màn hình có đánh dấu trong .lop-hoc/ (.jpg/.jpeg/.png, đã kiểm hợp lệ, hoặc null);
+// mod tự đọc tệp và dựng Svg — thắng svg khi vẽ được.
+export type BoardSpec = { title: string; lines: string[]; svg: string | null; shot: string | null }
 export type ChoiceOption = { label: string; send?: string }
 export type ChoicesSpec = { id: string; prompt: string; options: ChoiceOption[]; default: number; timeout_s: number | null }
 

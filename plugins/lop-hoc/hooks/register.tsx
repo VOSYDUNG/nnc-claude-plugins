@@ -47,6 +47,8 @@ import {
 } from './art'
 import { DELEGATION_HEADS, STR, isLang } from './i18n'
 import type { Lang } from './i18n'
+import { SHOT_MAX_BYTES, shotFromBase64, shotPathOf } from './shot'
+import type { ShotDrawn } from './shot'
 
 // Lớp học NNC v0.8 — giáo viên là người dựng sân khấu: bục giảng yên tĩnh theo mặc định, mỗi lượt giáo viên có thể
 //   ghi podium (cỡ, nhãn hiện, chỗ chỉ, nút), board (bảng nhỏ), choices (nút lớn không chặn) vào state.json
@@ -95,6 +97,9 @@ const GIFT_OPEN_MS = 4_000
 const AVATAR_DIMS: Record<'mini' | 'normal' | 'wide', { w: number; h: number }> = { mini: { w: 56, h: 36 }, normal: { w: 96, h: 60 }, wide: { w: 140, h: 88 } }
 const BAR_DIMS: Record<'mini' | 'normal' | 'wide', { w: number; h: number }> = { mini: { w: 300, h: 40 }, normal: { w: 360, h: 48 }, wide: { w: 480, h: 64 } }
 const BOARD_W: Record<'mini' | 'normal' | 'wide', number> = { mini: 180, normal: 260, wide: 380 }
+// Ảnh chụp màn hình có đánh dấu rộng hơn hình SVG thường (cỡ rộng: 560 × 340 điểm).
+const SHOT_W: Record<'mini' | 'normal' | 'wide', number> = { mini: 280, normal: 420, wide: 560 }
+const SHOT_H = 340
 const BOARD = '#123F1E'
 const CHALK = '#F4F4EC'
 const CHALK_DIM = '#B9D3BF'
@@ -315,12 +320,14 @@ export function podiumOf(v: unknown): PodiumSpec | null {
 }
 
 // Bảng: tiêu đề ≤ 60 ký tự, tối đa 5 dòng × 90 ký tự, SVG ≤ 16 KB đã lọc sạch (không sạch thì bỏ hình, giữ chữ).
+// v0.10: shot = đường dẫn ảnh chụp có đánh dấu trong .lop-hoc/ (sai đường dẫn/đuôi thì bỏ qua); svg của giáo viên luôn qua sanitizeSvg.
 export function boardOf(v: unknown): BoardSpec | null {
   if (!isObj(v)) return null
   const title = cutStr(nonEmpty(v.title) ?? '', 60)
   const lines = Array.isArray(v.lines) ? v.lines.map(nonEmpty).filter((x): x is string => !!x).slice(0, 5).map(x => cutStr(x, 90)) : []
   const svg = v.svg == null ? null : sanitizeSvg(v.svg)
-  return title || lines.length || svg ? { title, lines, svg } : null
+  const shot = shotPathOf(v.shot)
+  return title || lines.length || svg || shot ? { title, lines, svg, shot } : null
 }
 
 // Lựa chọn: 2–5 nhãn ≤ 40 ký tự; hạn mặc định chỉ có khi giáo viên ghi (câu đố/trò chơi: 60 giây, xét lúc chạy).
@@ -463,6 +470,56 @@ async function loadState($: EngineInterface): Promise<ClassState | null> {
   const s = parseRaw(raw)
   if (s) goodState = s
   return s ?? goodState
+}
+
+// ── v0.10: ảnh chụp màn hình có đánh dấu (board.shot) ─────────────────────────────
+// Dấu tệp (kích cỡ + giờ sửa) để biết tệp đổi mà không phải đọc lại byte; 'none' = chưa có/không đọc được, 'na' = không có fs.stat.
+async function shotFileSig($: EngineInterface, path: string): Promise<{ sig: string; size: number | null }> {
+  try {
+    const st = await $.fs.stat(path)
+    if (st.kind !== 'file') return { sig: 'none', size: null }
+    return { sig: `${st.size}:${st.mtimeMs}`, size: st.size }
+  } catch (err) {
+    const code = isObj(err) ? err.code : undefined
+    return { sig: code === 'ENOENT' ? 'none' : 'na', size: null }
+  }
+}
+
+// Bộ nhớ đệm một ảnh: chỉ đọc lại byte khi state.json đổi (stateVer) hoặc tệp đổi (dấu tệp).
+let shotCache: { key: string; drawn: ShotDrawn | null } | null = null
+// Dấu tệp ảnh ở nhịp 1,5 giây gần nhất (để vẽ lại khi giáo viên ghi đè ảnh mà không sửa state.json).
+let lastShotSig = ''
+
+// Ảnh sẽ vẽ trên Desktop (null = không vẽ: thiếu tệp, quá 96 KB, không phải JPEG/PNG, Svg quá 131 072 ký tự).
+async function loadShot($: EngineInterface, path: string, ver: number): Promise<ShotDrawn | null> {
+  const { sig, size } = await shotFileSig($, path)
+  if (sig === 'none') return null
+  const key = `${path}|${ver}|${sig}`
+  if (shotCache?.key === key) return shotCache.drawn
+  let drawn: ShotDrawn | null = null
+  if (size == null || size <= SHOT_MAX_BYTES) {
+    try {
+      const r = await $.fs.read(path, { as: 'bytes' })
+      drawn = shotFromBase64(typeof r === 'string' ? null : r.base64)
+    } catch {
+      drawn = null
+    }
+  }
+  // Không có fs.stat thì không nhớ kết quả trống (tệp có thể xuất hiện sau, không có dấu để biết).
+  if (drawn || sig !== 'na') shotCache = { key, drawn }
+  return drawn
+}
+
+// Trên terminal chỉ cần biết ảnh có đó và đủ nhỏ (không đọc byte).
+async function shotReady($: EngineInterface, path: string): Promise<boolean> {
+  const { sig, size } = await shotFileSig($, path)
+  if (sig === 'none') return false
+  if (size != null) return size <= SHOT_MAX_BYTES
+  try {
+    return await $.fs.exists(path)
+  } catch {
+    return false
+  }
 }
 
 // ── v0.6: nạp lại state sau mỗi lần giáo viên cập nhật; huy hiệu mới chép vào huy-hieu.json ──
@@ -895,10 +952,26 @@ async function watchBody($: EngineInterface) {
     await syncState($)
     await update($, rev, n => n + 1)
   }
+  await shotTick($)
   const cur = await read($, modesAtom)
   if (cur.length !== curModes.length || cur.some((m, i) => m !== curModes[i])) await update($, modesAtom, () => curModes)
   await modeTick($)
   await choiceTick($)
+}
+
+// Giáo viên ghi đè ảnh chụp (cùng đường dẫn, state.json không đổi): vẽ lại bảng.
+async function shotTick($: EngineInterface) {
+  const path = goodState?.board?.shot ?? null
+  if (!path) {
+    lastShotSig = ''
+    return
+  }
+  const { sig } = await shotFileSig($, path)
+  const next = `${path}|${sig}`
+  if (next === lastShotSig) return
+  const first = lastShotSig === ''
+  lastShotSig = next
+  if (!first) await update($, rev, n => n + 1)
 }
 
 // Học viên đổi chế độ quyền ở thanh dưới: báo giáo viên một lần mỗi lần đổi (chờ khi đang xin phép).
@@ -1566,11 +1639,19 @@ export const register: Register = on => {
     }
 
     // Bảng nhỏ (slide): tiêu đề, ≤ 5 dòng, hình SVG đã lọc (terminal chỉ có chữ).
+    // v0.10: ảnh chụp màn hình có đánh dấu (shot) thắng svg; không vẽ được ảnh thì quay về svg. Terminal: một dòng chữ thay ảnh.
     const bd = s?.board ?? null
     let boardRow: RenderChildren = null
     if (bd) {
       let pic: RenderChildren = null
-      if (isDesktop && bd.svg) {
+      let shotNote: RenderChildren = null
+      const drawn = bd.shot && isDesktop ? await loadShot($, bd.shot, ver) : null
+      if (drawn) {
+        const { Svg } = $.ui.resolve(e)
+        pic = <Svg key="board-shot" source={drawn.svg} alt={S.shotAlt(bd.title || '')} {...svgBox(drawn.svg, SHOT_W[size], SHOT_H)} />
+      } else if (bd.shot && !isDesktop && (await shotReady($, bd.shot))) {
+        shotNote = <Text key="board-shot-note" bold color={CHALK_Y}>{S.shotNote(T)}</Text>
+      } else if (isDesktop && bd.svg) {
         const { Svg } = $.ui.resolve(e)
         pic = <Svg key="board-svg" source={bd.svg} alt={S.boardAlt(bd.title || '')} {...svgBox(bd.svg, BOARD_W[size])} />
       }
@@ -1578,6 +1659,7 @@ export const register: Register = on => {
         <Box flexDirection="column" borderStyle="round" borderColor={CHALK_Y} paddingX={1}>
           {bd.title ? <Text bold color={CHALK_Y}>{bd.title}</Text> : null}
           {pic}
+          {shotNote}
           {bd.lines.map((x, i) => (
             <Text key={`bl-${i}`} color={CHALK}>{x}</Text>
           ))}
