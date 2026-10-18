@@ -225,11 +225,11 @@ Then the reply (≤ 8 lines): recall feedback · one specific praise · one poin
 **Write:**
 - `.lop-hoc/vong-viec.json`: the loop record (vong-viec.md §1).
 - State: `loops_done += 1`; `next_action` = the việc kế tiếp in plain words; `help_needed: false`, `challenge: null`, `gift_box: false`; task list `completed`. *Làm tiếp* → a new loop at part 2 (part 1 skipped when all cards are met); *Dừng* → `status: "paused"`.
-- trainer.json: `autonomy`, `autonomy_log`, `concepts`, `gates` (observed only), `outcome`, `blockers`, `games_proposed`.
+- trainer.json: `autonomy`, `autonomy_log`, `concepts`, `book` (sections led and checked in this loop, [ban-do-sach.md](ban-do-sach.md) §3), `gates` (observed only), `outcome`, `blockers`, `games_proposed`.
 
 ## 6. Later visits and returning
 
-- `Mở lớp` with `bai0_done` → SKILL §4.4: **việc kế tiếp** first (vong-viec.md §4), pending receiver confirmations (§5), 2 recalls, "Tin mới từ hãng" if any card has `news`, then part 2 directly (part 1 only for cards not yet met; Buổi 2's new card is Skill).
+- `Mở lớp` with `bai0_done` → SKILL §4.4: **việc kế tiếp** first (vong-viec.md §4), pending receiver confirmations (§5), 2 recalls, "Tin mới từ hãng" if any card has `news`, then part 2 directly (part 1 only for cards not yet met; Buổi 2's new card is Skill). In that loop lead the **next open book section** that fits the day ([ban-do-sach.md](ban-do-sach.md) §2–§3); near the end of the round, mục 13 (the 8 self-test questions).
 - `Học viên trở lại` (Tiếp tục after reopening the app, or back from Xin phép) → read state and `vong-viec.json`; greet in one line; say where we are (part + `next_action`) in ≤ 2 lines; re-ask the open question if any.
 - `Xin nghỉ` before part 1's exit: do **not** set `bai0_done`; the next visit continues part 1 with the cards not yet met.
 

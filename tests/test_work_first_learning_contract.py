@@ -159,7 +159,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn(state, self.scenarios)
 
     def test_scenarios_and_host_not_claimed(self):
-        for i in range(1, 48):
+        for i in range(1, 50):
             self.assertIn("Case F{} ".format(i), self.scenarios)
         self.assertIn("NOT_TESTED", self.scenarios)
         self.assertIn("INSTALL_NOT_VERIFIED", self.pilot)
@@ -492,6 +492,35 @@ class ToolRouteTests(unittest.TestCase):
     def test_scenario_f48(self):
         self.assertIn("Case F48 — Chặng 4", self.scenarios)
         self.assertIn("single-file HTML page", self.scenarios)
+
+
+class BookMapTests(unittest.TestCase):
+    """v0.7.3: động lực dẫn phải dẫn hết sách tự học (mục 1–13), có sổ theo dõi và điều kiện hoàn thành."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.map = (SKILL.parent / "references" / "ban-do-sach.md").read_text(encoding="utf-8")
+        cls.book = (SKILL.parent / "references" / "sach-tu-hoc.md").read_text(encoding="utf-8")
+        cls.template = (SKILL.parent / "templates" / "classroom-CLAUDE.md").read_text(encoding="utf-8")
+
+    def test_every_book_section_is_mapped(self):
+        sections = re.findall(r"^## (\d+)\. ", self.book, re.M)
+        self.assertEqual(sections, [str(i) for i in range(1, 14)])
+        for n in sections:
+            self.assertRegex(self.map, r"\| {} · ".format(n))
+
+    def test_self_test_answers_match_book(self):
+        self.assertIn("1b · 2b · 3b · 4c · 5b · 6b · 7a · 8b", self.book)
+        self.assertIn("1b · 2b · 3b · 4c · 5b · 6b · 7a · 8b", self.map)
+
+    def test_skill_requires_whole_book(self):
+        self.assertIn("references/ban-do-sach.md", self.skill)
+        self.assertIn("Lead the whole book", self.skill)
+        self.assertIn("`book`", self.skill)
+        self.assertIn("Lead the whole self-study book", self.template)
+        for phrase in ("Round complete", "book_complete", "open", "taught", "done"):
+            self.assertIn(phrase, self.map)
 
 
 if __name__ == "__main__":

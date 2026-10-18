@@ -74,6 +74,7 @@ Ngày: 16/10/2026 · Giáo viên: cô · Số vòng việc đã chốt: 2
 | 2 | Đối chiếu hai danh sách khách | Việc thật | Tự viết | Cộng tay một nhóm | Tự làm với đầu vào mới | Chờ xác nhận |
 
 Điều cơ bản đã nắm: 9/9 · Huy hiệu: Người giao việc đầu tiên, Tự kiểm có tâm
+Sách tự học: đã học mục 1, 2, 3, 5, 6, 7, 8, 9 (8/13) · Tự kiểm tra mục 13: chưa làm
 Việc kế tiếp: Tổng hợp đơn hàng tuần sau (mỗi tuần)
 Cần hỗ trợ: —
 ```
