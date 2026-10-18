@@ -108,14 +108,14 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
-        self.assertIn("+lophoc.0.10.0", self.plugin)
+        self.assertIn("+lophoc.0.10.1", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.10.0", frontmatter)
+        self.assertIn("version: 0.10.1", frontmatter)
         self.assertNotIn("version: 0.9.0", frontmatter)
         self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
@@ -514,10 +514,10 @@ class StageV08Tests(unittest.TestCase):
     # --- versions --------------------------------------------------------
 
     def test_versions(self):
-        self.assertIn("version: 0.10.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.10.1", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.8", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.1")
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
         self.assertNotIn("alpha.3", nnc)
@@ -877,13 +877,20 @@ class RealScreenV10Tests(unittest.TestCase):
         cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
 
     def test_versions(self):
-        self.assertIn("version: 0.10.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.10.1", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.10", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.1")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
+
+    def test_template_has_the_install_clause(self):
+        self.assertIn("CAI-DAT.md", self.template)
+        self.assertIn("install or reinstall the class", self.template)
+        self.assertIn("class tools are missing in this session", self.template)
+        claude_md = (ROOT / "lop-hoc-mau" / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("follow `CAI-DAT.md` in this folder first", claude_md)
 
     def test_reference_exists_is_linked_and_has_sections(self):
         self.assertTrue(SHOTREF.is_file())

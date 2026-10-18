@@ -8,15 +8,16 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 - Cài **Claude Desktop** và đăng nhập đúng tài khoản công ty.
 - Mở ứng dụng, chọn tab **Code**. Nếu được hỏi cài Git cho Windows thì cài theo hướng dẫn trên màn hình.
 
-## 2. Đặt thư mục lớp học
-- Giải nén thư mục **Lop-hoc-NNC** vào chỗ bạn dễ tìm, ví dụ `Tài liệu\Lop-hoc-NNC`.
-- Không cần mở hay sửa gì bên trong.
+## 2. Nhờ Claude cài lớp học
+- Mở **Claude Desktop** → tab **Code** → mở **bất kỳ thư mục nào** (ví dụ thư mục *Tải về*).
+- **Kéo file ZIP** *Lop-hoc-NNC* vào ô nhập, hoặc gõ: *hãy cài đặt lớp học NNC cho tôi* (kèm file ZIP).
+- Bạn không cần giải nén, không cần gõ lệnh nào khác.
 
-## 3. Mở lớp
-- Trong tab **Code**: bấm **+ New** → chọn **This computer** → **Open folder…** → chọn thư mục **Lop-hoc-NNC**.
-- Claude hỏi có **tin cậy thư mục** và **cài công cụ của lớp học** không: bấm **đồng ý**. Lần đầu cần vài phút để tải về.
+## 3. Làm theo Claude cho đến khi vào lớp
+- Claude kiểm tra máy, đặt thư mục lớp (mặc định `Tài liệu\Lop-hoc-NNC`), cài công cụ của lớp học, rồi **dẫn bạn từng bước** vào lớp. Bạn chỉ bấm **Cho phép** hoặc chọn đáp án trong các ô Claude hiện ra.
+- Claude sẽ nhờ bạn mở lớp trong **một phiên mới**: bấm **+ New** → **This computer** → **Open folder…** → chọn thư mục **Lop-hoc-NNC**. Hỏi có **tin cậy thư mục** hay cài công cụ của lớp học thì bấm **đồng ý**.
 - Ở thanh dưới ô nhập, chọn chế độ quyền **Auto**. Không thấy Auto thì để **Manual**. **Không dùng Bypass permissions.**
-- Thấy bục giảng ghi *"Lớp đang chờ giáo viên"* là xong. **Chưa thấy bục giảng: gõ `/reload-plugins`** vào ô nhập rồi chờ vài giây (đây là lệnh duy nhất lớp nhờ bạn gõ). Vẫn chưa thấy thì đóng phiên và mở lại một phiên mới trong cùng thư mục.
+- Thấy bục giảng ghi *"Lớp đang chờ giáo viên"* là xong. **Chưa thấy bục giảng: gõ `/reload-plugins`** vào ô nhập rồi chờ vài giây (đây là lệnh duy nhất lớp nhờ bạn gõ). Vẫn chưa thấy thì Claude hướng dẫn thêm; nếu vẫn kẹt, Claude soạn sẵn tin để bạn gửi cho người hỗ trợ.
 
 ## 4. Vào học
 - Chọn **thầy** hoặc **cô**, rồi bấm **Vào lớp**. Mở lại app sau vài hôm thì bấm **Tiếp tục**.

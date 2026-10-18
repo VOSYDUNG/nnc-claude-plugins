@@ -11,7 +11,7 @@
       "source": "./plugins/nnc",
       "displayName": "NNC OSER — Human Mission R2 Alpha",
       "description": "Human Mission Space alpha: Mission Formation + Decision Contract + Clean Desk + adaptive delivery over the provider-neutral Mission kernel. Live host/UI conformance still required.",
-      "version": "5.1.0-alpha.2+lophoc.0.10.0",
+      "version": "5.1.0-alpha.2+lophoc.0.10.1",
       "author": {
         "name": "NNC Lao Group - Ban R&D AI"
       },

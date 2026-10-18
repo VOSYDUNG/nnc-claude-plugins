@@ -62,15 +62,45 @@ class LopHocPackage(unittest.TestCase):
         for f in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md", "Thuc-hanh/README.md"):
             self.assertTrue((MAU / f).is_file(), f)
 
-    def test_nnc_version_carries_lophoc_0100_and_guide_has_reload_hint(self):
+    def test_nnc_version_carries_lophoc_0101_and_guide_has_reload_hint(self):
         nnc = json.loads(NNC.read_text(encoding="utf-8"))["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.10.1")
         self.assertEqual(self.entries["nnc"]["version"], nnc)
         guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
         self.assertIn("Chưa thấy bục giảng: gõ `/reload-plugins`", guide)
         claude_md = (MAU / "CLAUDE.md").read_text(encoding="utf-8")
         self.assertIn("/reload-plugins", claude_md)
         self.assertNotIn("Every choice is a native AskUserQuestion box", claude_md)
+
+    def test_zip_ships_cai_dat_with_the_installer_runbook(self):
+        b = _builder()
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "lop.zip"
+            b.make_zip(dest, None, None)
+            with zipfile.ZipFile(dest) as z:
+                self.assertIn("Lop-hoc-NNC/CAI-DAT.md", z.namelist())
+                zipped = z.read("Lop-hoc-NNC/CAI-DAT.md").decode("utf-8")
+        text = (MAU / "CAI-DAT.md").read_text(encoding="utf-8")
+        self.assertEqual(zipped, text)
+        self.assertTrue(text.startswith("# CÀI ĐẶT LỚP HỌC NNC"), "title must tell any Claude to read this first")
+        for phrase in ("hãy cài đặt lớp học NNC cho tôi", "lop-hoc-release", "--scope project", "/reload-plugins",
+                       "nnc@nnc-claude-plugins", "lop-hoc@nnc-claude-plugins", "2.1.286", "git ls-remote",
+                       "known_marketplaces.json", "AskUserQuestion", "Lop-hoc-NNC-v*.zip", "claude.exe",
+                       "Lớp đang chờ giáo viên", "Vào lớp", "Ctrl+Shift+M", "Never ask them to type a command"):
+            self.assertIn(phrase, text, phrase)
+        self.assertTrue("Expand-Archive" in text or "zipfile" in text)
+        self.assertIn("NEVER delete or overwrite `.lop-hoc\\`", text)
+        self.assertRegex(text, r"Never remove a marketplace or uninstall a plugin")
+        self.assertRegex(text, r"Bypass permissions")
+        # hand-over loop: five learner steps, in order
+        order = [text.index(s) for s in ("### 6.1 ", "### 6.2 ", "### 6.3 ", "### 6.4 ", "### 6.5 ", "### 6.6 ")]
+        self.assertEqual(order, sorted(order))
+        for phrase in ("+ New", "This computer", "Open folder", "tin cậy thư mục", "Auto", "Manual", "thầy", "cô"):
+            self.assertIn(phrase, text, phrase)
+        self.assertRegex(text, r"[຀-໿]", "short Lao samples")
+        guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
+        self.assertIn("hãy cài đặt lớp học NNC cho tôi", guide)
+        self.assertIn("Kéo file ZIP", guide)
 
     def test_support_contact_filled_only_in_the_zip(self):
         b = _builder()
