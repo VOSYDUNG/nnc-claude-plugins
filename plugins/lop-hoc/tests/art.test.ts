@@ -3,10 +3,13 @@ import {
   TEACHERS,
   badgeShelfSvg,
   badgeSvg,
+  bottomBarSvg,
   challengeRingSvg,
   giftBoxSvg,
+  sanitizeSvg,
   segmentClockSvg,
   starRowSvg,
+  svgBox,
   teacherAvatarSvg,
   teacherPodiumSvg,
   usageTimelineSvg,
@@ -241,4 +244,54 @@ test('vòng thử thách: đầy, 5 giây cuối đỏ cam và nhịp, 0 là "H�
   }
   wellFormed(challengeRingSvg({ remainingMs: 5000, totalMs: 0 }))
   wellFormed(challengeRingSvg({ remainingMs: 999000, totalMs: 60000 }))
+})
+
+test('thanh dưới ô nhập: trái là chế độ, phải là model · effort · vòng tròn; vùng được chỉ tô vàng có mũi tên', async () => {
+  const none = bottomBarSvg({ mode: 'Bypass permissions', model: 'Opus 5.5', effort: 'Medium', percent: 34 })
+  wellFormed(none)
+  expect(none).toContain('Bypass permissions')
+  expect(none).toContain('Opus 5.5')
+  expect(none).toContain('Medium')
+  expect(none.includes('#FFEA00')).toBe(false)
+  expect(/This computer|thư mục/i.test(none)).toBe(false)
+  for (const point of ['mode', 'model', 'effort', 'context', 'usage5', 'usageWeek']) {
+    const s = bottomBarSvg({ mode: 'Auto', model: 'Opus 5.5', effort: 'High', percent: 80, point })
+    wellFormed(s)
+    expect(s).toContain('#FFEA00')
+    expect(s).toContain('<path d="M') // mũi tên ▼
+  }
+  // Vùng tô nằm đúng chỗ: effort ở bên phải nhãn chế độ.
+  const x = (s: string) => Number(/<rect x="([0-9.]+)" y="17"/.exec(s)?.[1])
+  const mode = x(bottomBarSvg({ mode: 'Auto', model: 'Opus 5.5', effort: 'High', point: 'mode' }))
+  const effort = x(bottomBarSvg({ mode: 'Auto', model: 'Opus 5.5', effort: 'High', point: 'effort' }))
+  const circle = x(bottomBarSvg({ mode: 'Auto', model: 'Opus 5.5', effort: 'High', point: 'usage5' }))
+  expect(mode).toBeLessThan(effort)
+  expect(effort).toBeLessThan(circle)
+  // Chữ lạ được thoát ký tự; thiếu số liệu vẫn vẽ được.
+  const odd = bottomBarSvg({ mode: '<b>&"x"</b>', point: 'mode', percent: Number.NaN })
+  wellFormed(odd)
+  expect(odd.includes('<b>')).toBe(false)
+  wellFormed(bottomBarSvg({}))
+})
+
+test('lọc SVG của bảng: bỏ script, foreignObject, thuộc tính on…, href ngoài; quá 16 KB hay không phải SVG thì bỏ', async () => {
+  const ok = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" width="120" height="60"><rect x="1" y="1" width="50" height="20" fill="#008816"/><text x="5" y="40">Xin chào</text><use href="#a"/></svg>'
+  expect(sanitizeSvg(ok)).toBe(ok)
+  const dirty = sanitizeSvg('<svg viewBox="0 0 9 9" onload="a()"><SCRIPT type="x">alert(1)</SCRIPT><foreignObject width="1"><p>x</p></foreignObject><image href="http://evil.example/p.png" width="3"/><a xlink:href="javascript:alert(1)"><rect onClick="b()" width="1" height="1" style="fill:url(http://x)"/></a><set attributeName="href" to="x"/><circle r="2"/></svg>') ?? ''
+  expect(dirty.startsWith('<svg')).toBe(true)
+  expect(dirty.endsWith('</svg>')).toBe(true)
+  expect(/script|foreignobject|onload|onclick|evil|javascript|<set|url\(/i.test(dirty)).toBe(false)
+  expect(dirty).toContain('<circle r="2"/>')
+  expect(dirty).toContain('<rect')
+  // Dựng chuỗi bằng cách ghép thẻ: sau khi lọc vẫn phải sạch hoặc bị bỏ.
+  const nested = sanitizeSvg('<svg><scr<script></script>ipt>alert(1)</scr<script></script>ipt><rect/></svg>')
+  expect(nested === null || !/<\s*\/?\s*script/i.test(nested)).toBe(true)
+  for (const bad of [null, undefined, 5, '', '<div>x</div>', '<svg><rect/>', '<!DOCTYPE svg><svg></svg>', '<svg><![CDATA[x]]></svg>']) expect(sanitizeSvg(bad)).toBeNull()
+  const big = `<svg viewBox="0 0 1 1">${'<rect width="1" height="1"/>'.repeat(700)}</svg>`
+  expect(big.length).toBeGreaterThan(16 * 1024)
+  expect(sanitizeSvg(big)).toBeNull()
+  // Cỡ hiển thị: tỉ lệ giữ nguyên, không vượt khung.
+  expect(svgBox('<svg viewBox="0 0 400 200">', 200)).toEqual({ width: 200, height: 100 })
+  expect(svgBox('<svg width="100" height="50">', 200)).toEqual({ width: 100, height: 50 })
+  expect(svgBox('<svg>', 200, 150)).toEqual({ width: 200, height: 150 })
 })

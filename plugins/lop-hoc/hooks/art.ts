@@ -851,3 +851,141 @@ export function challengeRingSvg(o: { remainingMs: number; totalMs: number }): s
     `<g>${pulse}${ring}</g>${centre}</svg>`
   )
 }
+
+// ── v0.8: thanh dưới ô nhập (mô hình) và bộ lọc SVG của bảng ─────────────────────
+// Thanh dưới ô nhập của app Claude Desktop: trái = nhãn chế độ quyền; phải = tên model, effort, vòng tròn dùng.
+// Thư mục làm việc và "This computer" nằm ở đầu phiên, KHÔNG nằm trong thanh này.
+
+const BAR_PAPER = '#FFFDF0'
+const BAR_INK = '#1f2a1f'
+const BAR_G = '#008816'
+const BAR_GD = '#006D11'
+const BAR_Y = '#FFEA00'
+const BAR_YD = '#C9A800'
+const BAR_FONT = `font-family="'Leelawadee UI','Phetsarath OT','Noto Sans Lao',sans-serif"`
+const clip = (s: string | undefined, n: number) => (!s ? '' : s.length > n ? s.slice(0, n - 1) + '…' : s)
+
+export type BarArea = 'mode' | 'model' | 'effort' | 'circle'
+// Nhãn nào chỉ vào vùng nào: vòng tròn là chỗ xem context và hạn mức.
+export const BAR_AREA: Record<string, BarArea> = { mode: 'mode', model: 'model', effort: 'effort', context: 'circle', usage5: 'circle', usageWeek: 'circle' }
+
+export function bottomBarSvg(o: { mode?: string; model?: string; effort?: string; percent?: number | null; point?: string | null }): string {
+  const W = 480
+  const H = 64
+  const mode = clip(o.mode, 22) || '—'
+  const model = clip(o.model, 14) || '—'
+  const effort = clip(o.effort, 10) || '—'
+  const cw = 7.4
+  const modeW = Math.max(70, mode.length * cw + 24)
+  const effW = Math.max(54, effort.length * cw + 20)
+  const modW = Math.max(60, model.length * cw + 20)
+  const effX = 450 - effW
+  const modX = effX - 4 - modW
+  const area = o.point ? BAR_AREA[o.point] : undefined
+  const zones: Record<BarArea, { x: number; w: number }> = {
+    mode: { x: 8, w: modeW + 8 },
+    model: { x: modX, w: modW },
+    effort: { x: effX, w: effW },
+    circle: { x: 436, w: 36 },
+  }
+  const hl = area
+    ? (() => {
+        const z = zones[area]
+        const cx = z.x + z.w / 2
+        return (
+          `<rect x="${f(z.x)}" y="17" width="${f(z.w)}" height="38" rx="9" fill="${BAR_Y}" stroke="${BAR_YD}" stroke-width="2"/>` +
+          `<path d="M${f(cx - 9)} 1 L${f(cx + 9)} 1 L${f(cx)} 13 Z" fill="${BAR_Y}" stroke="${BAR_YD}" stroke-width="1.5" stroke-linejoin="round"/>`
+        )
+      })()
+    : ''
+  const p = typeof o.percent === 'number' && Number.isFinite(o.percent) ? Math.min(100, Math.max(0, o.percent)) : null
+  const R = 9
+  const C = 2 * Math.PI * R
+  const arc = p != null && p > 0 ? `<circle cx="454" cy="36" r="${R}" fill="none" stroke="${BAR_GD}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${f(Math.max(1, (p / 100) * C))} ${f(C)}" transform="rotate(-90 454 36)"/>` : ''
+  const t = (x: number, txt: string, extra = '') => `<text x="${f(x)}" y="41" font-size="13" fill="${BAR_INK}" ${BAR_FONT}${extra}>${xmlEsc(txt)}</text>`
+  const what = area === 'mode' ? mode : area === 'model' ? model : area === 'effort' ? effort : area === 'circle' ? 'usage' : ''
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><title>${xmlEsc(`Claude Desktop · ${mode} · ${model} · ${effort}${what && area ? ` · ▼ ${what}` : ''}`)}</title>` +
+    `<rect x="1" y="15" width="${W - 2}" height="46" rx="12" fill="${BAR_PAPER}" stroke="${BAR_INK}" stroke-opacity=".25" stroke-width="1.5"/>` +
+    hl +
+    `<circle cx="20" cy="36" r="4" fill="${BAR_G}"/>` +
+    t(30, mode, ' font-weight="600"') +
+    t(modX + 10, model) +
+    t(effX + 10, effort) +
+    `<circle cx="454" cy="36" r="${R}" fill="none" stroke="${BAR_INK}" stroke-opacity=".18" stroke-width="4"/>${arc}` +
+    `</svg>`
+  )
+}
+
+// Bảng lớp: SVG của giáo viên chỉ nhận khi sạch và ≤ 16 KB. Bỏ script, foreignObject, thuộc tính on…, href ra ngoài.
+export const SVG_MAX_BYTES = 16 * 1024
+const byteLen = (s: string) => (typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(s).length : s.length)
+const BAD_TAGS = 'script|foreignobject|iframe|object|embed|audio|video|link|meta|base'
+const TAG_RE = /<(\/?)([a-zA-Z][^\s/>]*)((?:\s+[^\s=>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"']+))?)*)\s*(\/?)>/g
+const ATTR_RE = /([^\s=>/]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s>"']+))?/g
+
+export function sanitizeSvg(src: unknown): string | null {
+  if (typeof src !== 'string') return null
+  if (byteLen(src) > SVG_MAX_BYTES) return null
+  let s = src.trim()
+  if (!/^<svg[\s>]/i.test(s) || !/<\/svg>$/i.test(s)) return null
+  if (/<!doctype|<!entity|<\?|<!\[cdata/i.test(s)) return null
+  s = s.replace(/<!--[\s\S]*?-->/g, '')
+  const badEl = new RegExp(`<\s*(${BAD_TAGS})\b[\s\S]*?<\s*/\s*\1\s*>`, 'gi')
+  const badStyle = /<\s*style\b[^>]*>[^]*?(@import|url\s*\()[^]*?<\s*\/\s*style\s*>/gi
+  for (let i = 0; i < 6; i++) {
+    const before = s
+    s = s.replace(badEl, '').replace(badStyle, '')
+    s = s.replace(TAG_RE, (_m, close: string, name: string, attrs: string, selfClose: string) => {
+      const lower = name.toLowerCase()
+      if (new RegExp(`^(${BAD_TAGS})$`).test(lower)) return ''
+      if (close) return `</${name}>`
+      const kept: string[] = []
+      let dropTag = false
+      for (const a of attrs.matchAll(ATTR_RE)) {
+        const an = a[1] ?? ''
+        const raw = a[2] ?? ''
+        const val = raw.replace(/^["']|["']$/g, '')
+        const al = an.toLowerCase()
+        if (/^on/.test(al) || al === 'src') continue
+        if (/^(xlink:)?href$/.test(al) && !val.trim().startsWith('#')) continue
+        if (/javascript:|vbscript:|data:text\/html/i.test(val)) continue
+        if (al === 'style' && /url\s*\(|expression|@import/i.test(val)) continue
+        if (al === 'attributename' && /^(xlink:)?href$|^on/i.test(val.trim())) dropTag = true
+        kept.push(raw ? `${an}=${/^["']/.test(raw) ? raw : `"${val}"`}` : an)
+      }
+      if (dropTag || lower === 'set') return ''
+      return `<${name}${kept.length ? ' ' + kept.join(' ') : ''}${selfClose ? '/' : ''}>`
+    })
+    if (s === before) break
+  }
+  s = s.trim()
+  if (!/^<svg[\s>]/i.test(s) || !/<\/svg>$/i.test(s)) return null
+  if (new RegExp(`<\s*/?\s*(${BAD_TAGS})`, 'i').test(s) || /\son[a-z0-9_-]+\s*=/i.test(s) || /javascript:/i.test(s)) return null
+  return byteLen(s) <= SVG_MAX_BYTES ? s : null
+}
+
+// Cỡ hiển thị của SVG giáo viên: lấy width/height hoặc viewBox, thu về tối đa maxW giữ tỉ lệ.
+export function svgBox(src: string, maxW: number, maxH = 200): { width: number; height: number } {
+  const head = /<svg\b[^>]*>/i.exec(src)?.[0] ?? ''
+  const num = (re: RegExp) => {
+    const m = re.exec(head)
+    const v = m ? Number(m[1]) : NaN
+    return Number.isFinite(v) && v > 0 ? v : null
+  }
+  let w = num(/\swidth="([0-9.]+)(?:px)?"/i)
+  let h = num(/\sheight="([0-9.]+)(?:px)?"/i)
+  const vb = /\sviewBox="\s*[-0-9.]+[ ,]+[-0-9.]+[ ,]+([0-9.]+)[ ,]+([0-9.]+)\s*"/i.exec(head)
+  if ((!w || !h) && vb) {
+    const vw = Number(vb[1])
+    const vh = Number(vb[2])
+    if (vw > 0 && vh > 0) {
+      w = w ?? vw
+      h = h ?? (w * vh) / vw
+    }
+  }
+  w = w ?? maxW
+  h = h ?? maxH
+  const k = Math.min(1, maxW / w, maxH / h)
+  return { width: Math.round(w * k), height: Math.round(h * k) }
+}

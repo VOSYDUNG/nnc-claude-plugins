@@ -6,14 +6,14 @@ Kho này **mở**: 8 trò dưới đây là hạt giống; giáo viên được 
 
 - **Một trò ≤ 3 phút**, có **một thao tác chạm được ngay**, có **điều kiện thắng rõ ràng**, kết bằng **một câu bài học** và một nước đi tiếp.
 - **Chỉ dữ liệu mẫu**, chép vào `Thuc-hanh/` trước (tu-kha-nang.md §0), trừ khi học viên đồng ý dùng file của mình qua hộp an toàn dữ liệu.
-- **Hộp câu hỏi gốc** (`AskUserQuestion`): phương án mặc định **đứng đầu**, an toàn nhất (thường là "Chưa chắc — cô gợi ý"). Hết 60 giây, lớp chọn giúp phương án đầu; với câu đố, phương án đó **không** tính là đúng.
+- **v0.8 — chọn kiểu tương tác trước (SKILL §12, [day-truc-quan.md](day-truc-quan.md)):** trò chơi chạy bằng **nút trên bục** (`choices`, có `timeout_s` 60) hoặc **widget có nút trả lời**; hộp câu hỏi gốc chỉ là đường lui khi không có bục. Khi buộc dùng **hộp câu hỏi gốc** (`AskUserQuestion`): phương án mặc định **đứng đầu**, an toàn nhất (thường là "Chưa chắc — cô gợi ý"). Hết 60 giây, lớp chọn giúp phương án đầu; với câu đố, phương án đó **không** tính là đúng.
 - **Thử thách có giờ — không đặt trong hộp câu hỏi.** Hộp tự đóng sau 60 giây, sẽ đụng đồng hồ thử thách. Mẫu đúng: giáo viên giao việc + ghi `challenge`, kết lượt **không mở hộp**, đặt `one_touch` *"Tôi xong rồi"* để học viên báo xong sớm. Học viên bấm Enter hoặc tới tín hiệu `[Giáo án] Hết giờ thử thách · {title}` → lúc đó mới mở hộp hỏi kết quả.
 - **Không có giờ khi học viên đang vấp** (vừa vấp trong phần này, nhánh cần đỡ, năng lượng *Hơi mệt*): chơi bản không đồng hồ, hoặc chọn trò khác.
 - **Học viên từ chối trò → tôn trọng ngay** (T46), không thuyết phục; đổi sang một kiểu không phải trò, cùng động lực.
 - Ghi khi mở trò: `activity {kind:"game:…", started_at}`; khi đóng: kiểu tương tác tiếp theo khác `game:` vừa chơi (không bắt buộc, nhưng hiếm khi cần hai trò liền).
 - Không chế giễu, không xếp hạng người, không so với người khác. Nói về **cách làm**, không nói về con người.
 
-Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** ấm áp, nhanh, hình ảnh đời thường. Câu tiếng Lào dưới đây **cần người bản ngữ duyệt** trước khi dùng thật.
+Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** ấm áp, nhanh, hình ảnh đời thường.
 
 ---
 
@@ -39,7 +39,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `lac` (đoán) → `giang` (Claude làm) → `hi` (À).
 - **Thầy:** "Một câu đoán trước khi xem: việc này Claude làm được hay không? Chọn rồi mình kiểm bằng việc thật." · đóng: "Vậy là được. Điều cần nhớ: không chắc thì thử trên mẫu."
 - **Cô:** "Đoán vui nè: Claude vẽ được biểu đồ từ bảng này không? Chọn đi rồi mình bấm thử liền!" · đóng: "À há, được thật! Lần sau chưa chắc thì cứ thử trên mẫu nhé."
-- **Lào:** "ເດົາເບິ່ງ: Claude ແຕ້ມແຜນພູມຍອດຂາຍຕາມຊ່ອງທາງຈາກຕາຕະລາງນີ້ໄດ້ບໍ່?" *(cần người bản ngữ duyệt)*
+- **Lào:** "ເດົາເບິ່ງ: Claude ແຕ້ມແຜນພູມຍອດຂາຍຕາມຊ່ອງທາງຈາກຕາຕະລາງນີ້ໄດ້ບໍ່?"
 - **Đổi theo nghề:** kho → "Claude chép phiếu nhận hàng từ ảnh thành bảng được không?" (thẻ 7); kế toán → "Claude chỉ ra chỗ khác nhau giữa hai bảng được không?" (thẻ 3); hành chính → "Claude dịch thông báo này sang tiếng Lào được không?" (thẻ 5).
 
 ## 2. Hộp quà khả năng — `game:hop-qua`
@@ -64,7 +64,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `lac` → `hi`.
 - **Thầy:** "Chị vừa làm đúng hai lần liền. Thầy mở cho chị một hộp quà: ba việc Claude làm được, chị chọn một."
 - **Cô:** "Có quà nè! Hộp này có ba thẻ, chị chọn một cái — bấm là thấy Claude làm liền."
-- **Lào:** "ມາເປີດກ່ອງຂອງຂວັນກັນ! ເລືອກບັດໜຶ່ງໃບເດີ້." *(cần người bản ngữ duyệt)*
+- **Lào:** "ມາເປີດກ່ອງຂອງຂວັນກັນ! ເລືອກບັດໜຶ່ງໃບເດີ້."
 - **Đổi theo nghề:** chọn ba thẻ theo bảng "Chọn thẻ theo việc" trong tu-kha-nang.md §1.
 
 ## 3. Thử thách 60 giây — `game:thu-thach-60s`
@@ -90,7 +90,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `lac` (mở) → `nghe` (chờ) → `hi` (thắng) / `ai` (chưa thắng: "mình xem cùng nhau").
 - **Thầy:** mở: "Sáu mươi giây. Một nhiệm vụ: tìm những chỗ file tuần sau khác tuần này. Xong sớm thì bấm nút trên bục." · hết giờ: "Hết giờ. Chị tìm được gì, mình đối chiếu."
 - **Cô:** mở: "Thử thách 60 giây nè! Soi file tuần sau xem khác tuần này chỗ nào — xong sớm bấm *Tôi xong rồi* nha!" · hết giờ: "Hết giờ rồi! Chị bắt được mấy chỗ, kể cô nghe."
-- **Lào:** "ສິ່ງທ້າທາຍ 60 ວິນາທີ — ເລີ່ມໄດ້!" *(cần người bản ngữ duyệt)*
+- **Lào:** "ສິ່ງທ້າທາຍ 60 ວິນາທີ — ເລີ່ມໄດ້!"
 - **Đổi theo nghề:** kho → "Tìm dòng phiếu chép sai số lượng" (thẻ 7, 90 giây); kế toán → "Tìm dòng có trong file gộp mà không có trong file tuần" (thẻ 2).
 
 ## 4. Người với máy — `game:nguoi-voi-may`
@@ -114,7 +114,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `lac` → `nghe` → `hi`.
 - **Thầy:** "Thầy đề nghị một phép so: chị cộng tay một kênh, Claude làm cả ba. Rồi mình so thời gian và con số."
 - **Cô:** "Người với máy nè! Chị cộng tay kênh OTC, Claude làm cả bảng — xem ai nhanh, và quan trọng hơn: có khớp không!"
-- **Lào:** "ຄົນກັບເຄື່ອງ: ເອື້ອຍບວກດ້ວຍມືຊ່ອງທາງ OTC, Claude ເຮັດທັງໝົດ — ມາທຽບກັນ!" *(cần người bản ngữ duyệt)*
+- **Lào:** "ຄົນກັບເຄື່ອງ: ເອື້ອຍບວກດ້ວຍມືຊ່ອງທາງ OTC, Claude ເຮັດທັງໝົດ — ມາທຽບກັນ!"
 - **Đổi theo nghề:** kho → đếm tay số dòng của một mã hàng trong phiếu; kế toán → cộng tay tổng một tuần trong file gộp.
 
 ## 5. Tìm lỗi — `game:tim-loi`
@@ -141,7 +141,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `lac` → `nghe` → `hi`.
 - **Thầy:** "Bảng này có lỗi cài sẵn. Thầy không nói có mấy lỗi. Chị soát từng cột, chọn loại lỗi chị thấy."
 - **Cô:** "Trò tìm lỗi nè! Cô giấu vài lỗi trong bảng mẫu — chị làm thám tử nhé, soi kỹ cột giá với cột đơn vị!"
-- **Lào:** "ຕາຕະລາງນີ້ມີຂໍ້ຜິດພາດທີ່ຄູເຊື່ອງໄວ້ — ລອງຊອກເບິ່ງ!" *(cần người bản ngữ duyệt)*
+- **Lào:** "ຕາຕະລາງນີ້ມີຂໍ້ຜິດພາດທີ່ຄູເຊື່ອງໄວ້ — ລອງຊອກເບິ່ງ!"
 - **Đổi theo nghề:** kho → lỗi số lượng/đơn vị trong bảng chép từ phiếu; kế toán → dòng trùng, số âm lạ trong bảng đối chiếu mẫu; hiện trường → vật tư ghi sai đơn vị.
 
 ## 6. Bạn là sếp — `game:ban-la-sep`
@@ -167,7 +167,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `lac` → `nghe` → `hi`; học viên bấm *Đạt* mà chưa kiểm một kết quả có lỗi → `o` nhẹ với cách làm (T17), rồi mời kiểm 3 dòng.
 - **Thầy:** "Bây giờ chị là sếp. Claude nộp bảng này. Chị ký hay trả lại — và vì sao?"
 - **Cô:** "Chị làm sếp nè! Claude vừa nộp bài, chị duyệt hay trả lại? Sếp được quyền khó tính đó!"
-- **Lào:** "ຕອນນີ້ເອື້ອຍເປັນຫົວໜ້າ: ຈະອະນຸມັດ ຫຼື ສົ່ງຄືນ?" *(cần người bản ngữ duyệt)*
+- **Lào:** "ຕອນນີ້ເອື້ອຍເປັນຫົວໜ້າ: ຈະອະນຸມັດ ຫຼື ສົ່ງຄືນ?"
 - **Đổi theo nghề:** kho → duyệt bảng nhập kho chép từ phiếu; bán hàng → duyệt báo cáo doanh số kênh; kế toán → duyệt bảng đối chiếu mẫu.
 
 ## 7. Đúng/sai chuỗi — `game:dung-sai`
@@ -197,7 +197,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `lac` → `hi` / `giang` (nhắc lại).
 - **Thầy:** "Ba câu đúng hay sai, trả lời liền một mạch. Đúng cả ba, thầy tặng một sao."
 - **Cô:** "Đúng sai chớp nhoáng nè! Ba câu liền mà đúng hết là có sao nha!"
-- **Lào:** "ສາມຄຳຖາມ ຖືກ ຫຼື ຜິດ — ຖືກໝົດໄດ້ດາວໜຶ່ງດວງ!" *(cần người bản ngữ duyệt)*
+- **Lào:** "ສາມຄຳຖາມ ຖືກ ຫຼື ຜິດ — ຖືກໝົດໄດ້ດາວໜຶ່ງດວງ!"
 - **Đổi theo nghề:** giữ nội dung thẻ, đổi ví dụ trong câu: kho → "chép phiếu vào thư mục làm việc"; kế toán → "file đối chiếu ở ổ khác".
 
 ## 8. Đổi vai — `game:doi-vai`
@@ -213,7 +213,7 @@ Giọng: **thầy** điềm đạm, có cấu trúc, ít cảm thán; **cô** �
 - **Cảm xúc:** `nghe` (giáo viên làm "học trò") → `hi`.
 - **Thầy:** "Đổi vai một chút: thầy là nhân viên mới, chị là người hướng dẫn. Chị dạy thầy cách kiểm bảng tổng hợp này."
 - **Cô:** "Mình đổi vai nha: giờ cô là lính mới, chị dạy cô bước tự kiểm đi — cô ghi chép đàng hoàng!"
-- **Lào:** "ມາປ່ຽນບົດບາດກັນ: ຄູເປັນພະນັກງານໃໝ່, ເອື້ອຍສອນຄູແດ່." *(cần người bản ngữ duyệt)*
+- **Lào:** "ມາປ່ຽນບົດບາດກັນ: ຄູເປັນພະນັກງານໃໝ່, ເອື້ອຍສອນຄູແດ່."
 - **Đổi theo nghề:** kho → dạy cách soát phiếu với bảng; bán hàng → dạy cách giao việc 4 ý cho báo cáo tuần; kế toán → dạy cách đối chiếu tổng kiểm soát.
 
 ---

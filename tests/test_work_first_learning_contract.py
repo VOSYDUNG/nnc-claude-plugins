@@ -1,11 +1,17 @@
-"""Static contract checks for the optional work-first learning Skill (Lớp học NNC v0.7, always-open class).
+"""Static contract checks for the optional work-first learning Skill (Lớp học NNC v0.8: always-open class, the teacher sets the stage).
 
 These checks verify packaging and critical textual boundaries, not Claude behavior.
 A real host/learner evaluation is still required.
 """
+from html.parser import HTMLParser
 from pathlib import Path
+import json
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +29,9 @@ TEMPLATE = SKILL.parent / "templates" / "classroom-CLAUDE.md"
 PILOT = ROOT / "docs" / "oser-r2" / "WORK-FIRST-LEARNING-PILOT.md"
 CONTRACT = ROOT / "docs" / "oser-r2" / "LOP-HOC-V05-CONTRACT.md"
 PLUGIN = ROOT / "plugins" / "nnc" / ".claude-plugin" / "plugin.json"
+MARKET = ROOT / ".claude-plugin" / "marketplace.json"
+DESIGN_V08 = ROOT / "docs" / "oser-r2" / "LOP-HOC-V08-THIET-KE.md"
+TOOLBOX = REFS / "day-truc-quan.md"
 
 LAO = re.compile(r"[຀-໿]")
 
@@ -58,6 +67,27 @@ USAGE_SOURCES = (
 )
 
 
+class _Balance(HTMLParser):
+    """Tiny tag-balance check for the widget templates (container tags only)."""
+
+    TAGS = {"div", "span", "table", "tr", "td", "ol", "li", "p", "b", "button", "svg", "script"}
+
+    def __init__(self):
+        super().__init__()
+        self.stack, self.errors = [], []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.TAGS:
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag):
+        if tag in self.TAGS:
+            if self.stack and self.stack[-1] == tag:
+                self.stack.pop()
+            else:
+                self.errors.append(tag)
+
+
 class WorkFirstLearningContract(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -78,13 +108,15 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
+        self.assertIn("+lophoc.0.8.0", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.7.3", frontmatter)
+        self.assertIn("version: 0.8.0", frontmatter)
+        self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
         self.assertNotIn("version: 0.5.0", frontmatter)
         self.assertNotIn("version: 0.4.0", frontmatter)
@@ -92,7 +124,8 @@ class WorkFirstLearningContract(unittest.TestCase):
                     "references/the-dinh-nghia.md", "references/tuong-tac.md",
                     "references/nang-luc-giao-vien.md", "references/kho-tro-choi.md",
                     "references/tu-kha-nang.md", "references/huy-hieu.md",
-                    "references/vong-viec.md", "references/sach-tu-hoc.md"):
+                    "references/vong-viec.md", "references/sach-tu-hoc.md",
+                    "references/day-truc-quan.md"):
             self.assertIn(ref, self.skill)
             self.assertTrue((SKILL.parent / ref).is_file(), ref)
         self.assertIn("WORK-FIRST-LEARNING-PILOT.md", self.skill)
@@ -159,7 +192,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn(state, self.scenarios)
 
     def test_scenarios_and_host_not_claimed(self):
-        for i in range(1, 50):
+        for i in range(1, 57):
             self.assertIn("Case F{} ".format(i), self.scenarios)
         self.assertIn("NOT_TESTED", self.scenarios)
         self.assertIn("INSTALL_NOT_VERIFIED", self.pilot)
@@ -325,7 +358,7 @@ class WorkFirstLearningContract(unittest.TestCase):
         for phrase in ("Tự chế trò mới", "Danh sách kiểm 6 luật", "games_proposed",
                        "không bao giờ sửa file kho này", "Ví dụ 1 — Kho", "Ví dụ 2 — Bán hàng OTC",
                        "Ví dụ 3 — Kế toán", "không đặt trong hộp câu hỏi", "Tôi xong rồi",
-                       "cần người bản ngữ duyệt", "Thuc-hanh/", "challenge"):
+                       "day-truc-quan.md", "Thuc-hanh/", "challenge"):
             self.assertIn(phrase, self.games, phrase)
         for n in range(1, 7):
             self.assertIn("- [ ] **{}.".format(n), self.games)
@@ -372,7 +405,7 @@ class WorkFirstLearningContract(unittest.TestCase):
             self.assertIn("| " + part + " |", plan, part)
 
     def test_interactions_v06(self):
-        for code in range(1, 57):
+        for code in range(1, 66):
             self.assertIn("### T{:02d} ".format(code), self.interactions, code)
         for phrase in ("Đưa lệnh một chạm", "Mở trò chơi", "Đóng trò", "Hết giờ thử thách",
                        "Trao huy hiệu", "Trao sao", "Mở hộp quà", "Đổi kiểu tương tác",
@@ -460,6 +493,216 @@ class WorkFirstLearningContract(unittest.TestCase):
         self.assertIn("no Python", self.capabilities)
         self.assertIn(".csv` twin", self.capabilities)
 
+
+
+class StageV08Tests(unittest.TestCase):
+    """v0.8: the teacher sets the stage — visual toolbox, interaction order, density, one Write per turn, new cues."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.toolbox = TOOLBOX.read_text(encoding="utf-8")
+        cls.template = TEMPLATE.read_text(encoding="utf-8")
+        cls.buoi1 = BUOI1.read_text(encoding="utf-8")
+        cls.competency = COMPETENCY.read_text(encoding="utf-8")
+        cls.interactions = INTERACTIONS.read_text(encoding="utf-8")
+        cls.scenarios = SCENARIOS.read_text(encoding="utf-8")
+        cls.plugin = PLUGIN.read_text(encoding="utf-8")
+        cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
+
+    # --- versions --------------------------------------------------------
+
+    def test_versions(self):
+        self.assertIn("version: 0.8.0", self.skill.split("---", 2)[1])
+        self.assertIn("What changed in v0.8", self.skill)
+        nnc = json.loads(self.plugin)["version"]
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.8.0")
+        entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
+        self.assertEqual(entry["version"], nnc)
+        self.assertNotIn("alpha.3", nnc)
+        self.assertIn("evaluation cases F1–F56", self.skill)
+
+    # --- the visual toolbox ----------------------------------------------
+
+    def test_toolbox_exists_is_linked_and_has_six_templates(self):
+        self.assertTrue(TOOLBOX.is_file())
+        self.assertIn("references/day-truc-quan.md", self.skill)
+        for heading in ("## 2. Template A — bottom-bar mock-up", "## 3. Template B — concept slide",
+                        "## 4. Template C — result explainer", "## 5. Template D — interactive check",
+                        "## 6. Template E — 60-second game", "## 7. Template F — podium board"):
+            self.assertIn(heading, self.toolbox, heading)
+        self.assertIn("sendPrompt('[Lớp học] Trả lời", self.toolbox)
+        for colour in ("#008816", "#006D11", "#0B3B16", "#FFEA00", "#C9A800", "#FFFDF0", "#1f2a1f",
+                       "#3CC85A", "#4A90E2", "#F5A524"):
+            self.assertIn(colour, self.toolbox, colour)
+        for font in ("Leelawadee UI", "Phetsarath OT", "Noto Sans Lao"):
+            self.assertIn(font, self.toolbox, font)
+        for phrase in ("show_widget", "read_me", "Fallback", "One idea per visual", "picture before words",
+                       "the learner does", "combine freely", "re-author for", "podium `board`", "≤ 16 KB",
+                       "permission mode", "round usage circle", "Trên máy bạn", "Làm theo", "Cách tự kiểm"):
+            self.assertIn(phrase.lower(), self.toolbox.lower(), phrase)
+
+    def test_toolbox_svgs_and_widgets_are_valid(self):
+        svgs = re.findall(r"```svg\n(.*?)```", self.toolbox, re.S)
+        self.assertGreaterEqual(len(svgs), 1)
+        for svg in svgs:
+            ET.fromstring(svg)  # well-formed
+            self.assertLess(len(svg.encode("utf-8")), 16 * 1024)
+        # the bottom-bar mock-up has the four areas and the two sides of the bar
+        mock = svgs[0]
+        for area in ("hl-mode", "hl-model", "hl-effort", "hl-usage"):
+            self.assertIn(area, mock, area)
+        # the podium board example obeys the board limits and the sanitiser rules
+        boards = []
+        for block in re.findall(r"```json\n(.*?)```", self.toolbox, re.S):
+            try:
+                data = json.loads("{" + block + "}")
+            except ValueError:
+                continue
+            if "board" in data:
+                boards.append(data["board"])
+        self.assertGreaterEqual(len(boards), 1)
+        checked = 0
+        for board in boards:
+            self.assertLessEqual(len(board["title"]), 60)
+            self.assertLessEqual(len(board["lines"]), 5)
+            for line in board["lines"]:
+                self.assertLessEqual(len(line), 90)
+            if "…" in board["svg"]:
+                continue  # an elided illustration of the whole stage
+            ET.fromstring(board["svg"])
+            self.assertLessEqual(len(board["svg"].encode("utf-8")), 16 * 1024)
+            for banned in ("<script", "foreignObject", "href", "javascript:"):
+                self.assertNotIn(banned, board["svg"])
+            self.assertIsNone(re.search(r"\son[a-z]+\s*=", board["svg"]))
+            checked += 1
+        self.assertGreaterEqual(checked, 1)
+        # html widgets: tags balanced; scripts are valid JavaScript (when node is available)
+        htmls = re.findall(r"```html\n(.*?)```", self.toolbox, re.S)
+        self.assertGreaterEqual(len(htmls), 5)
+        for html in htmls:
+            checker = _Balance()
+            checker.feed(html)
+            self.assertEqual(checker.stack, [], checker.stack)
+            self.assertEqual(checker.errors, [])
+            self.assertNotIn("<html", html)
+            self.assertNotIn("<!DOCTYPE", html)
+        node = shutil.which("node")
+        scripts = [body for html in htmls for body in re.findall(r"<script>(.*?)</script>", html, re.S)]
+        self.assertGreaterEqual(len(scripts), 2)
+        if node:
+            for body in scripts:
+                with tempfile.TemporaryDirectory() as tmp:
+                    path = Path(tmp) / "w.js"
+                    path.write_text(body, encoding="utf-8")
+                    result = subprocess.run([node, "--check", str(path)], capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertGreaterEqual(self.toolbox.count("sendPrompt("), 2)
+
+    # --- the Skill: interaction order, podium knowledge, density, rhythm ---
+
+    def test_skill_interaction_order_and_stage(self):
+        for phrase in (
+            "Interaction modes — preferred order", "Podium `choices`", "Lesson widget with answer buttons",
+            "One-touch", "Native `AskUserQuestion` box", "consent and safety", "the **delegation form**",
+            "Never ask what the podium knows", "podium.point", "ask the learner to **do**",
+            "Density from minute one", "at least one visual and at least one interaction that is not a native box",
+            "first visual and the first interactive check come within your first two turns",
+            "one full `Write` of `state.json` per turn", "Turn rhythm",
+            "result explainer", "Scaffold ladder", "Three failed rungs on the same point",
+            "Never repeat the same question the same way", "help_needed: true",
+            "Hơi mệt", "more showing, fewer checks", "at most once per set of choices",
+            "Làm theo", "/reload-plugins", "the only slash command the class ever asks for",
+            "v0.8 stage fields", "podium.size", "podium.show", "podium.buttons", "timeout_s",
+            "svg` ≤ 16 KB", "non-blocking", "Giơ tay · Xin phép · Xin nghỉ stay reachable",
+        ):
+            self.assertIn(phrase, self.skill, phrase)
+        for field in ('"podium"', '"board"', '"choices"'):
+            self.assertIn(field, self.skill, field)
+        self.assertNotIn("Every choice is a native **AskUserQuestion** box", self.skill)
+
+    def test_new_cues_exact(self):
+        for cue in (
+            "[Giáo án] Mở lớp · giáo viên {thay\\|co} · chế độ {label} · model {m} · effort {e} · hạn mức 5 giờ {p}% · tuần {q}%",
+            "[Giáo án] Chế độ quyền · {label}",
+            "[Giáo án] Hết hạn chọn · {id}",
+            "[Giáo án] Hộp chờ lâu · {label}",
+            "[Lớp học] Chọn · {id} · {label}",
+            "[Lớp học] Trả lời · {id} · {value}",
+        ):
+            self.assertIn(cue, self.skill, cue)
+        # the minute cue is gone from the cue table and from the script; only the legacy line mentions it
+        self.assertNotIn("| `[Giáo án] Kiểm phần học", self.skill)
+        self.assertIn("removed in v0.8", self.skill)
+        self.assertNotIn("Kiểm phần học", self.buoi1)
+        if DESIGN_V08.is_file():  # cross-check against the v0.8 design when present
+            design = DESIGN_V08.read_text(encoding="utf-8")
+            for prefix, raw in re.findall(r"`\[(Giáo án|Lớp học)\] ([^`]+)`", design):
+                key = raw.split(" · ")[0].split(" {")[0].strip()
+                self.assertIn("[{}] {}".format(prefix, key), self.skill, "cue not handled: " + key)
+
+    def test_bypass_and_reload_rules(self):
+        for phrase in ("Bypass at opening", "safety point", 'podium.point: "mode"', "the learner switches the mode themselves"):
+            self.assertIn(phrase, self.skill, phrase)
+        self.assertIn("no `[Giáo án] Mở lớp` cue has arrived", self.skill)
+        self.assertIn("Never ask the learner to type a slash command, except that single `/reload-plugins` hint", self.skill)
+
+    # --- references ------------------------------------------------------
+
+    def test_buoi1_playbook_cards_and_no_read_back(self):
+        for part in ("Part 0 — Vào lớp", "Part 1 — Làm quen nhanh", "Part 2 — Việc thật của tôi",
+                     "Part 3 — Thử thách theo nhịp (by branch)", "Part 4 — Chốt vòng việc"):
+            self.assertIn("| Card | " + part + " |", self.buoi1, part)
+        for row in ("| Visual |", "| Interaction |", "| Game |", "| Badge |", "| Book |"):
+            self.assertGreaterEqual(self.buoi1.count(row), 5, row)
+        for phrase in ("Playbook cards (v0.8)", "Never ask what the podium knows", "profile widget",
+                       "`podium.point`", "result explainer", "one full `Write`", "Chế độ quyền", "Hộp chờ lâu",
+                       "Hết hạn chọn", "Đã chọn Auto"):
+            self.assertIn(phrase, self.buoi1, phrase)
+        # the opening no longer asks the learner which permission mode is on the bar
+        self.assertNotIn('"header": "Chế độ"', self.buoi1)
+        self.assertNotIn("Thanh dưới ô nhập đang ghi chế độ quyền nào?", self.buoi1)
+        self.assertNotIn("Box B has 4 questions", self.buoi1)
+
+    def test_competency_v08(self):
+        text = self.competency.lower()
+        for phrase in ("Scaffold ladder", "another everyday example", "three strikes", "help_needed: true",
+                       "Never repeat the same question the same way", "Interaction modes — preferred order",
+                       "Never ask what the podium knows", "read it back", "Density rule",
+                       "The first visual and the first interactive check come within your first two teacher turns",
+                       "more showing, fewer checks", "demonstrate on the machine"):
+            self.assertIn(phrase.lower(), text, phrase)
+
+    def test_interactions_v08(self):
+        for title in ("T57 · Đổi cách nói", "T58 · Chế độ quyền", "T59 · Hết hạn chọn", "T60 · Hộp chờ lâu",
+                      "T61 · Chỉ chỗ trên màn hình", "T62 · \"Làm theo\"", "T63 · Giải thích kết quả Claude",
+                      "T64 · Thang đỡ bốn nấc", "T65 · Nhắc `/reload-plugins`"):
+            self.assertIn("### " + title, self.interactions, title)
+        k = self.interactions.split("## K. ", 1)[1].split("## Bảng nhanh", 1)[0]
+        lao = [l for l in k.splitlines() if l.startswith("- **Lào:**") and LAO.search(l)]
+        self.assertGreaterEqual(len(lao), 8)
+        self.assertGreaterEqual(k.count("- **Thầy:**"), 9)
+        self.assertGreaterEqual(k.count("- **Cô:**"), 9)
+        for phrase in ("tối đa một lần trong một bộ lựa chọn", "Làm theo", "podium.point", "/reload-plugins"):
+            self.assertIn(phrase, k, phrase)
+
+    def test_classroom_template_v08(self):
+        self.assertNotIn("Every choice is a native AskUserQuestion box", self.template)
+        self.assertIn("AskUserQuestion", self.template)
+        for phrase in ("Ask in this order", "Never ask what the podium knows", "Density from minute one",
+                       "one full `Write`", "/reload-plugins", "result explainer", "three failed rungs",
+                       "`[Lớp học] Chọn", "`[Lớp học] Trả lời", "Never ask the learner to type a slash command"):
+            self.assertIn(phrase, self.template, phrase)
+        guide = (ROOT / "lop-hoc-mau" / "HUONG-DAN.md").read_text(encoding="utf-8")
+        self.assertIn("/reload-plugins", guide)
+
+    def test_scenarios_f50_to_f56(self):
+        for title in ("Case F50 — Bypass permissions at opening", "Case F51 — The learner cannot find the effort level",
+                      "Case F52 — Podium choices time out", "Case F53 — A native box waits 90 seconds",
+                      "Case F54 — The learner fails three rungs", "Case F55 — Result explainer after the receipt-to-table job",
+                      "Case F56 — The first two turns carry a visual and an interactive check"):
+            self.assertIn("## " + title, self.scenarios, title)
+        self.assertIn("v0.8 cases — the teacher sets the stage (F50–F56)", self.scenarios)
 
 
 class ToolRouteTests(unittest.TestCase):

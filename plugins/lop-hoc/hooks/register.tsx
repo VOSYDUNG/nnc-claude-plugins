@@ -6,7 +6,10 @@ import type {
   AskOpen,
   BadgeEntry,
   BandMode,
+  BoardSpec,
+  ChoicesSpec,
   DriveId,
+  FactId,
   GiftPhase,
   Lesson,
   LessonActivity,
@@ -19,6 +22,8 @@ import type {
   OneTouch,
   PanelKind,
   PlanSegment,
+  PodiumButtonId,
+  PodiumSpec,
   TeacherKindId,
   UsageInfo,
 } from '../types'
@@ -27,11 +32,14 @@ import {
   DRIVE_COLOR,
   TEACHERS,
   badgeShelfSvg,
+  bottomBarSvg,
   challengeRingSvg,
   giftBoxSvg,
   isEmotion,
   isTeacherKind,
+  sanitizeSvg,
   starRowSvg,
+  svgBox,
   teacherAvatarSvg,
   teacherPodiumSvg,
   usageTimelineSvg,
@@ -40,6 +48,10 @@ import {
 import { DELEGATION_HEADS, STR, isLang } from './i18n'
 import type { Lang } from './i18n'
 
+// Lớp học NNC v0.8 — giáo viên là người dựng sân khấu: bục giảng yên tĩnh theo mặc định, mỗi lượt giáo viên có thể
+//   ghi podium (cỡ, nhãn hiện, chỗ chỉ, nút), board (bảng nhỏ), choices (nút lớn không chặn) vào state.json
+//   (thiết kế docs/oser-r2/LOP-HOC-V08-THIET-KE.md). Đồng hồ nhịp 1,5 giây đọc lại state.json khi chữ đổi;
+//   mod đọc chế độ quyền ở thanh dưới (SessionMode); dòng công cụ ghi vào .lop-hoc/ chỉ còn một dòng mờ.
 // Lớp học NNC v0.7 — lớp luôn mở, giáo viên đứng lớp, nhịp theo việc và hạn mức (hợp đồng §9).
 //   Bục giảng (dải trên ô nhập, nền bảng lớp): chọn thầy/cô → Vào lớp; giáo viên trên bục với cảm xúc;
 //     phần học do giáo viên ghi khi đạt mốc (không theo giờ); "Lượt của bạn"; nút Giơ tay · Xin phép · Xin nghỉ;
@@ -61,6 +73,10 @@ const TAG = '[Lớp học] '
 const CUE = '[Giáo án] '
 
 const TICK_MS = 5_000
+// Nhịp đọc lại state.json (chỉ đọc chữ, đổi mới nạp lại) và hẹn giờ lựa chọn trên bục.
+const WATCH_MS = 1_500
+// Hộp câu hỏi gốc (không phải câu đố/trò chơi) mở quá 90 giây: báo giáo viên một lần.
+const LONG_BOX_MS = 90_000
 const ANSWER_MS = 60_000
 const CUE_GAP_MS = 20_000
 // Ngưỡng hạn mức (%) báo giáo viên: 5 giờ ở 70 (giảng gọn) và 90 (lưu điểm dừng); tuần ở 90.
@@ -68,8 +84,6 @@ const FIVE_STEPS = [70, 90]
 const WEEK_STEPS = [90]
 // Context của phiên đầy tới mức này thì báo giáo viên một lần (đề nghị mở phiên mới khi chốt vòng việc).
 const CONTEXT_STEP = 70
-// Phần 0 và 1 vốn ngắn: đứng yên quá lâu thì nhắc giáo viên kiểm lại phần học một lần (phòng giáo viên quên ghi segment).
-export const SEGMENT_CHECK_MIN: Record<string, number> = { '0': 8, '1': 15 }
 const ACTIVITY_MS = 4 * 60_000
 const CHALLENGE_STALE_MS = 10 * 60_000
 const MIN = 60_000
@@ -77,6 +91,10 @@ const CHEER_MS = 6_000
 const GIFT_OPEN_MS = 4_000
 
 // Bảng lớp: nền xanh đậm, chữ phấn.
+// Cỡ hình giáo viên theo cỡ bục: mini gọn một dòng, normal vừa, wide có chỗ cho bảng.
+const AVATAR_DIMS: Record<'mini' | 'normal' | 'wide', { w: number; h: number }> = { mini: { w: 56, h: 36 }, normal: { w: 96, h: 60 }, wide: { w: 140, h: 88 } }
+const BAR_DIMS: Record<'mini' | 'normal' | 'wide', { w: number; h: number }> = { mini: { w: 300, h: 40 }, normal: { w: 360, h: 48 }, wide: { w: 480, h: 64 } }
+const BOARD_W: Record<'mini' | 'normal' | 'wide', number> = { mini: 180, normal: 260, wide: 380 }
 const BOARD = '#123F1E'
 const CHALK = '#F4F4EC'
 const CHALK_DIM = '#B9D3BF'
@@ -98,11 +116,17 @@ const askAtom = atom({ plugin: 'lop-hoc', key: 'ask' } as const, null as AskOpen
 const nowAtom = atom({ plugin: 'lop-hoc', key: 'now' } as const, 0)
 // v0.6
 const oneTouchUsed = atom({ plugin: 'lop-hoc', key: 'oneTouchUsed' } as const, '')
-const liveAtom = atom({ plugin: 'lop-hoc', key: 'live' } as const, { activity: null, challenge: null, giftBox: false, segment: null } as LiveState)
+const liveAtom = atom({ plugin: 'lop-hoc', key: 'live' } as const, { activity: null, challenge: null, giftBox: false, segment: null, choices: null } as LiveState)
 const activityTrack = atom({ plugin: 'lop-hoc', key: 'activityTrack' } as const, null as ActivityTrack | null)
 const badgesAtom = atom({ plugin: 'lop-hoc', key: 'badges' } as const, [] as BadgeEntry[])
 const cheerAtom = atom({ plugin: 'lop-hoc', key: 'cheer' } as const, false)
 const giftAtom = atom({ plugin: 'lop-hoc', key: 'gift' } as const, 'closed' as GiftPhase)
+// v0.8
+const modesAtom = atom({ plugin: 'lop-hoc', key: 'modes' } as const, [] as string[])
+const stateVer = atom({ plugin: 'lop-hoc', key: 'stateVer' } as const, 0)
+const choiceDone = atom({ plugin: 'lop-hoc', key: 'choiceDone' } as const, '')
+const choiceExpired = atom({ plugin: 'lop-hoc', key: 'choiceExpired' } as const, '')
+const moreOpen = atom({ plugin: 'lop-hoc', key: 'moreOpen' } as const, false)
 
 // ── Phần học (v0.7: giáo viên chuyển phần khi đạt mốc; mod chỉ hiển thị) ────────
 const S0: PlanSegment = { id: '0', title: 'Vào lớp', drive: 'ket-noi' }
@@ -153,13 +177,6 @@ export function usageKeysCrossed(u: UsageInfo | null): string[] {
   if (!u) return []
   const keys = (scope: string, r: UsageInfo['five'], steps: number[]) => (r ? steps.filter(s => r.percentUsed >= s).map(s => `${scope}-${s}-${r.resetsAt ?? ''}`) : [])
   return [...keys('u5', u.five, FIVE_STEPS), ...keys('uw', u.week, WEEK_STEPS), ...(u.context != null && u.context >= CONTEXT_STEP ? [`ctx-${CONTEXT_STEP}`] : [])]
-}
-
-// Phần học đang hiển thị và lúc (giờ lớp mở) thấy nó lần đầu.
-let segTrack: { id: string; fromEl: number } | null = null
-export function trackSegment(prev: { id: string; fromEl: number } | null, id: string | null, el: number): { id: string; fromEl: number } | null {
-  if (id == null) return null
-  return prev && prev.id === id ? prev : { id, fromEl: el }
 }
 
 // ── Đọc .lop-hoc/state.json (lop-hoc/2, vẫn nhận lop-hoc/1) ──────────────────
@@ -222,6 +239,9 @@ export function parseState(raw: unknown): ClassState | null {
     badges_new: badgesOf(raw.badges_new),
     gift_box: raw.gift_box === true,
     language: isLang(raw.language) ? raw.language : undefined,
+    podium: podiumOf(raw.podium),
+    board: boardOf(raw.board),
+    choices: choicesOf(raw.choices),
     loops_done: typeof raw.loops_done === 'number' && Number.isFinite(raw.loops_done) ? Math.min(999, Math.max(0, Math.round(raw.loops_done))) : undefined,
   }
 }
@@ -268,6 +288,73 @@ function badgesOf(v: unknown): LessonBadge[] {
     if (out.length >= 20) break
   }
   return out
+}
+
+// ── v0.8: sân khấu bục giảng (podium · board · choices), đọc phòng thủ ────────────
+const FACTS: readonly FactId[] = ['mode', 'effort', 'model', 'context', 'usage5', 'usageWeek']
+const BUTTON_IDS: readonly PodiumButtonId[] = ['raise-hand', 'ask-leave', 'leave', 'slower', 'faster', 'hint', 'result-sheet', 'delegate']
+const isFact = (v: unknown): v is FactId => typeof v === 'string' && (FACTS as readonly string[]).includes(v)
+const isButtonId = (v: unknown): v is PodiumButtonId => typeof v === 'string' && (BUTTON_IDS as readonly string[]).includes(v)
+const cutStr = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
+
+function uniqueOf<T>(v: unknown, ok: (x: unknown) => x is T): T[] {
+  if (!Array.isArray(v)) return []
+  const out: T[] = []
+  for (const x of v) if (ok(x) && !out.includes(x)) out.push(x)
+  return out
+}
+
+export function podiumOf(v: unknown): PodiumSpec | null {
+  if (!isObj(v)) return null
+  return {
+    size: v.size === 'mini' || v.size === 'wide' ? v.size : 'normal',
+    show: uniqueOf(v.show, isFact),
+    point: isFact(v.point) ? v.point : null,
+    buttons: uniqueOf(v.buttons, isButtonId),
+  }
+}
+
+// Bảng: tiêu đề ≤ 60 ký tự, tối đa 5 dòng × 90 ký tự, SVG ≤ 16 KB đã lọc sạch (không sạch thì bỏ hình, giữ chữ).
+export function boardOf(v: unknown): BoardSpec | null {
+  if (!isObj(v)) return null
+  const title = cutStr(nonEmpty(v.title) ?? '', 60)
+  const lines = Array.isArray(v.lines) ? v.lines.map(nonEmpty).filter((x): x is string => !!x).slice(0, 5).map(x => cutStr(x, 90)) : []
+  const svg = v.svg == null ? null : sanitizeSvg(v.svg)
+  return title || lines.length || svg ? { title, lines, svg } : null
+}
+
+// Lựa chọn: 2–5 nhãn ≤ 40 ký tự; hạn mặc định chỉ có khi giáo viên ghi (câu đố/trò chơi: 60 giây, xét lúc chạy).
+export function choicesOf(v: unknown): ChoicesSpec | null {
+  if (!isObj(v) || !Array.isArray(v.options)) return null
+  const options: ChoicesSpec['options'] = []
+  for (const o of v.options) {
+    if (!isObj(o)) continue
+    const label = nonEmpty(o.label)
+    if (!label) continue
+    const send = nonEmpty(o.send)
+    options.push({ label: cutStr(label, 40), ...(send ? { send: cutStr(send, 500) } : {}) })
+    if (options.length >= 5) break
+  }
+  if (options.length < 2) return null
+  const def = typeof v.default === 'number' && Number.isInteger(v.default) && v.default >= 0 && v.default < options.length ? v.default : 0
+  const t = typeof v.timeout_s === 'number' && Number.isFinite(v.timeout_s) && v.timeout_s > 0 ? Math.min(900, Math.max(5, Math.round(v.timeout_s))) : null
+  return { id: cutStr((nonEmpty(v.id) ?? 'chon').replace(/\s+/g, '-'), 40), prompt: cutStr(nonEmpty(v.prompt) ?? '', 120), options, default: def, timeout_s: t }
+}
+
+// Nhãn chế độ quyền ở thanh dưới (SessionMode): bỏ nhãn không phải quyền (focus, memory paused).
+export function permissionLabel(modes: readonly string[]): string {
+  const c = (Array.isArray(modes) ? modes : []).filter((m): m is string => typeof m === 'string').map(m => m.replace(/\s+/g, ' ').trim()).filter(m => m && !/focus|memory|paused/i.test(m))
+  const pick = c.find(m => /bypass|auto|plan|accept|manual|ask|default|permission|edit/i.test(m)) ?? c[0] ?? ''
+  return pick.length > 40 ? pick.slice(0, 39) + '…' : pick
+}
+export const isBypass = (label: string) => /bypass/i.test(label)
+
+// Tên model như thanh dưới hiển thị: claude-opus-5-5 → Opus 5.5.
+export function modelLabel(m: string): string {
+  const x = /claude-([a-z]+)-(\d+)(?:-(\d{1,2})(?!\d))?/i.exec(m)
+  if (!x) return m
+  const name = (x[1] ?? '').charAt(0).toUpperCase() + (x[1] ?? '').slice(1)
+  return `${name} ${x[2]}${x[3] ? `.${x[3]}` : ''}`
 }
 
 // Ngày theo Vientiane (UTC+7): YYYY-MM-DD.
@@ -342,14 +429,40 @@ export function trackActivity(prev: ActivityTrack | null, a: LessonActivity | nu
   return { key, fromEl: el - back }
 }
 
-async function loadState($: EngineInterface): Promise<ClassState | null> {
+// Chữ thô của state.json (null = chưa có file hoặc không đọc được).
+async function readRaw($: EngineInterface): Promise<string | null> {
   try {
     if (!(await $.fs.exists(STATE))) return null
     const raw = await $.fs.read(STATE)
-    return parseState(JSON.parse(typeof raw === 'string' ? raw : ''))
+    return typeof raw === 'string' ? raw : null
   } catch {
     return null
   }
+}
+
+function parseRaw(raw: string | null): ClassState | null {
+  if (raw == null) return null
+  try {
+    return parseState(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+// Bản đọc được gần nhất: giáo viên đang ghi dở file (JSON cụt) thì giữ bản cũ, không tụt về "Phần 0".
+let goodState: ClassState | null = null
+// Chữ state.json lần nạp gần nhất (undefined = chưa nạp lần nào); đồng hồ 1,5 giây so với nó.
+let lastRaw: string | null | undefined
+
+async function loadState($: EngineInterface): Promise<ClassState | null> {
+  const raw = await readRaw($)
+  if (raw == null) {
+    goodState = null
+    return null
+  }
+  const s = parseRaw(raw)
+  if (s) goodState = s
+  return s ?? goodState
 }
 
 // ── v0.6: nạp lại state sau mỗi lần giáo viên cập nhật; huy hiệu mới chép vào huy-hieu.json ──
@@ -374,15 +487,25 @@ async function readBadgeFile($: EngineInterface): Promise<BadgeEntry[]> {
 
 async function syncBody($: EngineInterface) {
   if (!(await read($, isClassroom))) return
-  const s = await loadState($)
+  const raw = await readRaw($)
+  const parsed = parseRaw(raw)
+  if (parsed) goodState = parsed
+  else if (raw == null) goodState = null
+  const s = parsed ?? goodState
+  if (raw !== lastRaw) {
+    lastRaw = raw
+    await update($, stateVer, n => n + 1)
+  }
   if (s?.language && s.language !== curLang) {
     curLang = s.language
     try {
       await $.store.set('language', curLang)
     } catch {}
   }
-  const seg = s?.segment ? (SEGMENTS_BY_ID[s.segment.id] ? { ...SEGMENTS_BY_ID[s.segment.id]!, title: s.segment.title || SEGMENTS_BY_ID[s.segment.id]!.title, drive: s.segment.drive } : { id: s.segment.id, title: s.segment.title, drive: s.segment.drive }) : null
-  const live: LiveState = { activity: s?.activity ?? null, challenge: s?.challenge ?? null, giftBox: s?.gift_box === true, segment: seg }
+  // Có state mà thiếu segment: giữ phần đang hiển thị (không tụt về Phần 0). Không có state: chưa có phần nào.
+  const prevLive = await read($, liveAtom)
+  const seg = s?.segment ? (SEGMENTS_BY_ID[s.segment.id] ? { ...SEGMENTS_BY_ID[s.segment.id]!, title: s.segment.title || SEGMENTS_BY_ID[s.segment.id]!.title, drive: s.segment.drive } : { id: s.segment.id, title: s.segment.title, drive: s.segment.drive }) : s ? prevLive.segment : null
+  const live: LiveState = { activity: s?.activity ?? null, challenge: s?.challenge ?? null, giftBox: s?.gift_box === true, segment: seg, choices: s?.choices ?? null }
   await update($, liveAtom, () => live)
   if (!live.giftBox) await update($, giftAtom, g => (g === 'closed' ? g : 'closed'))
 
@@ -476,6 +599,15 @@ export function describeTool(tool: string, input: unknown, lang: Lang = curLang)
   return null
 }
 
+// Thao tác công cụ có đụng tới sổ lớp (.lop-hoc/): lời giáo viên ghi trạng thái, không phải việc của học viên.
+export function touchesLedger(input: unknown): boolean {
+  try {
+    return typeof input === 'string' ? input.includes('.lop-hoc') : JSON.stringify(input ?? null).includes('.lop-hoc')
+  } catch {
+    return false
+  }
+}
+
 // Lựa chọn mặc định của một câu hỏi gốc: phương án ghi "mặc định"/"đề xuất", nếu không thì phương án đầu.
 export function defaultLabel(questions: unknown): string {
   const q = Array.isArray(questions) ? questions[0] : undefined
@@ -502,6 +634,14 @@ let view: { teacher: TeacherKind; seg: PlanSegment | null } = { teacher: 'co', s
 function shownSeg(l: Lesson | null, live: LiveState): PlanSegment | null {
   if (!l || l.over) return null
   return live.segment ?? S0
+}
+
+// Giáo viên và phần học đang hiển thị, tính lại từ trạng thái hiện tại (không dựa vào bộ nhớ đệm của nhịp trước).
+async function classView($: EngineInterface): Promise<typeof view> {
+  const lesson = await read($, lessonAtom)
+  const live = await read($, liveAtom)
+  view = { teacher: lesson?.teacher ?? view.teacher, seg: shownSeg(lesson, live) }
+  return view
 }
 
 async function refreshUsage($: EngineInterface) {
@@ -674,6 +814,12 @@ async function tickBody($: EngineInterface) {
     }
   }
 
+  // A2. Hộp câu hỏi gốc (không phải câu đố/trò chơi) mở quá 90 giây: báo giáo viên một lần để giúp mà không đóng hộp.
+  if (ask && !ask.handled && !timed && !l.pause && !(ch && ch.leftMs > 0) && now - ask.openedAt >= LONG_BOX_MS) {
+    await sendKeyedCue($, `long-${ask.id}`, `Hộp chờ lâu · ${ask.label}`, now, {})
+    l = (await read($, lessonAtom)) ?? l
+  }
+
   // B. Tín hiệu do mod gửi: chỉ khi giáo viên rảnh, ô nhập trống, lớp không xin phép/chờ, học viên đã tác động
   //    từ tín hiệu trước (lớp không giảng vào phòng trống), cách tín hiệu trước ≥ 20 giây.
   if (l.pause || working || ask || box || l.quiet || now - l.lastCueAt < CUE_GAP_MS) return
@@ -686,13 +832,6 @@ async function tickBody($: EngineInterface) {
   // Hết giờ thử thách (một lần, bỏ thử thách cũ quá 10 phút).
   if (live.challenge && ch && ch.leftMs <= 0) {
     if (await sendKeyedCue($, `ch-${challengeKey(live.challenge)}`, `Hết giờ thử thách · ${live.challenge.title}`, now, {})) return
-  }
-  // Phần 0 / 1 đứng yên quá lâu: nhắc giáo viên kiểm lại phần học (một lần mỗi phần).
-  segTrack = trackSegment(segTrack, live.segment?.id ?? S0.id, el)
-  const limit = segTrack ? SEGMENT_CHECK_MIN[segTrack.id] : undefined
-  if (segTrack && limit != null && el - segTrack.fromEl > limit * MIN) {
-    const n = Math.floor((el - segTrack.fromEl) / MIN)
-    if (await sendKeyedCue($, `segchk-${segTrack.id}`, `Kiểm phần học · phần ${segTrack.id} · ${n} phút`, now, {})) return
   }
   // Cùng một kiểu tương tác quá 4 phút → nhắc giáo viên đổi kiểu (một lần). Lúc làm việc thật thì không nhắc.
   if (live.activity && switchableKind(live.activity.kind) && track && el - track.fromEl > ACTIVITY_MS) {
@@ -725,6 +864,92 @@ async function secondTick($: EngineInterface) {
     }
     await update($, nowAtom, () => now)
   } catch {}
+}
+
+// ── v0.8: nhịp 1,5 giây — nạp lại state.json khi chữ đổi, báo đổi chế độ quyền, hẹn giờ lựa chọn ──
+let watching = false
+// Nhãn ở thanh dưới ô nhập mới nhất do SessionMode đưa tới (mod chỉ đọc).
+let curModes: string[] = []
+// Nhãn chế độ quyền đã báo giáo viên (null = chưa biết, lần đọc kế tiếp chỉ ghi nhớ, không báo).
+let modeSent: string | null = null
+// Lúc bục bắt đầu chờ học viên bấm lựa chọn hiện tại (không tính lúc giáo viên đang giảng).
+let choiceSince: { key: string; at: number } | null = null
+const choiceKey = (c: ChoicesSpec, ver: number) => `${c.id}@${ver}`
+
+async function watchTick($: EngineInterface) {
+  if (watching) return
+  watching = true
+  try {
+    await watchBody($)
+  } catch {
+    // Một nhịp lỗi không làm dừng đồng hồ.
+  } finally {
+    watching = false
+  }
+}
+
+async function watchBody($: EngineInterface) {
+  if (!(await read($, isClassroom))) return
+  const raw = await readRaw($)
+  if (raw !== lastRaw) {
+    await syncState($)
+    await update($, rev, n => n + 1)
+  }
+  const cur = await read($, modesAtom)
+  if (cur.length !== curModes.length || cur.some((m, i) => m !== curModes[i])) await update($, modesAtom, () => curModes)
+  await modeTick($)
+  await choiceTick($)
+}
+
+// Học viên đổi chế độ quyền ở thanh dưới: báo giáo viên một lần mỗi lần đổi (chờ khi đang xin phép).
+async function modeTick($: EngineInterface) {
+  const l = await read($, lessonAtom)
+  if (!l || l.over) return
+  const label = permissionLabel(curModes)
+  if (modeSent === null) {
+    modeSent = label
+    return
+  }
+  if (label === modeSent || l.pause) return
+  modeSent = label
+  await sendPressCue($, `Chế độ quyền · ${label || 'mặc định'}`)
+}
+
+// Lựa chọn trên bục hết hạn mà học viên chưa bấm: báo giáo viên một lần, tô đậm lựa chọn mặc định. Mod không bấm thay.
+async function choiceTick($: EngineInterface) {
+  const l = await read($, lessonAtom)
+  const live = await read($, liveAtom)
+  const c = live.choices
+  if (!l || l.over || l.pause || !c) {
+    choiceSince = null
+    return
+  }
+  const key = choiceKey(c, await read($, stateVer))
+  if ((await read($, choiceDone)) === key || (await read($, choiceExpired)) === key) return
+  const limit = c.timeout_s ?? (timedKind(live.activity?.kind) ? 60 : null)
+  if (limit == null) return
+  const now = await $.clock.now()
+  if (await read($, workingAtom)) {
+    choiceSince = null
+    return
+  }
+  if (!choiceSince || choiceSince.key !== key) choiceSince = { key, at: now }
+  let box = ''
+  try {
+    box = (await $.prompt.read()).text.trim()
+  } catch {}
+  if (box || now - choiceSince.at < limit * 1000) return
+  await update($, choiceExpired, () => key)
+  await sendKeyedCue($, `choice-${key}`, `Hết hạn chọn · ${c.id}`, now, {})
+}
+
+// Học viên đã bấm một lựa chọn (hoặc tự gõ câu trả lời): ẩn nhóm lựa chọn này đến khi state.json được ghi lại.
+async function markChoicesDone($: EngineInterface) {
+  const c = (await read($, liveAtom)).choices
+  if (c) {
+    const key = choiceKey(c, await read($, stateVer))
+    await update($, choiceDone, () => key)
+  }
 }
 
 // Đồng hồ buổi học cũng lưu vào $.store (theo thư mục lớp) để mở lại app vẫn học tiếp được.
@@ -808,11 +1033,19 @@ async function startLesson($: EngineInterface) {
   await update($, activityTrack, () => null)
   await update($, giftAtom, () => 'closed')
   view = { teacher, seg: S0 }
-  segTrack = null
+  choiceSince = null
+  modeSent = permissionLabel(curModes)
   try {
     await $.store.set('teacher', teacher)
   } catch {}
-  await submitCue($, `Mở lớp · giáo viên ${teacher}${usagePart(usage)}`)
+  const effort = await read($, effortAtom)
+  const open = [
+    `giáo viên ${teacher}`,
+    modeSent ? `chế độ ${modeSent}` : '',
+    usage?.model ? `model ${usage.model}` : '',
+    effort ? `effort ${effort}` : '',
+  ].filter(Boolean)
+  await submitCue($, `Mở lớp · ${open.join(' · ')}${usagePart(usage)}`)
 }
 
 async function loadPrefs($: EngineInterface) {
@@ -844,9 +1077,17 @@ export const register: Register = on => {
         await $.command.register({ name: 'lop-hoc', description: 'Mở bảng tóm tắt Lớp học NNC bên cạnh' })
       } catch {}
       $.clock.every(TICK_MS, () => void tick($))
+      $.clock.every(WATCH_MS, () => void watchTick($))
     }
     return next(e)
   })
+
+  // Chế độ quyền ở thanh dưới ô nhập: chỉ đọc, giữ nguyên thanh gốc (next(e) không đổi).
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    // Vẽ là thuần (không ghi state): chỉ nhớ nhãn vào biến của mod; nhịp 1,5 giây chép sang atom và báo đổi.
+    if (Array.isArray(e.props.modes)) curModes = e.props.modes.filter((m): m is string => typeof m === 'string')
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   // /clear, /resume, /branch xoá $.state: nhận lại lớp học và lựa chọn đã lưu.
   on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
@@ -867,6 +1108,8 @@ export const register: Register = on => {
     if (e.text.trimStart().startsWith(CUE.trim())) return next(e)
     const was = await resume($)
     await touch($)
+    // Học viên tự gõ câu trả lời: nhóm lựa chọn trên bục coi như đã trả lời (không hết hạn).
+    await markChoicesDone($)
     if (was) return next({ ...e, context: [...(e.context ?? []), `${CUE}Học viên trở lại`] })
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -952,7 +1195,10 @@ export const register: Register = on => {
     const now = (await read($, nowAtom)) || (lesson?.startedAt ?? 0)
     const mode = await read($, modeAtom)
     const usage = await read($, usageAtom)
-    const line = claudeLine(usage, await read($, effortAtom))
+    const effort = await read($, effortAtom)
+    const line = claudeLine(usage, effort)
+    await read($, modesAtom)
+    const modeLabel = permissionLabel(curModes)
     const s = await loadState($)
     const running = !!lesson && !lesson.over
     const kind: TeacherKind = lesson?.teacher ?? (await read($, teacherPick))
@@ -967,11 +1213,17 @@ export const register: Register = on => {
     const emotion: Emotion = (await read($, cheerAtom)) ? 'hi' : (s?.teacher?.emotion ?? 'giang')
     const presence: TeacherPresence = !running ? 'wait' : lesson.pause === 'cho' ? 'away' : lesson.pause ? 'wait' : 'present'
 
+    // Cỡ bục do giáo viên chọn (mini · normal · wide); chưa vào lớp thì cỡ rộng như cũ.
+    const spec: PodiumSpec = s?.podium ?? { size: 'normal', show: [], point: null, buttons: [] }
+    const size = running ? spec.size : 'wide'
+    const dims = AVATAR_DIMS[size]
     let podium = null
     if (isDesktop) {
       const { Svg } = $.ui.resolve(e)
-      podium = <Svg key="podium" source={teacherPodiumSvg(kind, running ? emotion : 'hi', presence)} alt={curLang === 'lo' ? `${T} ຢູ່ກະດານ` : `${T} trên bục giảng`} width={140} height={88} isInteractive />
+      podium = <Svg key="podium" source={teacherPodiumSvg(kind, running ? emotion : 'hi', presence)} alt={curLang === 'lo' ? `${T} ຢູ່ກະດານ` : `${T} trên bục giảng`} width={dims.w} height={dims.h} isInteractive />
     }
+    // Chế độ Bypass: nhãn cảnh báo luôn thấy được trên bục.
+    const bypassChip = isBypass(modeLabel) ? <Text key="bypass" bold color={INK} backgroundColor={ALERT}>{L().bypassChip(modeLabel)}</Text> : null
     const board = (children: RenderChildren[], gap = 1) => (
       <Box flexDirection="row" gap={2} alignItems="center" backgroundColor={BOARD} paddingX={1} paddingY={1}>
         {podium}
@@ -989,6 +1241,7 @@ export const register: Register = on => {
       const tp = await read($, teacherPick)
       return board([
         <Text bold color={CHALK_Y}>{S.title}</Text>,
+        bypassChip,
         lesson?.over === 'xin-nghi' ? <Text color={CHALK}>{S.leftSaved(t)}</Text> : null,
         <Text color={CHALK}>{S.waiting}</Text>,
         // Chưa biết học viên dùng tiếng nào: thêm một dòng bằng thứ tiếng còn lại.
@@ -1236,6 +1489,8 @@ export const register: Register = on => {
     )
     const headRow = <Text bold={!working} color={working ? CHALK_DIM : CHALK_Y}>{headline}</Text>
     const askRow = ask && !ask.handled && timedAsk ? <Text color={CHALK}>{S.pickFor(T, mmss(ANSWER_MS - (now - ask.openedAt)))}</Text> : null
+    // Hộp câu hỏi gốc (không phải câu đố/trò chơi) mở từ 90 giây: bục tự nhắc chọn dòng đầu, cho tới khi hộp đóng.
+    const waitHint = ask && !ask.handled && !timedAsk && now - ask.openedAt >= LONG_BOX_MS ? <Text key="wait-hint" bold color={INK} backgroundColor={CHALK_Y}>{` ${S.waitHint(t)} `}</Text> : null
     const helpRow = s?.help_needed ? (
       <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
         <Text bold color={INK} backgroundColor={ALERT}>{S.helpNeeded}</Text>
@@ -1253,52 +1508,173 @@ export const register: Register = on => {
         ))}
       </Box>
     ) : null
-    const infoRow = panel === 'claude' ? null : claudeRow
+    // ── v0.8: sân khấu do giáo viên dựng ─────────────────────────────────────
+    const isMini = size === 'mini'
+    const ver = await read($, stateVer)
+    // Nhãn thông tin sống: ẩn theo mặc định; chỉ hiện cái giáo viên ghi trong show, và cái đang chỉ (point).
+    const pointed = spec.point
+    const factIds = [...spec.show, ...(pointed && !spec.show.includes(pointed) ? [pointed] : [])]
+    const pctOf = (id: FactId | null): number | null =>
+      id === 'usage5' ? (usage?.five?.percentUsed ?? null) : id === 'usageWeek' ? (usage?.week?.percentUsed ?? null) : (usage?.context ?? null)
+    const factValue = (id: FactId): string => {
+      if (id === 'mode') return modeLabel
+      if (id === 'effort') return cap(effort)
+      if (id === 'model') return usage?.model ? modelLabel(usage.model) : ''
+      const p = pctOf(id)
+      return p == null ? '' : `${Math.round(p)}%`
+    }
+    const factChips: RenderChildren[] = []
+    for (const id of factIds) {
+      const v = factValue(id)
+      if (id === 'mode' && !v) continue
+      if (id === pointed) factChips.push(<Text key={`fact-${id}`} bold color={INK} backgroundColor={CHALK_Y}>{` ▼ ${S.facts[id]} ${v || '…'} `}</Text>)
+      else if (v) factChips.push(<Text key={`fact-${id}`} color={CHALK}>{`${S.facts[id]} ${v}`}</Text>)
+    }
+    const factsRow = factChips.length && panel !== 'claude' ? (
+      <Box flexDirection="row" gap={2} flexWrap="wrap">
+        {factChips}
+      </Box>
+    ) : null
 
-    // Dải chật (ước số dòng vượt chỗ) mà có phần v0.6: thu khoảng cách, bỏ dòng phụ, xếp theo thứ tự ưu tiên
-    // nút một chạm → Lượt của bạn → thử thách/sao/huy hiệu → các nút khác.
-    const hasSix = !!(oneTouch || extrasRow || giftRow)
-    const lines = [header, oneTouch, headRow, askRow, extrasRow, helpRow, destRow, partsRow, ...panelRows, infoRow, giftRow].filter(x => x != null).length + 2
-    const maxRows = typeof e.props.maxRows === 'number' && e.props.maxRows > 0 ? e.props.maxRows : 0
-    const crowded = hasSix && maxRows > 0 && 2 + lines * 2 - 1 > maxRows
-    const top: RenderChildren[] = crowded
-      ? [oneTouch, headRow, askRow, extrasRow, header, helpRow, partsRow, ...panelRows, giftRow]
-      : [header, oneTouch, headRow, askRow, extrasRow, helpRow, destRow, partsRow, ...panelRows, infoRow, giftRow]
+    // Chỉ vào thanh dưới ô nhập: hình thanh với vùng được tô vàng và mũi tên (desktop), hoặc một dòng chữ (terminal).
+    let pointRow: RenderChildren = null
+    if (pointed) {
+      const areaText = factValue(pointed)
+      const barOpts = { mode: modeLabel, model: usage?.model ? modelLabel(usage.model) : '', effort: cap(effort), percent: pctOf(pointed === 'mode' || pointed === 'model' || pointed === 'effort' ? 'context' : pointed), point: pointed }
+      let mock: RenderChildren
+      if (isDesktop) {
+        const { Svg } = $.ui.resolve(e)
+        const bd = BAR_DIMS[size]
+        mock = <Svg key="bar-mock" source={bottomBarSvg(barOpts)} alt={S.barAlt(`${S.facts[pointed]}${areaText ? ` ${areaText}` : ''}`)} width={bd.w} height={bd.h} />
+      } else {
+        const seg = (id: FactId, text: string) => (id === pointed ? <Text key={`bar-${id}`} bold color={INK} backgroundColor={CHALK_Y}>{`▼ ${text}`}</Text> : <Text key={`bar-${id}`} color={CHALK}>{text}</Text>)
+        mock = (
+          <Box key="bar-mock" flexDirection="row" gap={2}>
+            {seg('mode', modeLabel || '—')}
+            {seg('model', barOpts.model || '—')}
+            {seg('effort', barOpts.effort || '—')}
+            {seg(pointed === 'usage5' || pointed === 'usageWeek' ? pointed : 'context', barOpts.percent != null ? `◔ ${Math.round(barOpts.percent)}%` : '◔')}
+          </Box>
+        )
+      }
+      pointRow = (
+        <Box flexDirection="column">
+          {mock}
+          <Text bold color={CHALK_Y}>{`▲ ${S.barNote}`}</Text>
+        </Box>
+      )
+    }
 
-    return board([
-      ...top,
-      <Box flexDirection="row" gap={1} flexWrap="wrap">
+    // Bảng nhỏ (slide): tiêu đề, ≤ 5 dòng, hình SVG đã lọc (terminal chỉ có chữ).
+    const bd = s?.board ?? null
+    let boardRow: RenderChildren = null
+    if (bd) {
+      let pic: RenderChildren = null
+      if (isDesktop && bd.svg) {
+        const { Svg } = $.ui.resolve(e)
+        pic = <Svg key="board-svg" source={bd.svg} alt={S.boardAlt(bd.title || '')} {...svgBox(bd.svg, BOARD_W[size])} />
+      }
+      boardRow = (
+        <Box flexDirection="column" borderStyle="round" borderColor={CHALK_Y} paddingX={1}>
+          {bd.title ? <Text bold color={CHALK_Y}>{bd.title}</Text> : null}
+          {pic}
+          {bd.lines.map((x, i) => (
+            <Text key={`bl-${i}`} color={CHALK}>{x}</Text>
+          ))}
+        </Box>
+      )
+    }
+
+    // Lựa chọn: nút lớn, không chặn ô nhập; bấm gửi một lần rồi ẩn đến khi state.json được ghi lại.
+    const cs = live.choices
+    const csKey = cs ? choiceKey(cs, ver) : ''
+    const csExpired = !!cs && (await read($, choiceExpired)) === csKey
+    const choicesRow = cs && !working && (await read($, choiceDone)) !== csKey ? (
+      <Box flexDirection="column" gap={1}>
+        {cs.prompt ? <Text bold color={CHALK_Y}>{cs.prompt}</Text> : null}
+        <Box flexDirection="row" gap={2} flexWrap="wrap">
+          {cs.options.map((o, i) => {
+            const star = csExpired && i === cs.default
+            const label = star ? `★ ${o.label}` : o.label
+            const onPress = async () => {
+              await markChoicesDone($)
+              await touch($)
+              await $.prompt.submit({ text: o.send ?? `${TAG}Chọn · ${cs.id} · ${o.label}`, asUser: true })
+            }
+            return star ? <Button key={`choice-${i}`} label={label} variant="primary" onPress={onPress} /> : <Button key={`choice-${i}`} label={label} onPress={onPress} />
+          })}
+        </Box>
+        {csExpired ? <Text color={CHALK_DIM}>{S.choiceExpired(t)}</Text> : null}
+      </Box>
+    ) : null
+
+    // Nút phụ: các nút giáo viên chọn (podium.buttons); Giơ tay · Xin phép · Xin nghỉ luôn với tới được qua nhóm "⋯".
+    const btn: Record<PodiumButtonId, () => RenderChildren> = {
+      'raise-hand': () => (
         <Button key="gio-tay" label={S.raiseHand} onPress={async () => {
           await update($, modeAtom, () => 'gio-tay')
           await sendPressCue($, 'Giơ tay')
         }} />
+      ),
+      'ask-leave': () => (
         <Button key="xin-phep" label={S.askLeave} onPress={async () => {
           await touch($)
           await update($, modeAtom, () => 'xin-phep')
         }} />
-        {xinNghi}
-      </Box>,
-      working ? null : (
-        <Box flexDirection="row" gap={1} flexWrap="wrap">
-          <Button key="cham" label={S.slower} onPress={() => sendPressCue($, 'Nhịp: chậm lại')} />
-          <Button key="nhanh" label={S.faster} onPress={() => sendPressCue($, 'Nhịp: nhanh hơn')} />
-          <Button key="goi-y" label={S.hint(T)} onPress={async () => {
-            await touch($)
-            // Tín hiệu cho giáo viên giữ tiếng Việt để Skill nhận ra, dù nhãn nút theo tiếng học viên.
-            await $.prompt.submit({ text: `${TAG}${STR.vi.hint(STR.vi.teacherSelf(kind))}`, asUser: true })
-          }} />
-          {isPractice ? <Button key="b-form" label={S.delegate} onPress={async () => { await touch($); await update($, modeAtom, () => 'form') }} /> : null}
+      ),
+      leave: () => xinNghi,
+      slower: () => <Button key="cham" label={S.slower} onPress={() => sendPressCue($, 'Nhịp: chậm lại')} />,
+      faster: () => <Button key="nhanh" label={S.faster} onPress={() => sendPressCue($, 'Nhịp: nhanh hơn')} />,
+      hint: () => (
+        <Button key="goi-y" label={S.hint(T)} onPress={async () => {
+          await touch($)
+          // Tín hiệu cho giáo viên giữ tiếng Việt để Skill nhận ra, dù nhãn nút theo tiếng học viên.
+          await $.prompt.submit({ text: `${TAG}${STR.vi.hint(STR.vi.teacherSelf(kind))}`, asUser: true })
+        }} />
+      ),
+      'result-sheet': () => (
+        <Button key="phieu" label={S.resultSheet} onPress={async () => {
+          await touch($)
+          await $.prompt.submit({ text: `${TAG}Xuất phiếu kết quả`, asUser: true })
+        }} />
+      ),
+      delegate: () => (
+        <Box key="delegate" flexDirection="row" gap={1}>
+          <Button key="b-form" label={S.delegate} onPress={async () => { await touch($); await update($, modeAtom, () => 'form') }} />
           {isPractice ? <Button key="chua-dung" label={S.notRight(t)} onPress={async () => {
             await touch($)
             await $.prompt.fill({ text: S.notRightFill(t), mode: 'replace' })
           }} /> : null}
-          <Button key="phieu" label={S.resultSheet} onPress={async () => {
-            await touch($)
-            await $.prompt.submit({ text: `${TAG}Xuất phiếu kết quả`, asUser: true })
-          }} />
         </Box>
       ),
-    ], crowded ? 0 : 1)
+    }
+    const ALWAYS: PodiumButtonId[] = ['raise-hand', 'ask-leave', 'leave']
+    const chosen = spec.buttons.filter(id => !working || ALWAYS.includes(id))
+    const hidden = ALWAYS.filter(id => !spec.buttons.includes(id))
+    const open = await read($, moreOpen)
+    const buttonsRow = chosen.length || hidden.length ? (
+      <Box flexDirection="row" gap={1} flexWrap="wrap">
+        {chosen.map(id => btn[id]())}
+        {hidden.length && open ? hidden.map(id => btn[id]()) : null}
+        {hidden.length ? <Button key="more" label={open ? S.moreClose : S.more} onPress={() => update($, moreOpen, v => !v)} /> : null}
+      </Box>
+    ) : null
+
+    const infoRow = isMini ? null : factsRow
+
+    // Dải chật (ước số dòng vượt chỗ) mà có phần v0.6: thu khoảng cách, bỏ dòng phụ, xếp theo thứ tự ưu tiên
+    // nút một chạm → Lượt của bạn → thử thách/sao/huy hiệu → các nút khác. Nhãn Bypass luôn ở đầu.
+    const hasSix = !!(oneTouch || choicesRow || extrasRow || giftRow)
+    const miniDest = isMini ? null : destRow
+    const miniParts = isMini ? null : partsRow
+    const lines = [bypassChip, header, oneTouch, choicesRow, headRow, askRow, waitHint, extrasRow, helpRow, miniDest, miniParts, ...panelRows, boardRow, pointRow, infoRow, giftRow].filter(x => x != null).length + 2
+    const maxRows = typeof e.props.maxRows === 'number' && e.props.maxRows > 0 ? e.props.maxRows : 0
+    const crowded = hasSix && maxRows > 0 && 2 + lines * 2 - 1 > maxRows
+    const top: RenderChildren[] = crowded
+      ? [bypassChip, waitHint, oneTouch, choicesRow, headRow, askRow, extrasRow, header, helpRow, miniParts, ...panelRows, boardRow, pointRow, giftRow]
+      : [bypassChip, header, headRow, askRow, waitHint, oneTouch, choicesRow, boardRow, pointRow, infoRow, extrasRow, helpRow, miniDest, miniParts, ...panelRows, giftRow]
+
+    return board([...top, buttonsRow], crowded ? 0 : 1)
   })
 
   // ── Hộp câu hỏi gốc: thêm một dòng lớp học phía trên, giữ nguyên hộp ─────────
@@ -1307,10 +1683,11 @@ export const register: Register = on => {
     const theirs = await next(e)
     const { Box, Text } = $.ui.resolve(e)
     if (!askDone.has(e.requestId) && askSeen?.id !== e.requestId) askSeen = { id: e.requestId, label: defaultLabel(e.props.questions) }
-    const T = teacherName(view.teacher)
+    const v = await classView($)
+    const T = teacherName(v.teacher)
     const S = L()
-    const segTitle = view.seg ? (curLang === 'vi' ? view.seg.title : (S.segments[view.seg.id] ?? view.seg.title)) : ''
-    const head = view.seg ? `${S.askHead(T)} · ${S.part} ${view.seg.id} · ${segTitle}` : S.askHead(T)
+    const segTitle = v.seg ? (curLang === 'vi' ? v.seg.title : (S.segments[v.seg.id] ?? v.seg.title)) : ''
+    const head = v.seg ? `${S.askHead(T)} · ${S.part} ${v.seg.id} · ${segTitle}` : S.askHead(T)
     return (
       <Box flexDirection="column">
         <Text bold color="#006D11">{head}</Text>
@@ -1325,18 +1702,23 @@ export const register: Register = on => {
     const theirs = await next(e)
     const { Box, Text } = $.ui.resolve(e)
     const first = e.props.isFirstOfReply
-    const T = teacherName(view.teacher)
+    const v = await classView($)
+    const T = teacherName(v.teacher)
+    // Tiêu đề phần chỉ chốt khi lượt giảng đã xong (giáo viên ghi phần mới ở cuối lượt); đang giảng thì tính lại,
+    // và vẽ lại khi lớp đổi (rev) để lời giảng không dính "Phần 0" cũ.
     let title = headerById.get(e.requestId)
     if (!title) {
+      const working = await read($, workingAtom)
+      await read($, rev)
       const S = L()
-      title = view.seg ? ` ${T} · ${S.part} ${view.seg.id} · ${curLang === 'vi' ? view.seg.title : (S.segments[view.seg.id] ?? view.seg.title)} ` : ` ${T} `
-      headerById.set(e.requestId, title)
+      title = v.seg ? ` ${T} · ${S.part} ${v.seg.id} · ${curLang === 'vi' ? v.seg.title : (S.segments[v.seg.id] ?? v.seg.title)} ` : ` ${T} `
+      if (!working) headerById.set(e.requestId, title)
     }
-    const color = DRIVE_COLOR[view.seg?.drive ?? 'D1']
+    const color = DRIVE_COLOR[v.seg?.drive ?? 'D1']
     let avatar = <Box width={e.surface === 'desktop' ? 5 : 2} />
     if (first && e.surface === 'desktop') {
       const { Svg } = $.ui.resolve(e)
-      avatar = <Svg key="avatar" source={teacherAvatarSvg(view.teacher)} alt={T} width={34} height={34} />
+      avatar = <Svg key="avatar" source={teacherAvatarSvg(v.teacher)} alt={T} width={34} height={34} />
     }
     return (
       <Box flexDirection="row" gap={1}>
@@ -1377,6 +1759,11 @@ export const register: Register = on => {
   // ── Dòng công cụ: thêm một câu dễ hiểu, giữ chi tiết gốc bên dưới ───────────
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     if (!(await read($, isClassroom))) return next(e)
+    // Giáo viên ghi sổ lớp (.lop-hoc/): một dòng mờ thay cho dòng công cụ. Công cụ khác giữ nguyên.
+    if (touchesLedger(e.props.input)) {
+      const { Text } = $.ui.resolve(e)
+      return <Text dimColor>{L().ledger(teacherName(view.teacher))}</Text>
+    }
     const plain = describeTool(e.props.tool, e.props.input)
     if (!plain) return next(e)
     const theirs = await next(e)
@@ -1388,6 +1775,20 @@ export const register: Register = on => {
       </Box>
     )
   })
+
+  // Nhóm dòng công cụ: toàn việc ghi sổ lớp thì một dòng mờ; lẫn việc khác thì mở rộng nhóm để từng dòng
+  // đi qua ToolUse (dòng ghi sổ ẩn, dòng khác giữ nguyên).
+  on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    if (!(await read($, isClassroom))) return next(e)
+    const calls = Array.isArray(e.props.calls) ? e.props.calls : []
+    const hits = calls.filter(c => touchesLedger(c.input)).length
+    if (!hits) return next(e)
+    if (hits === calls.length) {
+      const { Text } = $.ui.resolve(e)
+      return <Text dimColor>{L().ledger(teacherName(view.teacher))}</Text>
+    }
+    return next({ ...e, props: { ...e.props, isExpanded: true } })
+  }).catch(($, e, next) => next(e))
 
   // ── Spinner tiếng Việt + mẹo đổi theo lượt, giữ hoạt ảnh gốc ───────────────
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {

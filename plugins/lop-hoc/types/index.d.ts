@@ -1,5 +1,6 @@
-// Lớp học NNC v0.7 — kiểu dữ liệu của mod lop-hoc.
-// Hợp đồng: docs/oser-r2/LOP-HOC-V05-CONTRACT.md (§3 state lop-hoc/2, §8 bộ năng lực giáo viên, §9 lớp luôn mở v0.7).
+// Lớp học NNC v0.8 — kiểu dữ liệu của mod lop-hoc.
+// Hợp đồng: docs/oser-r2/LOP-HOC-V05-CONTRACT.md (§3 state lop-hoc/2, §8 bộ năng lực giáo viên, §9 lớp luôn mở v0.7)
+// và docs/oser-r2/LOP-HOC-V08-THIET-KE.md (§2 podium · board · choices, giáo viên dựng sân khấu mỗi lượt).
 
 export type LessonStatus = 'active' | 'paused' | 'done'
 export type TeacherKindId = 'thay' | 'co'
@@ -20,6 +21,16 @@ export type LessonBadge = { id: string; label: string }
 // .lop-hoc/huy-hieu.json (mod ghi, §8.2).
 export type BadgeEntry = { id: string; label: string; date: string }
 export type BadgeFile = { schema: 'lop-hoc/huy-hieu-1'; badges: BadgeEntry[] }
+
+// v0.8 (thiết kế §2): sân khấu bục giảng do giáo viên dựng mỗi lượt. Mọi trường tuỳ chọn; mod đọc phòng thủ.
+export type FactId = 'mode' | 'effort' | 'model' | 'context' | 'usage5' | 'usageWeek'
+export type PodiumButtonId = 'raise-hand' | 'ask-leave' | 'leave' | 'slower' | 'faster' | 'hint' | 'result-sheet' | 'delegate'
+export type PodiumSize = 'mini' | 'normal' | 'wide'
+export type PodiumSpec = { size: PodiumSize; show: FactId[]; point: FactId | null; buttons: PodiumButtonId[] }
+// svg: đã lọc sạch (hoặc null khi bỏ).
+export type BoardSpec = { title: string; lines: string[]; svg: string | null }
+export type ChoiceOption = { label: string; send?: string }
+export type ChoicesSpec = { id: string; prompt: string; options: ChoiceOption[]; default: number; timeout_s: number | null }
 
 // .lop-hoc/state.json do giáo viên (Skill) ghi; mod chỉ đọc.
 export type LessonState = {
@@ -50,6 +61,10 @@ export type LessonState = {
   loops_done?: number
   // v0.7.2: tiếng của lớp — 'vi' tiếng Việt, 'lo' tiếng Lào (giáo viên ghi khi biết học viên dùng tiếng nào).
   language?: 'vi' | 'lo'
+  // v0.8: sân khấu bục giảng (kiểu đã đọc phòng thủ, không phải chữ thô giáo viên ghi).
+  podium?: PodiumSpec | null
+  board?: BoardSpec | null
+  choices?: ChoicesSpec | null
 }
 
 // Bản cũ v0.4 (lop-hoc/1) vẫn đọc được: stage 0–5 được đổi sang phần học.
@@ -99,7 +114,7 @@ export type UsageInfo = {
 }
 
 // Phần v0.6 mod cần giữa các lần vẽ (đọc lại state.json mới cập nhật).
-export type LiveState = { activity: LessonActivity | null; challenge: LessonChallenge | null; giftBox: boolean; segment: PlanSegment | null }
+export type LiveState = { activity: LessonActivity | null; challenge: LessonChallenge | null; giftBox: boolean; segment: PlanSegment | null; choices: ChoicesSpec | null }
 // Kiểu tương tác đang theo dõi: thời điểm bắt đầu tính theo giờ buổi học (không tính lúc nghỉ).
 export type ActivityTrack = { key: string; fromEl: number }
 // Hộp quà: chưa mở · đang mở (hình nắp bật) · đã mở (chờ giáo viên tắt).
@@ -134,6 +149,13 @@ declare module 'claude-code' {
       badges: BadgeEntry[]
       cheer: boolean
       gift: GiftPhase
+      // v0.8: nhãn chế độ quyền ở thanh dưới (SessionMode), số lần state.json đổi chữ,
+      // lựa chọn đã bấm / đã hết hạn (khoá "id@lần ghi").
+      modes: string[]
+      stateVer: number
+      choiceDone: string
+      choiceExpired: string
+      moreOpen: boolean
     }
   }
 }

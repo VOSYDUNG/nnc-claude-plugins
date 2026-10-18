@@ -6,7 +6,7 @@ Mỗi thẻ có: `id` (dùng trong sổ định nghĩa) · **Một câu** · **V
 
 Quy tắc chung:
 - Trình bày mỗi thẻ ≤ 3 dòng. Số liệu chỉ nói khi **đã thấy thật** trong buổi (thẻ usage trên bục giảng hoặc vòng tròn hạn mức cuối thanh dưới ô nhập do học viên đọc, Settings > Usage, kết quả `/status` ở bản dòng lệnh, tên model giáo viên đang chạy). Chưa thấy thì nhờ học viên đọc trên bục — đọc được chính là kỹ năng D2. **Không đoán, không nói theo trí nhớ.**
-- Câu nhớ lại dùng hộp câu hỏi gốc. **Phương án đầu tiên luôn là "Chưa chắc — cô nhắc lại"** (mặc định khi hết 60 giây). Chọn phương án này hoặc hết giờ **không** tính là nhớ đúng; giáo viên nhắc lại thẻ trong ≤ 30 giây.
+- Câu nhớ lại dùng **nút trên bục** (`choices`) hoặc **widget trả lời** (v0.8, SKILL §12); hộp câu hỏi gốc chỉ khi không có bục. **Phương án đầu tiên luôn là "Chưa chắc — cô nhắc lại"** (mặc định khi hết 60 giây). Chọn phương án này hoặc hết giờ **không** tính là nhớ đúng; giáo viên nhắc lại thẻ trong ≤ 30 giây.
 - Các phương án sai là hiểu lầm thường gặp, không gài bẫy chữ.
 
 ---

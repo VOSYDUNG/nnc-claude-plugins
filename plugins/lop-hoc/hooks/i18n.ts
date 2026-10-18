@@ -75,6 +75,17 @@ export type Strings = {
   you: string
   youDelegated: string
   tool: { read: (f: string) => string; find: string; write: (f: string) => string; edit: (f: string) => string; run: string; web: string; skill: string; mcp: string; aFile: string }
+  // v0.8 — sân khấu bục giảng do giáo viên dựng.
+  more: string
+  moreClose: string
+  bypassChip: (label: string) => string
+  facts: { mode: string; effort: string; model: string; context: string; usage5: string; usageWeek: string }
+  barNote: string
+  barAlt: (what: string) => string
+  boardAlt: (title: string) => string
+  choiceExpired: (t: string) => string
+  ledger: (T: string) => string
+  waitHint: (t: string) => string
 }
 
 const vi: Strings = {
@@ -165,6 +176,16 @@ const vi: Strings = {
     read: f => `đọc ${f} · không sửa gì`, find: 'tìm trong thư mục · không sửa gì', write: f => `ghi ${f}`, edit: f => `sửa ${f}`,
     run: 'chạy một lệnh trên máy', web: 'tra cứu trên mạng · không sửa gì', skill: 'mở bài học', mcp: 'dùng một công cụ kết nối', aFile: 'một file',
   },
+  more: '⋯ Thêm',
+  moreClose: 'Thu gọn',
+  bypassChip: label => ` ⚠ ${label} · Claude làm không hỏi lại quyền, đọc kỹ trước khi giao việc `,
+  facts: { mode: 'Chế độ', effort: 'Effort', model: 'Model', context: 'Context', usage5: '5 giờ', usageWeek: 'Tuần' },
+  barNote: 'ở thanh dưới ô nhập',
+  barAlt: what => `Thanh dưới ô nhập, chỗ cần nhìn: ${what}`,
+  boardAlt: title => `Bảng của lớp: ${title}`,
+  choiceExpired: t => `Hết giờ rồi — ${t} gợi ý ô nổi bật, bạn vẫn tự bấm nhé`,
+  ledger: T => `${T} ghi sổ lớp`,
+  waitHint: t => `Chưa chắc thì chọn dòng đầu tiên — ${t} sẽ chỉ lại bằng hình.`,
 }
 
 const lo: Strings = {
@@ -255,6 +276,16 @@ const lo: Strings = {
     read: f => `ອ່ານ ${f} · ບໍ່ແກ້ຫຍັງ`, find: 'ຊອກໃນໂຟນເດີ · ບໍ່ແກ້ຫຍັງ', write: f => `ຂຽນ ${f}`, edit: f => `ແກ້ ${f}`,
     run: 'ແລ່ນຄຳສັ່ງໃນເຄື່ອງ', web: 'ຄົ້ນຫາໃນອິນເຕີເນັດ · ບໍ່ແກ້ຫຍັງ', skill: 'ເປີດບົດຮຽນ', mcp: 'ໃຊ້ເຄື່ອງມືເຊື່ອມຕໍ່', aFile: 'ໄຟລ໌ໜຶ່ງ',
   },
+  more: '⋯ ເພີ່ມ',
+  moreClose: 'ຫຍໍ້',
+  bypassChip: label => ` ⚠ ${label} · Claude ຈະເຮັດໂດຍບໍ່ຖາມສິດ, ອ່ານໃຫ້ດີກ່ອນມອບວຽກ `,
+  facts: { mode: 'ໂໝດສິດ', effort: 'Effort', model: 'Model', context: 'Context', usage5: '5 ຊົ່ວໂມງ', usageWeek: 'ອາທິດ' },
+  barNote: 'ຢູ່ແຖບລຸ່ມຊ່ອງພິມ',
+  barAlt: what => `ແຖບລຸ່ມຊ່ອງພິມ, ບ່ອນທີ່ຕ້ອງເບິ່ງ: ${what}`,
+  boardAlt: title => `ກະດານຫ້ອງຮຽນ: ${title}`,
+  choiceExpired: () => 'ໝົດເວລາແລ້ວ — ຄູແນະນຳຊ່ອງທີ່ເດັ່ນ, ເຈົ້າກົດເອງໄດ້',
+  ledger: () => 'ຄູຈົດບັນທຶກຫ້ອງຮຽນ',
+  waitHint: () => 'ບໍ່ແນ່ໃຈກໍເລືອກແຖວທຳອິດ — ຄູຈະຊີ້ໃຫ້ເບິ່ງອີກດ້ວຍຮູບ.',
 }
 
 export const STR: Record<Lang, Strings> = { vi, lo }

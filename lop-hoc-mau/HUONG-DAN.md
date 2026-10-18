@@ -16,7 +16,7 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 - Trong tab **Code**: bấm **+ New** → chọn **This computer** → **Open folder…** → chọn thư mục **Lop-hoc-NNC**.
 - Claude hỏi có **tin cậy thư mục** và **cài công cụ của lớp học** không: bấm **đồng ý**. Lần đầu cần vài phút để tải về.
 - Ở thanh dưới ô nhập, chọn chế độ quyền **Auto**. Không thấy Auto thì để **Manual**. **Không dùng Bypass permissions.**
-- Thấy bục giảng ghi *"Lớp đang chờ giáo viên"* là xong. Nếu chưa thấy, đóng phiên và mở lại một phiên mới trong cùng thư mục.
+- Thấy bục giảng ghi *"Lớp đang chờ giáo viên"* là xong. **Chưa thấy bục giảng: gõ `/reload-plugins`** vào ô nhập rồi chờ vài giây (đây là lệnh duy nhất lớp nhờ bạn gõ). Vẫn chưa thấy thì đóng phiên và mở lại một phiên mới trong cùng thư mục.
 
 ## 4. Vào học
 - Chọn **thầy** hoặc **cô**, rồi bấm **Vào lớp**. Mở lại app sau vài hôm thì bấm **Tiếp tục**.

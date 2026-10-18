@@ -60,6 +60,16 @@ class LopHocPackage(unittest.TestCase):
         for f in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md", "Thuc-hanh/README.md"):
             self.assertTrue((MAU / f).is_file(), f)
 
+    def test_nnc_version_carries_lophoc_080_and_guide_has_reload_hint(self):
+        nnc = json.loads(NNC.read_text(encoding="utf-8"))["version"]
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.8.0")
+        self.assertEqual(self.entries["nnc"]["version"], nnc)
+        guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
+        self.assertIn("Chưa thấy bục giảng: gõ `/reload-plugins`", guide)
+        claude_md = (MAU / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("/reload-plugins", claude_md)
+        self.assertNotIn("Every choice is a native AskUserQuestion box", claude_md)
+
     def test_support_contact_filled_only_in_the_zip(self):
         b = _builder()
         guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
