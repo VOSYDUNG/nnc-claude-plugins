@@ -3,7 +3,9 @@ import importlib.util
 import json
 import re
 import subprocess
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,9 +62,9 @@ class LopHocPackage(unittest.TestCase):
         for f in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md", "Thuc-hanh/README.md"):
             self.assertTrue((MAU / f).is_file(), f)
 
-    def test_nnc_version_carries_lophoc_080_and_guide_has_reload_hint(self):
+    def test_nnc_version_carries_lophoc_090_and_guide_has_reload_hint(self):
         nnc = json.loads(NNC.read_text(encoding="utf-8"))["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.8.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.9.0")
         self.assertEqual(self.entries["nnc"]["version"], nnc)
         guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
         self.assertIn("Chưa thấy bục giảng: gõ `/reload-plugins`", guide)
@@ -79,6 +81,49 @@ class LopHocPackage(unittest.TestCase):
         self.assertNotIn("______________________ (kênh liên hệ", filled)
         self.assertEqual(b.with_support(guide, None), guide)
         self.assertIn(".lien-he-ho-tro.txt", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+
+    def test_tai_lieu_folder_is_public_and_has_no_nguon(self):
+        readme = (MAU / "Tai-lieu" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("kho tra cứu", readme)
+        self.assertIn("không cần mở", readme)
+        self.assertFalse((MAU / "Tai-lieu" / "NGUON.md").exists(), "NGUON.md is injected only into the ZIP")
+        self.assertIn(".nguon-tai-lieu.md", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+        self.assertIn("show, don't send searching", (MAU / "CLAUDE.md").read_text(encoding="utf-8").lower().replace("show don't", "show, don't"))
+
+    def test_zip_includes_nguon_only_when_the_file_exists(self):
+        b = _builder()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            nguon = tmp / "nguon.md"
+            nguon.write_text("# Danh muc thu nghiem" + chr(10) + "- Tai lieu A: muc dich thu" + chr(10), encoding="utf-8")
+            with_file = tmp / "co-nguon.zip"
+            self.assertIs(b.make_zip(with_file, None, b.sources_path(str(nguon))), True)
+            without = tmp / "khong-nguon.zip"
+            self.assertIs(b.make_zip(without, None, b.sources_path(str(tmp / "khong-co.md"))), False)
+            with zipfile.ZipFile(with_file) as z:
+                names = z.namelist()
+                self.assertIn("Lop-hoc-NNC/Tai-lieu/NGUON.md", names)
+                self.assertIn("Lop-hoc-NNC/Tai-lieu/README.md", names)
+                self.assertEqual(names.count("Lop-hoc-NNC/Tai-lieu/NGUON.md"), 1)
+                self.assertIn("Tai lieu A", z.read("Lop-hoc-NNC/Tai-lieu/NGUON.md").decode("utf-8"))
+            with zipfile.ZipFile(without) as z:
+                self.assertNotIn("Lop-hoc-NNC/Tai-lieu/NGUON.md", z.namelist())
+                self.assertIn("Lop-hoc-NNC/Tai-lieu/README.md", z.namelist())
+        self.assertFalse((MAU / "Tai-lieu" / "NGUON.md").exists())
+
+    def test_cli_nguon_flag_builds_zip_with_nguon(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            nguon = tmp / "nguon.md"
+            nguon.write_text("# Thu nghiem" + chr(10), encoding="utf-8")
+            dest = tmp / "lop.zip"
+            out = subprocess.run(["python", str(ROOT / "tools" / "build_lop_hoc_mau.py"), "--zip", str(dest),
+                                  "--nguon", str(nguon)], cwd=ROOT, capture_output=True, text=True,
+                                 stdin=subprocess.DEVNULL, check=True).stdout
+            self.assertIn("included", out)
+            with zipfile.ZipFile(dest) as z:
+                self.assertIn("Lop-hoc-NNC/Tai-lieu/NGUON.md", z.namelist())
+        self.assertFalse((MAU / "Tai-lieu" / "NGUON.md").exists())
 
     def test_no_internal_names_or_links_in_tracked_files(self):
         try:

@@ -2,7 +2,7 @@
 
 The training material of this round is the learner's self-study book, *Tài liệu đào tạo Claude cơ bản* ([sach-tu-hoc.md](sach-tu-hoc.md), sections 1–13 and appendices). Your drives (D1 Việc thật · D2 Làm chủ Claude · D3 Dám giao việc · Kết nối) must **lead the learner through every section** of it, across as many vòng việc and visits as the learner needs. **What** must be covered and **how it is checked** is fixed below; **how and when** you lead each section — order inside a loop, the example, the game, the one-touch, whether it rides on the learner's real job — is your teaching choice (nang-luc-giao-vien.md §5). A section the learner already masters is checked, not re-taught. Extra requests from the learner (a job not in the book) are handled with your normal teacher autonomy; they do not replace a section.
 
-Never read the book aloud; teach by the goal, then point to the exact section and figure as the fallback.
+Never read the book aloud; teach by the goal. When the learner is stuck, look up the exact section and figure yourself and **show that place** (redraw it, `podium.point`, the exact step) with the section and figure in a small citation line under the visual — never send the learner to the book to find it ([nghien-cuu-tai-lieu.md](nghien-cuu-tai-lieu.md)).
 
 ## 1. The map — section → what you lead → done when
 

@@ -108,14 +108,14 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
-        self.assertIn("+lophoc.0.8.0", self.plugin)
+        self.assertIn("+lophoc.0.9.0", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.8.0", frontmatter)
+        self.assertIn("version: 0.9.0", frontmatter)
         self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
         self.assertNotIn("version: 0.5.0", frontmatter)
@@ -513,14 +513,14 @@ class StageV08Tests(unittest.TestCase):
     # --- versions --------------------------------------------------------
 
     def test_versions(self):
-        self.assertIn("version: 0.8.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.9.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.8", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.8.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.9.0")
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
         self.assertNotIn("alpha.3", nnc)
-        self.assertIn("evaluation cases F1–F56", self.skill)
+        self.assertIn("evaluation cases F1–F57", self.skill)
 
     # --- the visual toolbox ----------------------------------------------
 
@@ -764,6 +764,96 @@ class BookMapTests(unittest.TestCase):
         self.assertIn("Lead the whole self-study book", self.template)
         for phrase in ("Round complete", "book_complete", "open", "taught", "done"):
             self.assertIn(phrase, self.map)
+
+
+RESEARCH = REFS / "nghien-cuu-tai-lieu.md"
+
+
+class ResearchV09Tests(unittest.TestCase):
+    """v0.9: documents are a research library; the teacher shows the exact place instead of sending the learner searching."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.ref = RESEARCH.read_text(encoding="utf-8")
+        cls.template = TEMPLATE.read_text(encoding="utf-8")
+        cls.scenarios = SCENARIOS.read_text(encoding="utf-8")
+
+    def test_reference_sections(self):
+        self.assertTrue(RESEARCH.is_file())
+        for heading in ("## 1. When to research", "## 2. Source order", "## 3. Budget",
+                        "## 4. Show, don't send searching", "## 5. The citation line under a visual",
+                        "## 6. Which fact wins", "## 7. Safety", "## 8. Record",
+                        "## 9. Worked example"):
+            self.assertIn(heading, self.ref, heading)
+        self.assertRegex(self.ref, LAO, "Lao samples")
+
+    def test_source_order(self):
+        order = [self.ref.index(s) for s in ("| 1 | The self-study book", "| 2 | The class library folder",
+                                              "| 3 | Company document links", "| 4 | Official product pages")]
+        self.assertEqual(order, sorted(order))
+        for phrase in ("sach-tu-hoc.md", "`Tai-lieu/`", "only through the document tool this session already has connected",
+                       "never ask the learner to sign in", "skip it and tell the **trainer**", "the date you checked"):
+            self.assertIn(phrase, self.ref, phrase)
+
+    def test_budget_and_lean_mode(self):
+        for phrase in ("At most 3 lookups per turn", "At most one visible line", "70 %", "sources 1 and 2 only",
+                       "Thầy tra sách mục 5 · Hình 10"):
+            self.assertIn(phrase, self.ref, phrase)
+
+    def test_show_dont_send_patterns(self):
+        for phrase in ("Show, don't send searching", "Redraw the figure from its caption", "bottom-bar mock-up",
+                       "day-truc-quan.md", "podium.point", "Làm theo", "domain example drawn from the learner's job",
+                       "chị mở sách mục 5 mà xem"):
+            self.assertIn(phrase, self.ref, phrase)
+
+    def test_citation_format_and_facts_precedence(self):
+        self.assertIn("*Nguồn: Sách mục 5 · Hình 10*", self.ref)
+        self.assertIn("ແຫຼ່ງ", self.ref)
+        for phrase in ("title only", "never a link", "the **book** wins", "the **official page** wins", "news: true",
+                       "Never state a fact from memory"):
+            self.assertIn(phrase, self.ref, phrase)
+
+    def test_safety_and_sources_used(self):
+        for phrase in ("No private data", "Internal links are never shown to the learner", "Nothing is sent out",
+                       "read only", "`sources_used`", '"source": "sach"', "`sach` · `tai-lieu` · `nguon` · `web`",
+                       "Titles only"):
+            self.assertIn(phrase, self.ref, phrase)
+        for bad in ("docs." + "google", "drive." + "google", "http://", "https://"):
+            self.assertNotIn(bad, self.ref, bad)
+
+    def test_worked_example(self):
+        part = self.ref.split("## 9. Worked example", 1)[1]
+        for phrase in ("permission mode", "Hình 10", "mục 5", "podium.point: \"mode\"", "bottom-bar mock-up",
+                       "*Nguồn: Sách mục 5 · Hình 10*", "Thấy rồi", "sources_used"):
+            self.assertIn(phrase, part, phrase)
+
+    def test_skill_links_rule_and_trainer_json(self):
+        self.assertIn("references/nghien-cuu-tai-lieu.md", self.skill)
+        self.assertIn("What changed in v0.9", self.skill)
+        s12 = self.skill.split("## 12. The teacher sets the stage", 1)[1]
+        for phrase in ("12.10", "Show, don't send searching", "Source order", "book", "Tai-lieu/NGUON.md",
+                       "at most 3 lookups", "70 %"):
+            self.assertIn(phrase, s12, phrase)
+        self.assertIn("`sources_used: [{date, source:", self.skill)
+        self.assertIn("titles only", self.skill)
+
+    def test_nowhere_sends_the_learner_to_the_book(self):
+        bad = re.compile(r"point to (its|the exact) section|point to the exact section and figure", re.I)
+        for f in [SKILL, TEMPLATE, *sorted(REFS.glob("*.md"))]:
+            text = f.read_text(encoding="utf-8")
+            self.assertIsNone(bad.search(text), f.name)
+        self.assertNotIn("so the learner can follow it alone", self.skill)
+        self.assertIn("show that place", self.skill)
+        self.assertIn("F57", self.scenarios)
+        self.assertIn("Case F57 — The learner cannot find the permission mode", self.scenarios)
+
+    def test_template_line(self):
+        for phrase in ("Teaching sources, show don't send searching", "Tai-lieu/NGUON.md", "nghien-cuu-tai-lieu.md",
+                       "never send the learner to the book", "At most 3 lookups per turn",
+                       "never ask the learner to sign in", "internal links never shown to the learner"):
+            self.assertIn(phrase, self.template, phrase)
+        self.assertIn("(v0.9)", self.template)
 
 
 if __name__ == "__main__":

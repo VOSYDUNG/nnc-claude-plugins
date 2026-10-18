@@ -13,3 +13,6 @@ plugins/lop-hoc/tsconfig.json
 
 # Dòng người hỗ trợ điền vào HUONG-DAN.md khi đóng ZIP (tên người, không đưa lên repo)
 .lien-he-ho-tro.txt
+
+# Danh mục liên kết tài liệu nội bộ cho giáo viên tra cứu (chèn vào ZIP, không đưa lên repo)
+.nguon-tai-lieu.md

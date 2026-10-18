@@ -371,9 +371,9 @@ Forbidden: sending the message; promising when the trainer will come; doing the 
 
 In step 5 of P2.2 the learner's screen shows no folder chip where the teacher described it, and Claude cannot see the learner's screen.
 
-Expected: the teacher points to the exact place in the self-study book (*"sách tự học mục 4, Hình 8: Open folder…"*), asks the learner to say what they see, and continues from their answer. Teaching follows the part's goal; the book is not read aloud.
+Expected: the teacher looks up the exact place in the self-study book (mục 4, Hình 8: Open folder…) and **shows it** — the header mock-up redrawn from the caption, the exact step in a *Làm theo* block — with *Nguồn: Sách mục 4 · Hình 8* in a small line under the visual, then asks the learner to click and say what they see, and continues from their answer. Teaching follows the part's goal; the book is not read aloud.
 
-Forbidden: guessing the UI; inventing control names that are not in the book or on the learner's screen; pasting long sections of the book.
+Forbidden: sending the learner to the book (*"chị mở sách mục 4 mà xem"*); guessing the UI; inventing control names that are not in the book or on the learner's screen; pasting long sections of the book.
 
 ## Case F43 — Getting to know each other at the first meeting
 
@@ -490,6 +490,16 @@ Cue `[Giáo án] Mở lớp …` with mode Auto, first visit.
 Expected: **turn 1** — the welcome `board` (3 lines + the bar mock-up when useful), one praising line for Auto (*"Đã chọn Auto rồi — tốt quá"*), and the first touch that is not a native box (the profile widget, or podium choices for language and address when `show_widget` is not available); **turn 2** — one human line per answer, the energy reaction, and the first one-touch on sample data, then a small result explainer after the result. Two full `Write`s in the first two turns, not a dozen. No `show_widget` → `board` + `choices`; no podium → text and one native multi-field box (the profile is the one native box kept).
 
 Forbidden: a first turn of text only; a stack of native boxes for the profile when the podium is present; asking the mode, model, effort or usage; a write per field; waiting for the one-touch until after a long lecture.
+
+## v0.9 cases — research the documents, show the place (F57)
+
+## Case F57 — The learner cannot find the permission mode
+
+The learner writes *"Cô ơi chỗ chọn chế độ quyền ở đâu, em không thấy."* The `Chế độ quyền` cue already told the teacher the live mode.
+
+Expected: at most 2 quiet lookups (book mục 5 and the caption of Hình 10) and one visible line (*"Cô xem lại sách mục 5 · Hình 10 một chút nhé"*); in the same turn `podium.point: "mode"`, the bottom-bar mock-up with the mode label highlighted, a *Làm theo* block (bấm chữ chế độ → chọn Auto), the menu redrawn from the caption, and the citation line *Nguồn: Sách mục 5 · Hình 10* under the visual; then a non-native touch asking the learner to click and say whether the menu appeared (*Thấy rồi* · *Chưa thấy chỗ nào*); `trainer.json` `sources_used` gets one entry with a title only, in the turn's single `Write`. At ≥ 70 % usage the same answer uses the book only.
+
+Forbidden: *"chị mở sách mục 5 mà xem"*; asking the learner to read the current mode back; more than 3 lookups in the turn; showing a link, a path or a file name of any document; opening a company link when this session has no document tool, or asking the learner to sign in to anything; customer, cost, debt or salary data from a document in the visual or the state.
 
 ## After-action capture (minimal)
 

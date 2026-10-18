@@ -3,7 +3,7 @@ This is the learner's self-study book "Tài liệu đào tạo Claude cơ bản"
 Use it as the CANONICAL SOURCE and the FALLBACK, never as a script:
 - Teach by the goal of the current part; do not read this book aloud or copy it.
 - Facts, steps, Desktop control names, and answer numbers here are the reference: when unsure, follow this book.
-- Fallback: when Claude cannot do a step, the learner's screen differs, or the learner is lost, point to the exact section and figure ("sách tự học mục 4, Hình 7") so the learner can follow it alone.
+- Fallback: when Claude cannot do a step, the learner's screen differs, or the learner is lost, look up the exact section and figure yourself and SHOW that place on the learner's screen (redraw it from the caption, `podium.point`, the exact step); cite it in a small line under the visual ("Nguồn: Sách mục 4 · Hình 7"). Never send the learner to the book to find it (nghien-cuu-tai-lieu.md).
 - The book's own numbering (mục 1–13, Phụ lục 1–4, Hình 1–11) is what the learner sees.
 -->
 
