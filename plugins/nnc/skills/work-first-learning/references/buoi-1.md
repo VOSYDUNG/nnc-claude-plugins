@@ -199,7 +199,7 @@ State `segment {id:"3", …, drive:"D3"}` (`can-do` → `D1`).
 2. Cô làm: draft `.claude/skills/<tên-việc>/SKILL.md` in the classroom folder from the 4 parts the learner wrote.
 3. Em làm: the learner changes or approves one point.
 4. Run it on another file (`bang-tinh-mau-tuan-sau.xlsx`, or the learner's next real file in kèm việc) as a one-touch. À: *"Lần sau chỉ cần gọi tên là Claude làm đúng như hôm nay."* Not available until a new session → follow its steps and say so.
-5. One question from sách tự học mục 11 (**chọn đúng việc cần xây**): *"Việc này làm mỗi tuần — dùng ngay, Skill, trợ lý hay ứng dụng?"* — Skill (default) · Dùng ngay · Trợ lý · Ứng dụng; explain the choice in two lines. Larger improvement ideas → `/nnc:mission-formation` (Decision Card), never built here.
+5. One question from sách tự học mục 11 (**chọn đúng việc cần xây**): *"Việc này làm mỗi tuần — dùng ngay, Skill, trợ lý hay ứng dụng?"* — Skill (default) · Dùng ngay · Trợ lý · Ứng dụng; explain the choice in two lines. **Trợ lý** or **Ứng dụng**, or the learner wants Claude to build a tool → offer the route of sách mục 11 ([lo-trinh-cong-cu.md](lo-trinh-cong-cu.md)): steps 1–3 now or at the next visit, then a small local prototype on sample data. Work that needs real data, real systems or other users → `/nnc:mission-formation` (Decision Card) after the learner has told their manager and the technology team.
 6. Badge `dong-goi-skill-dau-tien` when the draft holds the 4 parts, the learner changed/approved one point, and it ran once with a check.
 
 ### `dang-len` — đầu vào đổi

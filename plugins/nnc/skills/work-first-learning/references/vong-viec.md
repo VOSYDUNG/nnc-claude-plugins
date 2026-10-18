@@ -2,7 +2,7 @@
 
 A learner with an always-open AI teacher does not progress "per lesson". They progress **per real job done all the way**: a **vòng việc** = delegate → check → use. This file defines how you record a loop, how you coach real work in the learner's own folder, the result sheet, the receiver's confirmation and the next-job hand-off.
 
-The loop record has the **shape of an NNC OSER checkpoint** (facts confirmed by reference · result and checks · help needed · blockers · next safe action). It is **not** an OSER Mission: never run `oser init`, never create `.nnc-oser/` files for a lesson, never call a loop a Mission. A loop that turns into a real improvement proposal (new tool, automation, app) goes to **/nnc:mission-formation** with the learner's consent (SKILL §7.5).
+The loop record has the **shape of an NNC OSER checkpoint** (facts confirmed by reference · result and checks · help needed · blockers · next safe action). It is **not** an OSER Mission: never run `oser init`, never create `.nnc-oser/` files for a lesson, never call a loop a Mission. A loop that turns into a tool idea follows the route of sách tự học mục 11 in class ([lo-trinh-cong-cu.md](lo-trinh-cong-cu.md)) up to a local prototype on sample data; it goes to **/nnc:mission-formation**, with the learner's consent, only when it needs real data or systems, other users, hosting or maintenance (SKILL §7.5).
 
 ## 1. The loop record — `.lop-hoc/vong-viec.json`
 

@@ -84,7 +84,7 @@ class WorkFirstLearningContract(unittest.TestCase):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.7.2", frontmatter)
+        self.assertIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
         self.assertNotIn("version: 0.5.0", frontmatter)
         self.assertNotIn("version: 0.4.0", frontmatter)
@@ -459,6 +459,39 @@ class WorkFirstLearningContract(unittest.TestCase):
                 self.assertTrue(twin.is_file(), twin)
         self.assertIn("no Python", self.capabilities)
         self.assertIn(".csv` twin", self.capabilities)
+
+
+
+class ToolRouteTests(unittest.TestCase):
+    """v0.7.3: lộ trình làm ra công cụ (sách tự học mục 11) được dạy trong lớp, có rào an toàn."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.route = (SKILL.parent / "references" / "lo-trinh-cong-cu.md").read_text(encoding="utf-8")
+        cls.buoi1 = (SKILL.parent / "references" / "buoi-1.md").read_text(encoding="utf-8")
+        cls.scenarios = (SKILL.parent / "references" / "scenarios.md").read_text(encoding="utf-8")
+
+    def test_route_is_linked_and_taught(self):
+        self.assertIn("references/lo-trinh-cong-cu.md", self.skill)
+        self.assertIn("The route to a tool is taught in class", self.skill)
+        self.assertNotIn("never built here", self.buoi1)
+        self.assertIn("lo-trinh-cong-cu.md", self.buoi1)
+
+    def test_route_follows_book_section_11(self):
+        for step in ("Khai thác việc thật", "Khóa bản mô tả", "Chọn cách đơn giản nhất đủ dùng",
+                     "Làm và thử nhỏ", "Dùng thật và cải tiến", "mục 11", "Chưa chắc, thử nhỏ trước"):
+            self.assertIn(step, self.route)
+
+    def test_prototype_guardrails(self):
+        for rule in ("Local only", "Sample or copied data only", "Nothing leaves the machine",
+                     "No deploy", "never use credentials", "The learner leads", "/nnc:mission-formation",
+                     "Never run OSER init yourself"):
+            self.assertIn(rule, self.route)
+
+    def test_scenario_f48(self):
+        self.assertIn("Case F48 — Chặng 4", self.scenarios)
+        self.assertIn("single-file HTML page", self.scenarios)
 
 
 if __name__ == "__main__":
