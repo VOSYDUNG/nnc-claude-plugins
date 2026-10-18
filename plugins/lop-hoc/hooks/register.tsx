@@ -50,6 +50,9 @@ import type { Lang } from './i18n'
 import { SHOT_MAX_BYTES, shotFromBase64, shotPathOf } from './shot'
 import type { ShotDrawn } from './shot'
 
+// Lớp học NNC v0.12 — bọc kín khung thầy (docs/oser-r2/LOP-HOC-V12-THIET-KE.md §1): dòng việc (ToolUse), nhóm việc (ToolGroup),
+//   kết quả (ToolResult), lệnh (CommandOutput) là MỘT dòng của thầy kèm nút "Xem chi tiết"; hộp câu hỏi có khung đầy đủ;
+//   khối suy nghĩ lúc đang chạy (turn.step) chỉ còn "Thầy đang suy nghĩ…". Ngoài thư mục lớp học không đổi gì.
 // Lớp học NNC v0.8 — giáo viên là người dựng sân khấu: bục giảng yên tĩnh theo mặc định, mỗi lượt giáo viên có thể
 //   ghi podium (cỡ, nhãn hiện, chỗ chỉ, nút), board (bảng nhỏ), choices (nút lớn không chặn) vào state.json
 //   (thiết kế docs/oser-r2/LOP-HOC-V08-THIET-KE.md). Đồng hồ nhịp 1,5 giây đọc lại state.json khi chữ đổi;
@@ -147,6 +150,8 @@ type Silence = { at: number; rung: 0 | 1 | 2 | 3 }
 const silenceAtom = atom({ plugin: 'lop-hoc', key: 'silence' } as const, { at: 0, rung: 0 } as Silence)
 // Lời giáo viên dài đã được học viên mở ra (theo requestId của khối).
 const foldOpen = atom({ plugin: 'lop-hoc', key: 'foldOpen' } as const, [] as string[])
+// v0.12 — các dòng việc / nhóm việc / kết quả / lệnh học viên đã mở chi tiết ra ("Thành phần:requestId").
+const detailOpen = atom({ plugin: 'lop-hoc', key: 'detailOpen' } as const, [] as string[])
 
 // ── Phần học (v0.7: giáo viên chuyển phần khi đạt mốc; mod chỉ hiển thị) ────────
 const S0: PlanSegment = { id: '0', title: 'Vào lớp', drive: 'ket-noi' }
@@ -685,8 +690,35 @@ export function describeTool(tool: string, input: unknown, lang: Lang = curLang)
   if (tool === 'Bash' || tool === 'PowerShell') return w.run
   if (tool === 'WebFetch' || tool === 'WebSearch') return w.web
   if (tool === 'Skill') return w.skill
-  if (tool.startsWith('mcp__')) return w.mcp
+  if (tool.startsWith('mcp__')) return tool.endsWith('__show_widget') ? w.draw : w.mcp
   return null
+}
+
+export type ToolKind = 'read' | 'find' | 'write' | 'edit' | 'run' | 'web' | 'skill' | 'mcp' | 'draw' | 'other'
+const KIND_ORDER: readonly ToolKind[] = ['read', 'find', 'write', 'edit', 'run', 'web', 'skill', 'mcp', 'draw', 'other']
+
+// Loại việc của một thao tác công cụ, để đếm trong nhóm.
+export function toolKind(tool: string): ToolKind {
+  if (tool === 'Read') return 'read'
+  if (tool === 'Glob' || tool === 'Grep') return 'find'
+  if (tool === 'Write') return 'write'
+  if (tool === 'Edit' || tool === 'NotebookEdit') return 'edit'
+  if (tool === 'Bash' || tool === 'PowerShell') return 'run'
+  if (tool === 'WebFetch' || tool === 'WebSearch') return 'web'
+  if (tool === 'Skill') return 'skill'
+  if (tool.startsWith('mcp__')) return tool.endsWith('__show_widget') ? 'draw' : 'mcp'
+  return 'other'
+}
+
+// "Thầy vừa: đọc 1 file · tạo 2 file · chạy 1 lệnh" — đếm theo loại, đúng ngôn ngữ của học viên. Không có việc nào thì chuỗi rỗng.
+export function groupParts(calls: ReadonlyArray<{ tool: string }>, lang: Lang = curLang): string {
+  const n: Partial<Record<ToolKind, number>> = {}
+  for (const c of calls) {
+    const k = toolKind(c.tool)
+    n[k] = (n[k] ?? 0) + 1
+  }
+  const w = STR[lang].act.count
+  return KIND_ORDER.filter(k => n[k]).map(k => w[k](n[k] ?? 0)).join(' · ')
 }
 
 // Thao tác công cụ có đụng tới sổ lớp (.lop-hoc/): lời giáo viên ghi trạng thái, không phải việc của học viên.
@@ -716,6 +748,8 @@ let formError = ''
 // Hộp câu hỏi thấy ở nơi vẽ nhưng chưa qua tool.call (dự phòng).
 let askSeen: { id: string; label: string } | null = null
 const askDone = new Set<string>()
+// v0.12 — các lần gọi công cụ ghi sổ lớp (.lop-hoc/): kết quả của chúng ẩn hẳn.
+const ledgerIds = new Set<string>()
 // Tiêu đề lớp cho mỗi lời giảng, giữ theo phần lúc lời đó được viết.
 const headerById = new Map<string, string>()
 // Bộ nhớ đệm để các nơi vẽ không phải đăng ký theo dõi đồng hồ.
@@ -1208,6 +1242,15 @@ async function setup($: EngineInterface) {
   return true
 }
 
+// v0.12 — mở / gập chi tiết gốc của một dòng việc, nhóm việc, kết quả hay lệnh.
+function toggleDetail($: EngineInterface, key: string) {
+  return update($, detailOpen, ids => (ids.includes(key) ? ids.filter(x => x !== key) : [...ids, key]))
+}
+
+async function isOpen($: EngineInterface, key: string): Promise<boolean> {
+  return (await read($, detailOpen)).includes(key)
+}
+
 const PERSON_ORIGINS = new Set(['composer', 'bridge', 'sdk', 'unclassified'])
 
 export const register: Register = on => {
@@ -1281,7 +1324,23 @@ export const register: Register = on => {
       const eff = String(e.effort)
       if ((await read($, effortAtom)) !== eff) await update($, effortAtom, () => eff)
     }
-    return yield* next(e)
+    if (!(await read($, isClassroom))) return yield* next(e)
+    // v0.12 — suy nghĩ của model nói "Tôi" và nằm ngoài khung thầy: trong lớp, khối suy nghĩ chỉ còn một dòng của thầy
+    // (các đoạn còn lại để trống). Khối đã ký mà engine ghi lại không đổi.
+    let shown = false
+    for await (const c of next(e)) {
+      if (c.kind !== 'thinking') {
+        yield c
+        continue
+      }
+      if (shown) {
+        yield { ...c, text: '' }
+        continue
+      }
+      shown = true
+      const v = await classView($)
+      yield { ...c, text: L().act.thinking(teacherName(v.teacher)) }
+    }
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -1320,6 +1379,7 @@ export const register: Register = on => {
         }
       }
     }
+    if (e.tool_use_id && touchesLedger(e)) ledgerIds.add(e.tool_use_id)
     const ran = await next(e)
     if (JSON.stringify(e).includes('.lop-hoc')) {
       await syncState($)
@@ -1829,7 +1889,7 @@ export const register: Register = on => {
     return board([...top, buttonsRow], crowded ? 0 : 1)
   })
 
-  // ── Hộp câu hỏi gốc: thêm một dòng lớp học phía trên, giữ nguyên hộp ─────────
+  // ── Hộp câu hỏi gốc: khung thầy đầy đủ (viền tròn, hình thầy trên Desktop, dòng tiêu đề) quanh hộp gốc ──────
   on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => {
     if (!(await read($, isClassroom))) return next(e)
     const theirs = await next(e)
@@ -1840,10 +1900,18 @@ export const register: Register = on => {
     const S = L()
     const segTitle = v.seg ? (curLang === 'vi' ? v.seg.title : (S.segments[v.seg.id] ?? v.seg.title)) : ''
     const head = v.seg ? `${S.askHead(T)} · ${S.part} ${v.seg.id} · ${segTitle}` : S.askHead(T)
+    let avatar: RenderChildren = null
+    if (e.surface === 'desktop') {
+      const { Svg } = $.ui.resolve(e)
+      avatar = <Svg key="avatar" source={teacherAvatarSvg(v.teacher)} alt={T} width={34} height={34} />
+    }
     return (
-      <Box flexDirection="column">
-        <Text bold color="#006D11">{head}</Text>
-        {theirs}
+      <Box flexDirection="row" gap={1}>
+        {avatar}
+        <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor="#008816" paddingX={1}>
+          <Text bold color="#006D11">{head}</Text>
+          {theirs}
+        </Box>
       </Box>
     )
   })
@@ -1923,38 +1991,132 @@ export const register: Register = on => {
     )
   })
 
-  // ── Dòng công cụ: thêm một câu dễ hiểu, giữ chi tiết gốc bên dưới ───────────
+  // ── v0.12 — Việc của thầy: dòng việc, nhóm việc, kết quả, lệnh đều là MỘT dòng của thầy; chi tiết gốc nằm sau nút "Xem chi tiết" ──
+
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     if (!(await read($, isClassroom))) return next(e)
-    // Giáo viên ghi sổ lớp (.lop-hoc/): một dòng mờ thay cho dòng công cụ. Công cụ khác giữ nguyên.
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const v = await classView($)
+    const T = teacherName(v.teacher)
+    // Giáo viên ghi sổ lớp (.lop-hoc/): một dòng mờ thay cho dòng công cụ.
     if (touchesLedger(e.props.input)) {
-      const { Text } = $.ui.resolve(e)
-      return <Text dimColor>{L().ledger(teacherName(view.teacher))}</Text>
+      ledgerIds.add(e.requestId)
+      return <Text dimColor>{L().ledger(T)}</Text>
     }
-    const plain = describeTool(e.props.tool, e.props.input)
-    if (!plain) return next(e)
-    const theirs = await next(e)
-    const { Box, Text } = $.ui.resolve(e)
+    const A = L().act
+    const what = describeTool(e.props.tool, e.props.input) ?? L().tool.other
+    const line = e.props.isInterrupted ? A.interrupted(T) : e.props.isErrored ? A.errored(T) : e.props.isRunning ? A.doing(T, what) : A.did(T, what)
+    const key = `ToolUse:${e.requestId}`
+    const open = await isOpen($, key)
+    const theirs = open ? await next(e) : null
+    let mark: RenderChildren = null
+    if (e.surface === 'desktop') {
+      const { Svg } = $.ui.resolve(e)
+      mark = <Svg key="avatar" source={teacherAvatarSvg(v.teacher)} alt={T} width={18} height={18} />
+    }
     return (
       <Box flexDirection="column">
-        <Text color="#006D11">{`▸ ${teacherName(view.teacher)} ${plain}`}</Text>
+        <Box flexDirection="row" gap={1}>
+          {mark}
+          <Text color={e.props.isErrored ? '#B3261E' : '#006D11'}>{line}</Text>
+          <Button key="detail" label={open ? A.less : A.detail} onPress={() => toggleDetail($, key)} />
+        </Box>
         {theirs}
       </Box>
     )
   })
 
-  // Nhóm dòng công cụ: toàn việc ghi sổ lớp thì một dòng mờ; lẫn việc khác thì mở rộng nhóm để từng dòng
-  // đi qua ToolUse (dòng ghi sổ ẩn, dòng khác giữ nguyên).
+  // Nhóm việc: một dòng của thầy đếm theo loại (đọc · tạo · chạy…); toàn việc ghi sổ lớp thì một dòng mờ.
+  // Nút mở ra thì từng dòng đi qua ToolUse (dòng ghi sổ vẫn là một dòng mờ). Không đổi onScreen.
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
     if (!(await read($, isClassroom))) return next(e)
     const calls = Array.isArray(e.props.calls) ? e.props.calls : []
-    const hits = calls.filter(c => touchesLedger(c.input)).length
-    if (!hits) return next(e)
-    if (hits === calls.length) {
-      const { Text } = $.ui.resolve(e)
-      return <Text dimColor>{L().ledger(teacherName(view.teacher))}</Text>
+    if (!calls.length) return next(e)
+    const v = await classView($)
+    const T = teacherName(v.teacher)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const shown = calls.filter(c => !touchesLedger(c.input))
+    if (!shown.length) return <Text dimColor>{L().ledger(T)}</Text>
+    // Engine đã mở nhóm (--verbose, bản ghi ctrl+o): từng dòng là một ToolUse của thầy.
+    if (e.props.isExpanded) return next(e)
+    const A = L().act
+    const parts = [groupParts(shown), shown.some(c => c.isErrored && !c.isInterrupted) ? A.groupErr(teacherLower(v.teacher)) : ''].filter(Boolean).join(' · ')
+    const line = shown.some(c => c.isRunning) ? A.groupDoing(T, parts) : A.groupDid(T, parts)
+    const key = `ToolGroup:${e.requestId}`
+    const open = await isOpen($, key)
+    const theirs = open ? await next({ ...e, props: { ...e.props, isExpanded: true } }) : null
+    let mark: RenderChildren = null
+    if (e.surface === 'desktop') {
+      const { Svg } = $.ui.resolve(e)
+      mark = <Svg key="avatar" source={teacherAvatarSvg(v.teacher)} alt={T} width={18} height={18} />
     }
-    return next({ ...e, props: { ...e.props, isExpanded: true } })
+    return (
+      <Box flexDirection="column">
+        <Box flexDirection="row" gap={1}>
+          {mark}
+          <Text color="#006D11">{line}</Text>
+          <Button key="detail" label={open ? A.less : A.detail} onPress={() => toggleDetail($, key)} />
+        </Box>
+        {theirs}
+      </Box>
+    )
+  }).catch(($, e, next) => next(e))
+
+  // Kết quả công cụ: gập sẵn. "Kết quả · xem"; có lỗi thì "Có lỗi — thầy đang xử lý · xem". Kết quả ghi sổ lớp ẩn hẳn.
+  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
+    if (!(await read($, isClassroom))) return next(e)
+    const { Box, Button } = $.ui.resolve(e)
+    if (ledgerIds.has(e.requestId) && !e.props.isErrored) return <Box />
+    const v = await classView($)
+    const A = L().act
+    const key = `ToolResult:${e.requestId}`
+    const open = await isOpen($, key)
+    const label = open ? A.less : e.props.isErrored ? A.resultError(teacherLower(v.teacher)) : A.result
+    const theirs = open ? await next(e) : null
+    return (
+      <Box flexDirection="column">
+        <Button key="detail" label={label} onPress={() => toggleDetail($, key)} />
+        {theirs}
+      </Box>
+    )
+  }).catch(($, e, next) => next(e))
+
+  // Kết quả lệnh gạch chéo: /reload-plugins → "Đã nạp lại lớp học ✓"; lệnh khác → một dòng của thầy, chữ gốc sau nút.
+  on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
+    if (!(await read($, isClassroom))) return next(e)
+    const cmd = e.props.command
+    // Lệnh của chính lớp học đã là lời lớp học.
+    if (cmd === 'lop-hoc') return next(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const v = await classView($)
+    const T = teacherName(v.teacher)
+    const A = L().act
+    let mark: RenderChildren = null
+    if (e.surface === 'desktop') {
+      const { Svg } = $.ui.resolve(e)
+      mark = <Svg key="avatar" source={teacherAvatarSvg(v.teacher)} alt={T} width={18} height={18} />
+    }
+    if (cmd === 'reload-plugins' && !e.props.isErrored) {
+      return (
+        <Box flexDirection="row" gap={1}>
+          {mark}
+          <Text color="#006D11">{A.reloaded}</Text>
+        </Box>
+      )
+    }
+    const key = `CommandOutput:${e.requestId}`
+    const open = await isOpen($, key)
+    const theirs = open ? await next(e) : null
+    return (
+      <Box flexDirection="column">
+        <Box flexDirection="row" gap={1}>
+          {mark}
+          <Text color={e.props.isErrored ? '#B3261E' : '#006D11'}>{e.props.isErrored ? A.commandError(T, cmd) : A.command(T, cmd)}</Text>
+          <Button key="detail" label={open ? A.less : A.detail} onPress={() => toggleDetail($, key)} />
+        </Box>
+        {theirs}
+      </Box>
+    )
   }).catch(($, e, next) => next(e))
 
   // ── Spinner tiếng Việt + mẹo đổi theo lượt, giữ hoạt ảnh gốc ───────────────

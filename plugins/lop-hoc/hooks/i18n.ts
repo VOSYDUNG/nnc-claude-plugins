@@ -74,7 +74,7 @@ export type Strings = {
   youPressed: string
   you: string
   youDelegated: string
-  tool: { read: (f: string) => string; find: string; write: (f: string) => string; edit: (f: string) => string; run: string; web: string; skill: string; mcp: string; aFile: string }
+  tool: { read: (f: string) => string; find: string; write: (f: string) => string; edit: (f: string) => string; run: string; web: string; skill: string; mcp: string; draw: string; other: string; aFile: string }
   // v0.8 — sân khấu bục giảng do giáo viên dựng.
   more: string
   moreClose: string
@@ -91,6 +91,26 @@ export type Strings = {
   choiceExpired: (t: string) => string
   ledger: (T: string) => string
   waitHint: (t: string) => string
+  // v0.12 — mọi thứ học viên thấy đều nằm trong khung thầy: dòng việc, nhóm việc, kết quả, hộp câu hỏi, lệnh, suy nghĩ.
+  act: {
+    doing: (T: string, what: string) => string
+    did: (T: string, what: string) => string
+    errored: (T: string) => string
+    interrupted: (T: string) => string
+    detail: string
+    less: string
+    groupDoing: (T: string, parts: string) => string
+    groupDid: (T: string, parts: string) => string
+    groupErr: (t: string) => string
+    // Đếm theo loại việc trong một nhóm.
+    count: { read: (n: number) => string; find: (n: number) => string; write: (n: number) => string; edit: (n: number) => string; run: (n: number) => string; web: (n: number) => string; skill: (n: number) => string; mcp: (n: number) => string; draw: (n: number) => string; other: (n: number) => string }
+    result: string
+    resultError: (t: string) => string
+    reloaded: string
+    command: (T: string, cmd: string) => string
+    commandError: (T: string, cmd: string) => string
+    thinking: (T: string) => string
+  }
 }
 
 const vi: Strings = {
@@ -178,8 +198,8 @@ const vi: Strings = {
   you: 'Bạn',
   youDelegated: 'Bạn giao việc',
   tool: {
-    read: f => `đọc ${f} · không sửa gì`, find: 'tìm trong thư mục · không sửa gì', write: f => `ghi ${f}`, edit: f => `sửa ${f}`,
-    run: 'chạy một lệnh trên máy', web: 'tra cứu trên mạng · không sửa gì', skill: 'mở bài học', mcp: 'dùng một công cụ kết nối', aFile: 'một file',
+    read: f => `đọc ${f}`, find: 'tìm trong thư mục', write: f => `ghi ${f}`, edit: f => `sửa ${f}`,
+    run: 'chạy một lệnh trên máy', web: 'tra cứu trên mạng', skill: 'mở bài học', mcp: 'dùng một công cụ kết nối', draw: 'vẽ hình', other: 'làm một việc', aFile: 'một file',
   },
   more: '⋯ Thêm',
   moreClose: 'Thu gọn',
@@ -195,6 +215,27 @@ const vi: Strings = {
   choiceExpired: t => `Hết giờ rồi — ${t} gợi ý ô nổi bật, bạn vẫn tự bấm nhé`,
   ledger: T => `${T} ghi sổ lớp`,
   waitHint: t => `Chưa chắc thì chọn dòng đầu tiên — ${t} sẽ chỉ lại bằng hình.`,
+  act: {
+    doing: (T, what) => `▸ ${T} đang ${what}…`,
+    did: (T, what) => `▸ ${T} vừa ${what}`,
+    errored: T => `▸ ${T} gặp trục trặc, đang xử lý`,
+    interrupted: T => `▸ ${T} đã dừng việc này`,
+    detail: 'Xem chi tiết',
+    less: 'Thu gọn',
+    groupDoing: (T, parts) => `▸ ${T} đang: ${parts}`,
+    groupDid: (T, parts) => `▸ ${T} vừa: ${parts}`,
+    groupErr: t => `có trục trặc, ${t} đang xử lý`,
+    count: {
+      read: n => `đọc ${n} file`, find: n => `tìm ${n} lần`, write: n => `tạo ${n} file`, edit: n => `sửa ${n} file`, run: n => `chạy ${n} lệnh`,
+      web: n => `tra cứu ${n} lần`, skill: n => `mở ${n} bài học`, mcp: n => `dùng ${n} công cụ kết nối`, draw: n => `vẽ ${n} hình`, other: n => `làm ${n} việc khác`,
+    },
+    result: 'Kết quả · xem',
+    resultError: t => `Có lỗi — ${t} đang xử lý · xem`,
+    reloaded: 'Đã nạp lại lớp học ✓',
+    command: (T, cmd) => `▸ ${T} vừa chạy lệnh /${cmd}`,
+    commandError: (T, cmd) => `▸ Lệnh /${cmd} gặp trục trặc — ${T} đang xử lý`,
+    thinking: T => `${T} đang suy nghĩ…`,
+  },
 }
 
 const lo: Strings = {
@@ -282,8 +323,8 @@ const lo: Strings = {
   you: 'ເຈົ້າ',
   youDelegated: 'ເຈົ້າມອບວຽກ',
   tool: {
-    read: f => `ອ່ານ ${f} · ບໍ່ແກ້ຫຍັງ`, find: 'ຊອກໃນໂຟນເດີ · ບໍ່ແກ້ຫຍັງ', write: f => `ຂຽນ ${f}`, edit: f => `ແກ້ ${f}`,
-    run: 'ແລ່ນຄຳສັ່ງໃນເຄື່ອງ', web: 'ຄົ້ນຫາໃນອິນເຕີເນັດ · ບໍ່ແກ້ຫຍັງ', skill: 'ເປີດບົດຮຽນ', mcp: 'ໃຊ້ເຄື່ອງມືເຊື່ອມຕໍ່', aFile: 'ໄຟລ໌ໜຶ່ງ',
+    read: f => `ອ່ານ ${f}`, find: 'ຊອກໃນໂຟນເດີ', write: f => `ຂຽນ ${f}`, edit: f => `ແກ້ ${f}`,
+    run: 'ແລ່ນຄຳສັ່ງໃນເຄື່ອງ', web: 'ຄົ້ນຫາໃນອິນເຕີເນັດ', skill: 'ເປີດບົດຮຽນ', mcp: 'ໃຊ້ເຄື່ອງມືເຊື່ອມຕໍ່', draw: 'ແຕ້ມຮູບ', other: 'ເຮັດວຽກໜຶ່ງ', aFile: 'ໄຟລ໌ໜຶ່ງ',
   },
   more: '⋯ ເພີ່ມ',
   moreClose: 'ຫຍໍ້',
@@ -299,6 +340,27 @@ const lo: Strings = {
   choiceExpired: () => 'ໝົດເວລາແລ້ວ — ຄູແນະນຳຊ່ອງທີ່ເດັ່ນ, ເຈົ້າກົດເອງໄດ້',
   ledger: () => 'ຄູຈົດບັນທຶກຫ້ອງຮຽນ',
   waitHint: () => 'ບໍ່ແນ່ໃຈກໍເລືອກແຖວທຳອິດ — ຄູຈະຊີ້ໃຫ້ເບິ່ງອີກດ້ວຍຮູບ.',
+  act: {
+    doing: (T, what) => `▸ ${T}ກຳລັງ${what}…`,
+    did: (T, what) => `▸ ${T}ຫາກໍ${what}`,
+    errored: T => `▸ ${T}ພົບບັນຫາ, ກຳລັງແກ້ໄຂ`,
+    interrupted: T => `▸ ${T}ໄດ້ຢຸດວຽກນີ້ແລ້ວ`,
+    detail: 'ເບິ່ງລາຍລະອຽດ',
+    less: 'ຫຍໍ້',
+    groupDoing: (T, parts) => `▸ ${T}ກຳລັງ: ${parts}`,
+    groupDid: (T, parts) => `▸ ${T}ຫາກໍ: ${parts}`,
+    groupErr: t => `ມີບັນຫາ, ${t}ກຳລັງແກ້ໄຂ`,
+    count: {
+      read: n => `ອ່ານ ${n} ໄຟລ໌`, find: n => `ຊອກ ${n} ຄັ້ງ`, write: n => `ສ້າງ ${n} ໄຟລ໌`, edit: n => `ແກ້ ${n} ໄຟລ໌`, run: n => `ແລ່ນ ${n} ຄຳສັ່ງ`,
+      web: n => `ຄົ້ນຫາ ${n} ຄັ້ງ`, skill: n => `ເປີດ ${n} ບົດຮຽນ`, mcp: n => `ໃຊ້ ${n} ເຄື່ອງມືເຊື່ອມຕໍ່`, draw: n => `ແຕ້ມ ${n} ຮູບ`, other: n => `ເຮັດ ${n} ວຽກອື່ນ`,
+    },
+    result: 'ຜົນ · ເບິ່ງ',
+    resultError: t => `ມີຂໍ້ຜິດພາດ — ${t}ກຳລັງແກ້ໄຂ · ເບິ່ງ`,
+    reloaded: 'ໂຫຼດຫ້ອງຮຽນໃໝ່ແລ້ວ ✓',
+    command: (T, cmd) => `▸ ${T}ຫາກໍແລ່ນຄຳສັ່ງ /${cmd}`,
+    commandError: (T, cmd) => `▸ ຄຳສັ່ງ /${cmd} ມີບັນຫາ — ${T}ກຳລັງແກ້ໄຂ`,
+    thinking: T => `${T}ກຳລັງຄິດ…`,
+  },
 }
 
 export const STR: Record<Lang, Strings> = { vi, lo }

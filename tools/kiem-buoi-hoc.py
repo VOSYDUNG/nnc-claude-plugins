@@ -269,6 +269,60 @@ def scan_leaks(text: str) -> list[tuple[str, str]]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# v0.12: R12 - giong thay va khung (tu xung "toi", cau tieng Anh, tu noi bo trong tin chu cua thay)
+# ---------------------------------------------------------------------------
+
+CODE_SPAN_RE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
+URL_RE = re.compile(r"https?://\S+|www\.\S+", re.I)
+FILE_NAME_RE = re.compile(
+    r"[\w\-./\\]+\.(?:md|json|jsonl|txt|py|ps1|js|html?|css|csv|xlsx?|docx?|pptx?|pdf|png|jpe?g|zip|ya?ml)\b", re.I)
+# Trich dan trong ngoac kep la loi nguoi khac (hoc vien, nhan nut), khong phai thay tu xung.
+QUOTED_RE = re.compile(r'"[^"\n]*"|“[^”\n]*”|«[^»\n]*»')
+SELF_REF_RE = re.compile(r"(?<!\w)[Tt]ôi(?!\w)")
+LATIN_WORD_RE = re.compile(r"^[A-Za-z][A-Za-z'’\-]*$")
+ENGLISH_RUN_MIN = 5
+INTERNAL_WORDS_RE = re.compile(
+    r"state\.json|\.lop-hoc|\bhooks?\b|\bprompts?\b|\bcues?\b|\bschema\b|\btokens?\b", re.I)
+
+
+def _snip(text: str, start: int) -> str:
+    return re.sub(r"\s+", " ", text[max(0, start - 20): start + 60]).strip()
+
+
+def scan_voice(text: str) -> list[tuple[str, str]]:
+    """-> [(loai, doan trich)]: tu xung "toi", cau tieng Anh (>= 5 tu Latin lien tiep khong dau), tu noi bo."""
+    out: list[tuple[str, str]] = []
+    text = text or ""
+    # tu noi bo: xet ca trong dau backtick (hoc vien van thay)
+    for m in INTERNAL_WORDS_RE.finditer(text):
+        out.append(("từ nội bộ", _snip(text, m.start())))
+    plain = FILE_NAME_RE.sub(" ", URL_RE.sub(" ", CODE_SPAN_RE.sub(" ", text)))
+    plain = QUOTED_RE.sub(" ", plain)
+    # Dong trich dan markdown ("> ...") la loi cua hoc vien (vi du loi giao viec 4 y viet theo giong hoc vien), bo qua.
+    plain = "\n".join(line for line in plain.splitlines() if not line.lstrip().startswith(">"))
+    for m in SELF_REF_RE.finditer(plain):
+        out.append(('tự xưng "tôi"', _snip(plain, m.start())))
+    # cau tieng Anh: chuoi tu Latin lien tiep khong dau tieng Viet, khong chu so
+    run: list[str] = []
+
+    def flush():
+        if len(run) >= ENGLISH_RUN_MIN:
+            lower = sum(1 for w in run if w[0].islower())
+            if lower >= 3:  # bo qua danh sach ten rieng (Word, Excel, Zalo...)
+                out.append(("câu tiếng Anh", " ".join(run)[:80]))
+        run.clear()
+
+    for tok in plain.split():
+        core = tok.strip(".,;:!?()[]{}*_—–-·…\"'")
+        if core and LATIN_WORD_RE.match(core) and (len(core) > 1 or core in ("a", "A", "I")):
+            run.append(core)
+        else:
+            flush()
+    flush()
+    return out
+
+
 # Hộp được miễn khỏi luật R4: đồng ý / an toàn và phiếu giao việc (xét tiêu đề + câu hỏi,
 # không xét lựa chọn). Hộp kiểm bài (Đúng hay sai, Câu n, Thẻ n) không bao giờ được miễn.
 EXEMPT_RE = re.compile(
@@ -328,6 +382,8 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
     book_complete = False
     loop_closed = False
     teacher_text_blocks = 0
+    voice: list[dict] = []
+    thinking_blocks = 0
     all_ts: list[datetime] = []
     first_cue_ts: datetime | None = None
     turns_done = 0
@@ -449,6 +505,11 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
                     ti(turns_done)["texts"].append(text.strip())
                 for label, snip in scan_leaks(text):
                     leaks.append({"label": label, "snippet": snip, "turn": turns_done, "ts": ts})
+                for label, snip in scan_voice(text):
+                    voice.append({"label": label, "snippet": snip, "turn": turns_done, "ts": ts})
+                continue
+            if bt in ("thinking", "redacted_thinking"):
+                thinking_blocks += 1  # chi de bao cao: Desktop co the hien khoi nay nhu ban tom tat suy nghi
                 continue
             if bt != "tool_use":
                 continue
@@ -677,6 +738,8 @@ def analyze(rows: list[dict], bad_lines: int = 0) -> dict:
         "first_visual_s": minutes_from_t0(fv),
         "first_inter_s": minutes_from_t0(fi),
         "leaks": leaks,
+        "voice": voice,
+        "thinking_blocks": thinking_blocks,
         "events": events,
     }
 
@@ -840,6 +903,24 @@ def judge(a: dict) -> list[dict]:
         else:
             rule("R11", t11, "PASS",
                  f"{len(le)}/{len(le)} lần cuối vòng ổn: " + "; ".join(f"lượt {x['turn']} ({'có đề xuất/mặc định' if x['proposal'] else 'không hỏi mở'})" for x in le))
+
+    t12 = 'Giọng thầy và khung: tin chữ của thầy không tự xưng "tôi", không có câu tiếng Anh, không có từ nội bộ'
+    info12 = f"thông tin: {a['thinking_blocks']} khối suy nghĩ (thinking) trong bản ghi, chỉ để biết, không ảnh hưởng kết luận"
+    if not a["msgs"]:
+        rule("R12", t12, "N/A", "thầy chưa có tin chữ nào | " + info12)
+    else:
+        v = a["voice"]
+        if v:
+            by: dict[str, list[dict]] = {}
+            for x in v:
+                by.setdefault(x["label"], []).append(x)
+            parts12 = []
+            for label, xs in by.items():
+                ex = "; ".join(f"lượt {x['turn']}: \"{x['snippet'][:80]}\"" for x in xs[:3])
+                parts12.append(f"{len(xs)} chỗ {label} ({ex})")
+            rule("R12", t12, "FAIL", " · ".join(parts12) + " | " + info12)
+        else:
+            rule("R12", t12, "PASS", f"{len(a['msgs'])} tin chữ sạch | " + info12)
     return out
 
 
@@ -903,6 +984,7 @@ def build_report(a: dict, verdicts: list[dict], source: Path) -> str:
         ("Chỗ rò rỉ", len(a["leaks"])),
         ("Cue im lặng (nấc 1/2/3)", (f"{len(a['silence'])} cue ({sum(1 for c in a['silence'] if c['nac'] == 1)}/{sum(1 for c in a['silence'] if c['nac'] == 2)}/{sum(1 for c in a['silence'] if c['nac'] == 3)}) · đáp đúng bằng hành động {sum(1 for c in a['silence'] if c['ok'])}/{len(a['silence'])}") if a["silence"] else "không có"),
         ("Độ dài tin thầy (từ)", (f"{len(a['msgs'])} tin · trung vị {dec(a['median_words'])} · dài nhất {a['max_words']} · > {LONG_MSG_WORDS} từ không có hình: {len(a['long_no_visual'])}") if a["msgs"] else "chưa có tin chữ"),
+        ("Giọng thầy và khung (R12)", f"{len(a['voice'])} chỗ lệch · {a['thinking_blocks']} khối suy nghĩ trong bản ghi (chỉ thông tin)"),
         ("Lần cuối vòng việc (R11)", (f"{len(a['loop_ends'])} lần · kết bằng câu hỏi mở không mặc định: {sum(1 for x in a['loop_ends'] if not x['ok'])}") if a["loop_ends"] else "không có"),
     ]
     for k, v in rows:
@@ -979,6 +1061,7 @@ def build_report(a: dict, verdicts: list[dict], source: Path) -> str:
     L.append("- **R9 (cue im lặng)**: mỗi cue `Học viên im lặng · nấc N` phải có, trong lượt thầy kế tiếp, một hành động (hình, widget, ghi `choices`/`board`/`point`, một chạm; nấc 3 còn nhận ghi `status: paused`) và lời đáp không có chữ \"đang đợi\" / \"đợi bạn\". Không có cue thì N/A.")
     L.append(f"- **R10 (độ dài)**: mỗi khối chữ của thầy là một tin, đếm từ theo khoảng trắng; trung vị ≤ {MEDIAN_WORDS_MAX} từ; tin > {LONG_MSG_WORDS} từ chỉ được nằm trong lượt có hình.")
     L.append("- **R11 (cuối vòng)**: cuối vòng được nhận ra từ lần ghi sổ đổi sang phần \"4\" / \"Chốt vòng việc\" hoặc đặt `outcome`. Heuristic theo từ khóa: FAIL khi tin chữ cuối của lượt đó là câu hỏi mở (\"làm gì tiếp\", \"muốn làm gì\"…) và lượt đó không ghi `choices` có `default` cũng không có chữ đề xuất vòng kế (\"vòng tiếp\", \"đề xuất\", \"mặc định\"…).")
+    L.append("- **R12 (giọng thầy)**: quét từng khối chữ của thầy. Tự xưng \"tôi\"/\"Tôi\" (bỏ đoạn trong ngoặc kép, code, tên file, đường dẫn); câu tiếng Anh = ≥ 5 từ Latin liền nhau không dấu tiếng Việt (bỏ code trong dấu backtick, URL, tên file, danh sách tên riêng viết hoa); từ nội bộ state.json, .lop-hoc, hook, prompt, cue, schema, token (kể cả trong backtick). Số khối `thinking` chỉ để biết, vì Desktop có thể hiện chúng như bản tóm tắt suy nghĩ; lớp mẫu đã tắt `showThinkingSummaries`.")
     L.append("")
     return "\n".join(L)
 

@@ -1,6 +1,6 @@
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { challengeLeft, foldPreview, silenceDue, permissionLabel, modelLabel, touchesLedger, podiumOf, boardOf, choicesOf } from '../hooks/register'
+import { challengeLeft, foldPreview, silenceDue, permissionLabel, modelLabel, touchesLedger, podiumOf, boardOf, choicesOf, describeTool, groupParts, toolKind } from '../hooks/register'
 import { STR } from '../hooks/i18n'
 import { jpegBytes, pngBytes, toB64 } from './shot-fixtures'
 
@@ -389,7 +389,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
     // Lần mở sau: nhớ tiếng Lào ngay từ cửa lớp, dòng công cụ cũng tiếng Lào.
     const tool = await $.ui.mount({ plugin: 'lop-hoc', surface, component: 'ToolUse', props: { tool_use_id: 't1', tool: 'Read', input: { file_path: 'D:/x/bang-tinh-mau.xlsx' }, isRunning: true, isErrored: false, isInterrupted: false } } as never)
-    expect(await tool.find({ text: /ອ່ານ bang-tinh-mau.xlsx · ບໍ່ແກ້ຫຍັງ/ })).toBeDefined()
+    expect(await tool.find({ text: /ຄູກຳລັງອ່ານ bang-tinh-mau.xlsx…/ })).toBeDefined()
     await tool.unmount()
   })
 
@@ -458,7 +458,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
     await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, component: 'ToolUse', props: { tool_use_id: 't1', tool: 'Read', input: { file_path: 'D:/x/bang-tinh-mau.xlsx' }, isRunning: true, isErrored: false, isInterrupted: false } } as never)
-    expect(await ui.find({ text: /Cô đọc bang-tinh-mau.xlsx · không sửa gì/ })).toBeDefined()
+    expect(await ui.find({ text: /Cô đang đọc bang-tinh-mau.xlsx…/ })).toBeDefined()
     await ui.unmount()
   })
 
@@ -1188,28 +1188,36 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await win.find({ text: 'Cô ghi sổ lớp' })).toBeDefined()
     await win.unmount()
     const other = await tool('Write', { file_path: 'D:/sandbox/bao-cao.docx', content: 'x' })
-    expect(await other.find({ text: /Cô ghi bao-cao.docx/ })).toBeDefined()
+    expect(await other.find({ text: /Cô vừa ghi bao-cao.docx/ })).toBeDefined()
     expect(await other.find({ text: 'Cô ghi sổ lớp' })).toBeUndefined()
+    // v0.12: dòng gốc nằm sau nút "Xem chi tiết".
+    expect(await other.find({ key: 'engine' })).toBeUndefined()
+    await other.press({ key: 'detail' })
     expect(await other.find({ key: 'engine' })).toBeDefined()
     await other.unmount()
   })
 
-  test(`${surface}: nhóm dòng công cụ — toàn ghi sổ lớp thì một dòng mờ; lẫn việc khác thì mở nhóm để chỉ ẩn dòng ghi sổ; không đụng nhóm thường`, LONG, async ($, on) => {
+  test(`${surface}: nhóm dòng công cụ — toàn ghi sổ lớp thì một dòng mờ; lẫn việc khác thì một dòng thầy đếm việc (không tính ghi sổ), nút mở nhóm; onScreen không đổi`, LONG, async ($, on) => {
     const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
     await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
     const call = (tool: string, input: object) => ({ tool, input, isRunning: false, isErrored: false, isInterrupted: false })
-    const group = (calls: object[]) => $.ui.mount({ plugin: 'lop-hoc', surface, component: 'ToolGroup', props: { calls, isActive: false, isExpanded: false } } as never)
+    const group = (calls: object[]) => $.ui.mount({ plugin: 'lop-hoc', surface, component: 'ToolGroup', props: { calls, isActive: false, isExpanded: false, onScreen: null } } as never)
     const only = await group([call('Read', { file_path: '.lop-hoc/state.json' }), call('Edit', { file_path: '.lop-hoc/huy-hieu.json' })])
     expect(await only.find({ text: 'Cô ghi sổ lớp' })).toBeDefined()
     expect(await only.find({ key: 'engine' })).toBeUndefined()
+    expect(await only.find({ key: 'detail' })).toBeUndefined()
     await only.unmount()
     const mixed = await group([call('Read', { file_path: 'a.xlsx' }), call('Write', { file_path: '.lop-hoc/state.json' })])
+    expect(await mixed.find({ text: 'Cô vừa: đọc 1 file' })).toBeDefined()
+    expect(await mixed.find({ key: 'engine' })).toBeUndefined()
+    await mixed.press({ key: 'detail' })
     expect(await mixed.find({ key: 'engine' })).toBeDefined()
     expect(io.renders.ToolGroup?.isExpanded).toBe(true)
+    expect(io.renders.ToolGroup?.onScreen).toBeNull()
     await mixed.unmount()
     const plain = await group([call('Read', { file_path: 'a.xlsx' })])
-    expect(await plain.find({ key: 'engine' })).toBeDefined()
-    expect(io.renders.ToolGroup?.isExpanded).toBe(false)
+    expect(await plain.find({ text: 'Cô vừa: đọc 1 file' })).toBeDefined()
+    expect(await plain.find({ key: 'engine' })).toBeUndefined()
     await plain.unmount()
   })
 
@@ -1633,3 +1641,284 @@ test('ngoài thư mục lớp học: lời dài không gập', LONG, async ($, o
   expect(engineText(io)).toBe(LONG_TEXT)
   await ui.unmount()
 })
+
+// ── v0.12 — bọc kín khung thầy: dòng việc, nhóm việc, kết quả, hộp câu hỏi, lệnh, suy nghĩ ──────────────
+type Mounted = {
+  find: (q: object) => Promise<{ props: Record<string, any>; text: string } | undefined>
+  findAll: (q: object) => Promise<{ props: Record<string, any>; text: string }[]>
+  press: (q: object) => Promise<unknown>
+  unmount: () => Promise<void>
+}
+const useProps = (tool: string, input: object, extra: object = {}) => ({ tool_use_id: 't1', tool, input, isRunning: false, isErrored: false, isInterrupted: false, ...extra })
+const gcall = (tool: string, input: object, extra: object = {}) => ({ tool, input, isRunning: false, isErrored: false, isInterrupted: false, ...extra })
+
+test('toolKind · groupParts: đếm theo loại, đúng thứ tự, vi và lo; show_widget là "vẽ hình"', () => {
+  expect(toolKind('Read')).toBe('read')
+  expect(toolKind('Glob')).toBe('find')
+  expect(toolKind('Bash')).toBe('run')
+  expect(toolKind('mcp__visualize__show_widget')).toBe('draw')
+  expect(toolKind('mcp__x__y')).toBe('mcp')
+  expect(toolKind('TodoWrite')).toBe('other')
+  const calls = [{ tool: 'Bash' }, { tool: 'Read' }, { tool: 'Write' }, { tool: 'Write' }, { tool: 'Read' }]
+  expect(groupParts(calls, 'vi')).toBe('đọc 2 file · tạo 2 file · chạy 1 lệnh')
+  expect(groupParts(calls, 'lo')).toBe('ອ່ານ 2 ໄຟລ໌ · ສ້າງ 2 ໄຟລ໌ · ແລ່ນ 1 ຄຳສັ່ງ')
+  expect(groupParts([], 'vi')).toBe('')
+  expect(describeTool('mcp__visualize__show_widget', {}, 'vi')).toBe('vẽ hình')
+  expect(describeTool('mcp__visualize__show_widget', {}, 'lo')).toBe(STR.lo.tool.draw)
+  expect(describeTool('Bash', {}, 'vi')).toBe('chạy một lệnh trên máy')
+})
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  const start = async ($: never, on: On, files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC' }) => {
+    const io = classroom(on, files)
+    const d = $ as unknown as { session: { start: (e: object) => Promise<unknown> } }
+    await d.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true })
+    return io
+  }
+  const mount = ($: never, component: string, props: object, requestId?: string) =>
+    ($ as unknown as { ui: { mount: (e: object) => Promise<Mounted> } }).ui.mount({ plugin: 'lop-hoc', surface, component, props, ...(requestId ? { requestId } : {}) })
+  const avatars = surface === 'desktop' ? 1 : 0
+
+  test(`${surface} v0.12: dòng việc thành dòng thầy — đang / vừa / trục trặc / dừng; hình thầy nhỏ chỉ trên Desktop; chi tiết gốc sau nút`, LONG, async ($, on) => {
+    await start($ as never, on)
+    const file = { file_path: 'D:/x/phieu.xlsx' }
+    const running = await mount($ as never, 'ToolUse', useProps('Read', file, { isRunning: true }))
+    expect(await running.find({ text: '▸ Cô đang đọc phieu.xlsx…' })).toBeDefined()
+    expect(await running.findAll({ type: 'Svg' })).toHaveLength(avatars)
+    if (surface === 'desktop') {
+      const sv = (await running.findAll({ type: 'Svg' }))[0]!
+      expect(sv.props.width).toBe(18)
+    }
+    expect(await running.find({ key: 'engine' })).toBeUndefined()
+    expect((await running.find({ key: 'detail' }))?.props.label).toBe('Xem chi tiết')
+    await running.press({ key: 'detail' })
+    expect(await running.find({ key: 'engine' })).toBeDefined()
+    expect((await running.find({ key: 'detail' }))?.props.label).toBe('Thu gọn')
+    await running.press({ key: 'detail' })
+    expect(await running.find({ key: 'engine' })).toBeUndefined()
+    await running.unmount()
+    const done = await mount($ as never, 'ToolUse', useProps('Write', { file_path: 'bao-cao.docx' }))
+    expect(await done.find({ text: '▸ Cô vừa ghi bao-cao.docx' })).toBeDefined()
+    await done.unmount()
+    const err = await mount($ as never, 'ToolUse', useProps('Bash', { command: 'dir' }, { isErrored: true }))
+    expect(await err.find({ text: '▸ Cô gặp trục trặc, đang xử lý' })).toBeDefined()
+    await err.unmount()
+    const stop = await mount($ as never, 'ToolUse', useProps('Bash', { command: 'dir' }, { isInterrupted: true, isErrored: true }))
+    expect(await stop.find({ text: '▸ Cô đã dừng việc này' })).toBeDefined()
+    await stop.unmount()
+    const draw = await mount($ as never, 'ToolUse', useProps('mcp__visualize__show_widget', { title: 'x' }, { isRunning: true }))
+    expect(await draw.find({ text: '▸ Cô đang vẽ hình…' })).toBeDefined()
+    await draw.unmount()
+    const other = await mount($ as never, 'ToolUse', useProps('TodoWrite', { todos: [] }))
+    expect(await other.find({ text: '▸ Cô vừa làm một việc' })).toBeDefined()
+    await other.unmount()
+  })
+
+  test(`${surface} v0.12: dòng việc tiếng Lào; ghi sổ lớp vẫn một dòng mờ không nút`, LONG, async ($, on) => {
+    await start($ as never, on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ language: 'lo' }) })
+    const run = await mount($ as never, 'ToolUse', useProps('Read', { file_path: 'a.xlsx' }, { isRunning: true }))
+    expect(await run.find({ text: '▸ ຄູກຳລັງອ່ານ a.xlsx…' })).toBeDefined()
+    expect((await run.find({ key: 'detail' }))?.props.label).toBe(STR.lo.act.detail)
+    expect(STR.lo.act.detail).toMatch(/[\u0E80-\u0EFF]/)
+    await run.unmount()
+    const done = await mount($ as never, 'ToolUse', useProps('Bash', { command: 'dir' }))
+    expect(await done.find({ text: '▸ ຄູຫາກໍແລ່ນຄຳສັ່ງໃນເຄື່ອງ' })).toBeDefined()
+    await done.unmount()
+    const led = await mount($ as never, 'ToolUse', useProps('Write', { file_path: '.lop-hoc/state.json' }))
+    expect(await led.find({ text: 'ຄູຈົດບັນທຶກຫ້ອງຮຽນ' })).toBeDefined()
+    expect(await led.find({ key: 'detail' })).toBeUndefined()
+    expect(await led.findAll({ type: 'Svg' })).toHaveLength(0)
+    await led.unmount()
+  })
+
+  test(`${surface} v0.12: nhóm việc — một dòng thầy đếm theo loại (vi), đang/vừa, lỗi; nút mở nhóm`, LONG, async ($, on) => {
+    const io = await start($ as never, on)
+    const calls = [gcall('Read', { file_path: 'a' }), gcall('Glob', { pattern: '*' }), gcall('Write', { file_path: 'b' }), gcall('Write', { file_path: 'c' }), gcall('Bash', { command: 'ls' }), gcall('mcp__visualize__show_widget', {})]
+    const g = await mount($ as never, 'ToolGroup', { calls, isActive: false, isExpanded: false })
+    expect(await g.find({ text: '▸ Cô vừa: đọc 1 file · tìm 1 lần · tạo 2 file · chạy 1 lệnh · vẽ 1 hình' })).toBeDefined()
+    expect(await g.findAll({ type: 'Svg' })).toHaveLength(avatars)
+    expect(await g.find({ key: 'engine' })).toBeUndefined()
+    expect(io.renders.ToolGroup).toBeUndefined()
+    await g.press({ key: 'detail' })
+    expect(io.renders.ToolGroup?.isExpanded).toBe(true)
+    expect(await g.find({ key: 'engine' })).toBeDefined()
+    expect((await g.find({ key: 'detail' }))?.props.label).toBe('Thu gọn')
+    await g.press({ key: 'detail' })
+    expect(await g.find({ key: 'engine' })).toBeUndefined()
+    await g.unmount()
+    const live = await mount($ as never, 'ToolGroup', { calls: [gcall('Read', { file_path: 'a' }, { isRunning: true })], isActive: true, isExpanded: false })
+    expect(await live.find({ text: '▸ Cô đang: đọc 1 file' })).toBeDefined()
+    await live.unmount()
+    const bad = await mount($ as never, 'ToolGroup', { calls: [gcall('Bash', { command: 'x' }, { isErrored: true })], isActive: false, isExpanded: false })
+    expect(await bad.find({ text: '▸ Cô vừa: chạy 1 lệnh · có trục trặc, cô đang xử lý' })).toBeDefined()
+    await bad.unmount()
+    // Nhóm engine đã mở (--verbose): từng dòng là ToolUse của thầy, không bọc thêm.
+    const open = await mount($ as never, 'ToolGroup', { calls: [gcall('Read', { file_path: 'a' })], isActive: false, isExpanded: true })
+    expect(await open.find({ key: 'engine' })).toBeDefined()
+    expect(await open.find({ key: 'detail' })).toBeUndefined()
+    await open.unmount()
+  })
+
+  test(`${surface} v0.12: nhóm việc tiếng Lào`, LONG, async ($, on) => {
+    await start($ as never, on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ language: 'lo' }) })
+    const g = await mount($ as never, 'ToolGroup', { calls: [gcall('Read', { file_path: 'a' }), gcall('Bash', { command: 'x' })], isActive: false, isExpanded: false })
+    expect(await g.find({ text: '▸ ຄູຫາກໍ: ອ່ານ 1 ໄຟລ໌ · ແລ່ນ 1 ຄຳສັ່ງ' })).toBeDefined()
+    await g.unmount()
+  })
+
+  test(`${surface} v0.12: kết quả công cụ gập sẵn "Kết quả · xem"; lỗi "Có lỗi — thầy đang xử lý · xem"; nút mở/thu; kết quả ghi sổ ẩn`, LONG, async ($, on) => {
+    await start($ as never, on)
+    const ok = await mount($ as never, 'ToolResult', { tool_use_id: 'r1', tool: 'Bash', output: { stdout: 'x', stderr: '' }, isErrored: false }, 'r1')
+    expect((await ok.find({ key: 'detail' }))?.props.label).toBe('Kết quả · xem')
+    expect(await ok.find({ key: 'engine' })).toBeUndefined()
+    await ok.press({ key: 'detail' })
+    expect(await ok.find({ key: 'engine' })).toBeDefined()
+    expect((await ok.find({ key: 'detail' }))?.props.label).toBe('Thu gọn')
+    await ok.press({ key: 'detail' })
+    expect((await ok.find({ key: 'detail' }))?.props.label).toBe('Kết quả · xem')
+    await ok.unmount()
+    const bad = await mount($ as never, 'ToolResult', { tool_use_id: 'r2', tool: 'Bash', output: 'lỗi', isErrored: true }, 'r2')
+    expect((await bad.find({ key: 'detail' }))?.props.label).toBe('Có lỗi — cô đang xử lý · xem')
+    await bad.unmount()
+    // Dòng ghi sổ → kết quả của nó biến mất (nhưng lỗi vẫn hiện).
+    const led = await mount($ as never, 'ToolUse', useProps('Write', { file_path: '.lop-hoc/state.json' }), 'led1')
+    expect(await led.find({ text: 'Cô ghi sổ lớp' })).toBeDefined()
+    const hid = await mount($ as never, 'ToolResult', { tool_use_id: 'led1', tool: 'Write', output: {}, isErrored: false }, 'led1')
+    expect(await hid.find({ key: 'detail' })).toBeUndefined()
+    expect(await hid.find({ key: 'engine' })).toBeUndefined()
+    await hid.unmount()
+    const hidErr = await mount($ as never, 'ToolResult', { tool_use_id: 'led1', tool: 'Write', output: 'x', isErrored: true }, 'led1')
+    expect(await hidErr.find({ key: 'detail' })).toBeDefined()
+    await hidErr.unmount()
+    await led.unmount()
+  })
+
+  test(`${surface} v0.12: kết quả công cụ tiếng Lào`, LONG, async ($, on) => {
+    await start($ as never, on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ language: 'lo' }) })
+    const ok = await mount($ as never, 'ToolResult', { tool_use_id: 'r1', tool: 'Bash', output: {}, isErrored: false })
+    expect((await ok.find({ key: 'detail' }))?.props.label).toBe(STR.lo.act.result)
+    await ok.unmount()
+    const bad = await mount($ as never, 'ToolResult', { tool_use_id: 'r2', tool: 'Bash', output: 'x', isErrored: true })
+    expect((await bad.find({ key: 'detail' }))?.props.label).toBe(STR.lo.act.resultError('ຄູ'))
+    await bad.unmount()
+  })
+
+  test(`${surface} v0.12: hộp câu hỏi có khung đầy đủ — viền tròn #008816, hình thầy trên Desktop, dòng tiêu đề, hộp gốc đúng một lần`, LONG, async ($, on) => {
+    await start($ as never, on)
+    const ui = await mount($ as never, 'AskUserQuestion', { tool: 'AskUserQuestion', questions: [{ question: 'Chọn?', header: 'Hỏi', multiSelect: false, options: [{ label: 'A', description: '' }, { label: 'B', description: '' }] }] })
+    expect(await ui.find({ text: 'Cô hỏi' })).toBeDefined()
+    const frames = (await ui.findAll({ type: 'Box' })).filter(b => b.props.borderStyle === 'round' && b.props.borderColor === '#008816')
+    expect(frames).toHaveLength(1)
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 1 : 0)
+    expect(await ui.findAll({ type: 'engine' })).toHaveLength(1)
+    await ui.unmount()
+  })
+
+  test(`${surface} v0.12: lệnh /reload-plugins → "Đã nạp lại lớp học ✓"; lệnh khác → một dòng thầy + nút tới chữ gốc; /lop-hoc giữ nguyên`, LONG, async ($, on) => {
+    await start($ as never, on)
+    const out = (command: string, text: string, extra: object = {}) => mount($ as never, 'CommandOutput', { command, args: '', text, isErrored: false, ...extra })
+    const re = await out('reload-plugins', 'Reloaded: 31 plugins · 191 skills')
+    expect(await re.find({ text: 'Đã nạp lại lớp học ✓' })).toBeDefined()
+    expect(await re.find({ key: 'engine' })).toBeUndefined()
+    expect(await re.find({ key: 'detail' })).toBeUndefined()
+    expect(await re.findAll({ type: 'Svg' })).toHaveLength(avatars)
+    await re.unmount()
+    const cost = await out('cost', 'Total cost: $0.12')
+    expect(await cost.find({ text: '▸ Cô vừa chạy lệnh /cost' })).toBeDefined()
+    expect(await cost.find({ key: 'engine' })).toBeUndefined()
+    await cost.press({ key: 'detail' })
+    expect(await cost.find({ key: 'engine' })).toBeDefined()
+    await cost.unmount()
+    const bad = await out('cost', 'boom', { isErrored: true })
+    expect(await bad.find({ text: '▸ Lệnh /cost gặp trục trặc — Cô đang xử lý' })).toBeDefined()
+    await bad.unmount()
+    const bad2 = await out('reload-plugins', 'boom', { isErrored: true })
+    expect(await bad2.find({ text: 'Đã nạp lại lớp học ✓' })).toBeUndefined()
+    expect(await bad2.find({ key: 'detail' })).toBeDefined()
+    await bad2.unmount()
+    const own = await out('lop-hoc', 'Đã mở bảng tóm tắt Lớp học NNC.')
+    expect(await own.find({ key: 'engine' })).toBeDefined()
+    expect(await own.find({ key: 'detail' })).toBeUndefined()
+    await own.unmount()
+  })
+
+  test(`${surface} v0.12: lệnh tải lại bằng tiếng Lào`, LONG, async ($, on) => {
+    await start($ as never, on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ language: 'lo' }) })
+    const re = await mount($ as never, 'CommandOutput', { command: 'reload-plugins', args: '', text: 'Reloaded', isErrored: false })
+    expect(await re.find({ text: 'ໂຫຼດຫ້ອງຮຽນໃໝ່ແລ້ວ ✓' })).toBeDefined()
+    await re.unmount()
+    const cost = await mount($ as never, 'CommandOutput', { command: 'cost', args: '', text: 'x', isErrored: false })
+    expect(await cost.find({ text: '▸ ຄູຫາກໍແລ່ນຄຳສັ່ງ /cost' })).toBeDefined()
+    await cost.unmount()
+  })
+
+  test(`${surface} v0.12: ngoài thư mục lớp học mọi thành phần giữ nguyên (không nút, không khung)`, LONG, async ($, on) => {
+    const io = classroom(on, { 'README.md': 'x' })
+    await ($ as unknown as { session: { start: (e: object) => Promise<unknown> } }).session.start({ cwd: 'D:/other', surface, isInteractive: true })
+    const cases: [string, object][] = [
+      ['ToolUse', useProps('Read', { file_path: 'a.xlsx' }, { isRunning: true })],
+      ['ToolGroup', { calls: [gcall('Read', { file_path: 'a' })], isActive: false, isExpanded: false }],
+      ['ToolResult', { tool_use_id: 'r1', tool: 'Bash', output: {}, isErrored: false }],
+      ['CommandOutput', { command: 'reload-plugins', args: '', text: 'Reloaded', isErrored: false }],
+    ]
+    for (const [component, props] of cases) {
+      const ui = await mount($ as never, component, props)
+      expect(await ui.find({ key: 'engine' })).toBeDefined()
+      expect(await ui.find({ key: 'detail' })).toBeUndefined()
+      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
+      await ui.unmount()
+    }
+    expect(io.renders.ToolGroup?.isExpanded).toBe(false)
+    const ask = await mount($ as never, 'AskUserQuestion', { tool: 'AskUserQuestion', questions: [{ question: 'Chọn?', header: 'Hỏi', multiSelect: false, options: [{ label: 'A', description: '' }, { label: 'B', description: '' }] }] })
+    expect(await ask.findAll({ type: 'Box' })).toHaveLength(0)
+    await ask.unmount()
+  })
+
+  // Luồng turn.step: engine giả nói "Tôi chấm lại…" trong khối suy nghĩ.
+  type Chunk = { kind: string; text?: string; index?: number }
+  const stepOf = ($: never, on: On, chunks: object[]) => {
+    on('turn.step', async function* (_$, e) {
+      for (const c of chunks) yield c as never
+      return { turnId: e.turnId, index: e.index, answer: 'Chào chị', toolUses: [], stopReason: 'end_turn', usage: null } as never
+    })
+    return async () => {
+      const out: Chunk[] = []
+      const stream = ($ as unknown as { turn: { step: (e: object) => AsyncIterable<Chunk> } }).turn.step({ turnId: 'tt', index: 0, model: 'claude-opus-5-5', messageCount: 1 })
+      for await (const c of stream) out.push(c)
+      return out
+    }
+  }
+  const SAID = [
+    { kind: 'thinking', index: 0, text: 'Tôi chấm lại 3 câu' },
+    { kind: 'thinking', index: 0, text: ' rồi so với đáp án' },
+    { kind: 'text', index: 1, text: 'Chào chị' },
+    { kind: 'thinking', index: 2, text: 'Tôi nghĩ tiếp' },
+  ]
+
+  test(`${surface} v0.12: suy nghĩ hiện lúc đang chạy chỉ còn một dòng của thầy, phần còn lại để trống; chữ trả lời giữ nguyên`, LONG, async ($, on) => {
+    const run = stepOf($ as never, on, SAID)
+    await start($ as never, on)
+    const out = await run()
+    expect(out.map(c => c.kind)).toEqual(['thinking', 'thinking', 'text', 'thinking'])
+    expect(out[0]?.text).toBe('Cô đang suy nghĩ…')
+    expect(out[1]?.text).toBe('')
+    expect(out[3]?.text).toBe('')
+    expect(out[2]?.text).toBe('Chào chị')
+    expect(out.map(c => c.text).join('')).not.toMatch(/Tôi/)
+  })
+
+  test(`${surface} v0.12: suy nghĩ tiếng Lào`, LONG, async ($, on) => {
+    const run = stepOf($ as never, on, SAID)
+    await start($ as never, on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ language: 'lo' }) })
+    expect((await run())[0]?.text).toBe('ຄູກຳລັງຄິດ…')
+  })
+
+  test(`${surface} v0.12: ngoài lớp học suy nghĩ không đổi`, LONG, async ($, on) => {
+    const run = stepOf($ as never, on, SAID)
+    classroom(on, { 'README.md': 'x' })
+    await ($ as unknown as { session: { start: (e: object) => Promise<unknown> } }).session.start({ cwd: 'D:/other', surface, isInteractive: true })
+    const out = await run()
+    expect(out[0]?.text).toBe('Tôi chấm lại 3 câu')
+    expect(out[1]?.text).toBe(' rồi so với đáp án')
+  })
+}

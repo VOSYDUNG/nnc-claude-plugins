@@ -59,12 +59,15 @@ class LopHocPackage(unittest.TestCase):
         self.assertTrue(s["enabledPlugins"]["lop-hoc@nnc-claude-plugins"])
         self.assertIn("Edit(./.lop-hoc/**)", s["permissions"]["allow"])
         self.assertIn("Edit(./Phieu-ket-qua.md)", s["permissions"]["allow"])
+        # Từ 0.12: tắt bản tóm tắt suy nghĩ của mô hình (nó nói "Tôi…" ngoài khung thầy).
+        self.assertIs(s["showThinkingSummaries"], False)
+        self.assertIs(_builder().settings()["showThinkingSummaries"], False)
         for f in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md", "Thuc-hanh/README.md"):
             self.assertTrue((MAU / f).is_file(), f)
 
-    def test_nnc_version_carries_lophoc_0110_and_guide_has_reload_hint(self):
+    def test_nnc_version_carries_lophoc_0120_and_guide_has_reload_hint(self):
         nnc = json.loads(NNC.read_text(encoding="utf-8"))["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.11.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
         self.assertEqual(self.entries["nnc"]["version"], nnc)
         guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
         self.assertIn("Chưa thấy bục giảng: gõ `/reload-plugins`", guide)
@@ -80,8 +83,11 @@ class LopHocPackage(unittest.TestCase):
             with zipfile.ZipFile(dest) as z:
                 self.assertIn("Lop-hoc-NNC/CAI-DAT.md", z.namelist())
                 zipped = z.read("Lop-hoc-NNC/CAI-DAT.md").decode("utf-8")
+                zs = json.loads(z.read("Lop-hoc-NNC/.claude/settings.json").decode("utf-8"))
         text = (MAU / "CAI-DAT.md").read_text(encoding="utf-8")
         self.assertEqual(zipped, text)
+        self.assertIs(zs["showThinkingSummaries"], False)
+        self.assertIn("showThinkingSummaries", text, "installer step 5 must verify the key")
         self.assertTrue(text.startswith("# CÀI ĐẶT LỚP HỌC NNC"), "title must tell any Claude to read this first")
         for phrase in ("hãy cài đặt lớp học NNC cho tôi", "lop-hoc-release", "--scope project", "/reload-plugins",
                        "nnc@nnc-claude-plugins", "lop-hoc@nnc-claude-plugins", "2.1.286", "git ls-remote",

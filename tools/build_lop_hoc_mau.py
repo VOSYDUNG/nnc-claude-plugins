@@ -46,6 +46,8 @@ def settings(ref: str = RELEASE_REF) -> dict:
         },
         "enabledPlugins": {f"nnc@{MARKETPLACE}": True, f"lop-hoc@{MARKETPLACE}": True},
         "permissions": {"allow": ["Edit(./.lop-hoc/**)", "Edit(./Thuc-hanh/**)", "Edit(./Phieu-ket-qua.md)"]},
+        # Từ 0.12: không hiện bản tóm tắt suy nghĩ của mô hình trong lớp (nó nói "Tôi…", nằm ngoài khung thầy).
+        "showThinkingSummaries": False,
     }
 
 

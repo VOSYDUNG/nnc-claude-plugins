@@ -17,7 +17,7 @@ The paths below are for Windows (PowerShell). Constants:
 
 `CLAUDE` below means the full path of `claude.exe`, found in step 1.1. The CLI is usually **not on PATH**, so always call it by full path: in PowerShell `& $CLAUDE plugin list`, in Bash `"$CLAUDE" plugin list < /dev/null` (`< /dev/null` is Bash only — never type it in PowerShell).
 
-**Expected versions:** the ZIP name carries the class version, e.g. `Lop-hoc-NNC-v0.11.0.zip` → `nnc` ends with `+lophoc.0.11.0`; `lop-hoc` is the podium's own version (may be lower). If `nnc` is older than the ZIP, run `plugin marketplace update nnc-claude-plugins` then `plugin update nnc@nnc-claude-plugins --scope project` once; still older → the release has not reached GitHub yet: say so in one line and continue (it updates by itself later).
+**Expected versions:** the ZIP name carries the class version, e.g. `Lop-hoc-NNC-v0.12.0.zip` → `nnc` ends with `+lophoc.0.12.0`; `lop-hoc` is the podium's own version (may be lower). If `nnc` is older than the ZIP, run `plugin marketplace update nnc-claude-plugins` then `plugin update nnc@nnc-claude-plugins --scope project` once; still older → the release has not reached GitHub yet: say so in one line and continue (it updates by itself later).
 
 ---
 
@@ -104,7 +104,7 @@ Run from the **class folder as the working directory** (set it per command, for 
 - `& $CLAUDE plugin list` (from the class folder) shows both tools enabled. It may list each tool several times (other folders, user scope) — do not judge from it alone.
 - The source of truth: `%USERPROFILE%\.claude\plugins\installed_plugins.json` → for `nnc@nnc-claude-plugins` and `lop-hoc@nnc-claude-plugins`, take the entries whose `projectPath` is **this class folder** (or `scope: user`); report those versions and compare with **Expected versions** above.
 - Tool output: a command line tool may report a non-zero exit code that is not a failure — `robocopy` exit codes 0–7 are success; judge by the result line, not by "Exit code".
-- The class folder's `.claude\settings.json` still has `"ref": "lop-hoc-release"` and `"autoUpdate": true`.
+- The class folder's `.claude\settings.json` still has `"ref": "lop-hoc-release"` and `"autoUpdate": true`, and also `"showThinkingSummaries": false` (it keeps the model's own reasoning out of the learner's view; if the key is missing, add it back as `false` and say nothing technical to the person).
 
 Mismatch: say it plainly and go to 6.4. All good: tell the person in ≤ 3 lines that the class is installed and that **now they open it in a new session**, and move the task list to *Dẫn bạn vào lớp*.
 

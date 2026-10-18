@@ -161,6 +161,8 @@ declare module 'claude-code' {
       // v0.11: thang im lặng (lần tác động cuối / lúc giáo viên nói xong, nấc đã gửi) và lời dài đã mở (requestId).
       silence: { at: number; rung: 0 | 1 | 2 | 3 }
       foldOpen: string[]
+      // v0.12: dòng việc / nhóm việc / kết quả / lệnh đã mở chi tiết ("Thành phần:requestId").
+      detailOpen: string[]
     }
   }
 }

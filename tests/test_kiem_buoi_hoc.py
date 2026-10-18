@@ -71,6 +71,9 @@ class Session:
     def say(self, text: str):
         self._row("assistant", [{"type": "text", "text": text}])
 
+    def think(self, text: str = "Tôi chấm lại 3 câu."):
+        self._row("assistant", [{"type": "thinking", "thinking": text, "signature": "sig"}])
+
     def tool(self, name: str, inp: dict, result: str = "ok", wait: float = 0.0) -> str:
         self.tool_n += 1
         tid = f"toolu_{self.tool_n}"
@@ -269,7 +272,7 @@ def test_bad_report_content(tmp_path):
     rows_ = [ln for ln in top.splitlines() if ln.startswith("| ") and ln[2].isdigit()]
     assert 1 <= len(rows_) <= 5
     assert "Effort" in rows_[0] and "6 phút" in rows_[0]
-    assert "2 PASS · 8 FAIL · 1 không áp dụng" in report
+    assert "3 PASS · 8 FAIL · 1 không áp dụng" in report
 
 
 def test_good_report_has_pass_lines(tmp_path):
@@ -277,7 +280,7 @@ def test_good_report_has_pass_lines(tmp_path):
     rows, bad = kbh.load_rows(path)
     a = kbh.analyze(rows, bad)
     report = kbh.build_report(a, kbh.judge(a), path)
-    assert report.count("**PASS**") == 10
+    assert report.count("**PASS**") == 11
     assert report.count("**N/A**") == 1
     assert "**FAIL**" not in report
     assert "Không thấy." in report  # no leaks
@@ -471,7 +474,7 @@ def test_out_option_writes_report_and_prints_path(tmp_path, capsys):
     assert text.startswith("# Báo cáo chấm buổi học")
     stdout = capsys.readouterr().out
     assert str(out) in stdout
-    assert "10 PASS / 0 FAIL" in stdout
+    assert "11 PASS / 0 FAIL" in stdout
 
 
 def test_default_out_goes_to_cwd(tmp_path, monkeypatch, capsys):
@@ -481,7 +484,7 @@ def test_default_out_goes_to_cwd(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(work)
     assert kbh.main([str(path)]) == 0
     assert (work / "bao-cao-buoi-hoc-abcdef12.md").is_file()
-    assert "2 PASS / 8 FAIL" in capsys.readouterr().out
+    assert "3 PASS / 8 FAIL" in capsys.readouterr().out
 
 
 def test_subprocess_run_utf8_and_exit_zero(tmp_path):
@@ -756,3 +759,90 @@ def test_report_has_v011_numbers_and_rule_lines(tmp_path):
     for rid in ("R9", "R10", "R11"):
         assert re.search(rf"\*\*(PASS|FAIL|N/A)\*\* · {rid} ", report), rid
     assert "trung vị" in report
+
+
+# ---------------------------------------------------------------------------
+# v0.12 rule: R12 teacher voice and frame
+# ---------------------------------------------------------------------------
+
+
+def test_r12_not_applicable_without_teacher_text(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    assert verdict(run(s, tmp_path), "R12")["status"] == "N/A"
+
+
+def test_r12_pass_clean_teacher_voice_with_code_names_and_quotes(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.say("Chào bạn, thầy là thầy của lớp. Thầy vừa chấm xong phiếu của bạn.")
+    s.say("Bạn bấm nút \"Tìm trong thư mục của tôi\" rồi mở `npm install the best package ever` giúp thầy.")
+    s.say("Mở file ke-hoach-bai-hoc-moi-nhat-hom-nay.md hoặc https://example.com/the/best/thing/ever/made nhé.")
+    s.say("Hôm nay mình dùng Word, Excel, PowerPoint, Zalo, Teams cho việc này.")
+    v = verdict(run(s, tmp_path), "R12")
+    assert v["status"] == "PASS", v
+    assert "0 khối suy nghĩ" in v["detail"]
+
+
+def test_r12_fail_self_reference_toi_as_speaker(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.say("Tôi chấm lại 3 câu rồi, bạn đúng 7 trên 10.")
+    v = verdict(run(s, tmp_path), "R12")
+    assert v["status"] == "FAIL", v
+    assert "tự xưng" in v["detail"] and "Tôi chấm lại 3 câu" in v["detail"]
+
+
+def test_r12_fail_english_sentence(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.say("Thầy đọc xong. I rechecked all of the answers carefully và thấy đúng.")
+    v = verdict(run(s, tmp_path), "R12")
+    assert v["status"] == "FAIL", v
+    assert "câu tiếng Anh" in v["detail"]
+
+
+def test_r12_fail_internal_words(tmp_path):
+    for word in ("state.json", ".lop-hoc", "hook", "prompt", "cue", "schema", "token"):
+        s = Session()
+        s.cue("Mở lớp")
+        s.say(f"Thầy vừa cập nhật {word} cho bạn.")
+        v = verdict(run(s, tmp_path), "R12")
+        assert v["status"] == "FAIL", (word, v)
+        assert "từ nội bộ" in v["detail"], word
+
+
+def test_r12_counts_thinking_blocks_without_changing_verdict(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.think()
+    s.say("Thầy chấm lại rồi: đúng 7 trên 10 câu.")
+    s.think("Cần đọc phiếu trước.")
+    a = run(s, tmp_path)
+    assert a["thinking_blocks"] == 2
+    v = verdict(a, "R12")
+    assert v["status"] == "PASS", v
+    assert "2 khối suy nghĩ" in v["detail"]
+    path = s.dump(tmp_path / "t.jsonl")
+    report = kbh.build_report(a, kbh.judge(a), path)
+    assert "R12" in report and "Giọng thầy và khung (R12)" in report
+
+
+def test_r12_ignores_thinking_text_and_user_text(tmp_path):
+    s = Session()
+    s.cue("Mở lớp")
+    s.user_text("Tôi muốn học cách làm bảng, I want to learn how to make tables quickly please")
+    s.think("Tôi chấm lại 3 câu.")
+    s.say("Thầy đã nhận. Mình làm bảng ngay nhé.")
+    assert verdict(run(s, tmp_path), "R12")["status"] == "PASS"
+
+
+def test_r12_ignores_markdown_blockquote_learner_voice():
+    import importlib.util, pathlib
+    p = pathlib.Path(__file__).resolve().parents[1] / "tools" / "kiem-buoi-hoc.py"
+    spec = importlib.util.spec_from_file_location("kbh_r12", p)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    text = "Thầy điền sẵn 4 ý:\n> **Cách kiểm:** liệt kê rõ những dòng để tôi đối chiếu\nBạn bấm ▶ rồi Enter nhé."
+    assert not [x for x in m.scan_voice(text) if x[0].startswith("tự xưng")]
+    assert [x for x in m.scan_voice("Tôi chấm lại 3 câu cho bạn.") if x[0].startswith("tự xưng")]

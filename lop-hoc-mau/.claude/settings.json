@@ -19,5 +19,6 @@
       "Edit(./Thuc-hanh/**)",
       "Edit(./Phieu-ket-qua.md)"
     ]
-  }
+  },
+  "showThinkingSummaries": false
 }

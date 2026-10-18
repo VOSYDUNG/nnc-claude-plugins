@@ -108,14 +108,14 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
-        self.assertIn("+lophoc.0.11.0", self.plugin)
+        self.assertIn("+lophoc.0.12.0", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.11.0", frontmatter)
+        self.assertIn("version: 0.12.0", frontmatter)
         self.assertNotIn("version: 0.9.0", frontmatter)
         self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
@@ -514,14 +514,14 @@ class StageV08Tests(unittest.TestCase):
     # --- versions --------------------------------------------------------
 
     def test_versions(self):
-        self.assertIn("version: 0.11.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.8", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.11.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
         self.assertNotIn("alpha.3", nnc)
-        self.assertIn("evaluation cases F1–F66", self.skill)
+        self.assertIn("evaluation cases F1–F68", self.skill)
 
     # --- the visual toolbox ----------------------------------------------
 
@@ -877,10 +877,10 @@ class RealScreenV10Tests(unittest.TestCase):
         cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
 
     def test_versions(self):
-        self.assertIn("version: 0.11.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.10", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.11.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -1009,10 +1009,10 @@ class SelfDrivingV11Tests(unittest.TestCase):
         cls.s13 = cls.skill.split("## 13. A self-driving teacher", 1)[1].split("For installation, release gates", 1)[0]
 
     def test_versions(self):
-        self.assertIn("version: 0.11.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.11", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.11.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -1154,7 +1154,7 @@ class SelfDrivingV11Tests(unittest.TestCase):
             self.assertIn("## " + title, self.scen, title)
         order = [self.scen.index("## " + t) for t in titles]
         self.assertEqual(order, sorted(order))
-        self.assertNotIn("Case F67", self.scen)
+        self.assertIn("Case F67", self.scen)  # v0.12 adds F67–F68
         self.assertIn("F61–F66", self.skill)
         f61 = self.scen.split("## Case F61", 1)[1].split("## Case F62", 1)[0]
         for phrase in ("[Giáo án] Học viên im lặng · nấc 1", "Thầy đang đợi", "what this step is for"):
@@ -1181,10 +1181,61 @@ class SelfDrivingV11Tests(unittest.TestCase):
                        "propose the next loop yourself, default continue", "Evidence over insistence (v0.11)",
                        "change position only on new evidence"):
             self.assertIn(phrase, self.template, phrase)
-        self.assertIn("(v0.11)", self.template.splitlines()[0])
+        self.assertIn("(v0.12)", self.template.splitlines()[0])
         generated = MAU_CLAUDE.read_text(encoding="utf-8")
         self.assertEqual(generated.count("Evidence over insistence (v0.11)"), 1)
         self.assertIn("Silence means", generated)
+
+
+class TeacherVoiceV12Tests(unittest.TestCase):
+    """v0.12: teacher voice and frame (contract LOP-HOC-V12-THIET-KE.md section 2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.scen = SCENARIOS.read_text(encoding="utf-8")
+        cls.template = TEMPLATE.read_text(encoding="utf-8")
+        cls.plugin = PLUGIN.read_text(encoding="utf-8")
+        cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
+        cls.s14 = cls.skill.split("## 14. Giọng thầy và khung", 1)[1]
+
+    def test_versions(self):
+        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
+        self.assertIn("What changed in v0.12", self.skill)
+        nnc = json.loads(self.plugin)["version"]
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
+        self.assertNotIn("alpha.3", nnc)
+        entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
+        self.assertEqual(entry["version"], nnc)
+
+    def test_voice_rule_block(self):
+        for phrase in ("Self-reference is only thầy / cô (ຄູ)", 'Never "tôi"', "Host-level texts", "one short line",
+                       "Lớp học NNC · Thầy", "Never show raw tool output", "Thinking stays internal"):
+            self.assertIn(phrase, self.s14, phrase)
+
+    def test_open_class_cue_row_sets_the_session_title(self):
+        row = next(line for line in self.skill.splitlines() if line.startswith("| `[Giáo án] Mở lớp"))
+        self.assertIn("Set the session title once", row)
+        self.assertIn("Lớp học NNC · Thầy", row)
+
+    def test_scenarios_f67_f68(self):
+        self.assertIn("## Case F67", self.scen)
+        self.assertIn("## Case F68", self.scen)
+        self.assertNotIn("Case F69", self.scen)
+        self.assertIn("F67–F68", self.skill)
+        f67 = self.scen.split("## Case F67", 1)[1].split("## Case F68", 1)[0]
+        for phrase in ("tool result", "thầy", "Tôi chấm lại 3 câu"):
+            self.assertIn(phrase, f67, phrase)
+        f68 = self.scen.split("## Case F68", 1)[1].split("## After-action", 1)[0]
+        for phrase in ("recap", "teacher's voice", "one short line", "session title"):
+            self.assertIn(phrase, f68, phrase)
+
+    def test_template_one_line_and_generated_copy(self):
+        self.assertIn("(v0.12)", self.template.splitlines()[0])
+        lines = [l for l in self.template.splitlines() if l.startswith("- **Teacher's voice and frame (v0.12).**")]
+        self.assertEqual(len(lines), 1)
+        generated = MAU_CLAUDE.read_text(encoding="utf-8")
+        self.assertEqual(generated.count("Teacher's voice and frame (v0.12)"), 1)
 
 
 if __name__ == "__main__":

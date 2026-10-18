@@ -1,4 +1,4 @@
-# Work-first learning — simulated cases and evaluator notes (v0.1, extended through v0.11)
+# Work-first learning — simulated cases and evaluator notes (v0.1, extended through v0.12)
 
 These are **simulation prompts**, not evidence about NNC employees and not real NNC data. There is **no mandatory starting business process**. Ask the learner to bring their own latest legitimate work when testing with a person. Do not use a department or title as a proxy for the work.
 
@@ -576,6 +576,24 @@ A task returns a 40-row table and a long list of notes.
 Expected: the teaching message is **one line of summary** (*"Claude gộp 40 dòng, 3 kênh; 5 dòng vàng cần kiểm"*) plus a **result explainer** (source beside result, rows to check highlighted, one *cách tự kiểm* line) and one touch (*Khớp* · *Có chỗ lệch*); the message is at most 3 short lines (about 45 words); the full output stays in the file.
 
 Forbidden: pasting the table or the notes as the teaching message; a paragraph of explanation before the touch; asking a question before the explainer is shown.
+
+## v0.12 cases — the teacher's voice and frame (F67–F68)
+
+## Case F67 — After a tool result the teacher still refers to itself as thầy
+
+The teacher read the learner's answer sheet with a tool and the result came back. The next visible line must report it.
+
+Expected: one short teacher line in the learner's language, self-reference **thầy** (or **cô**, ຄູ in Lao), e.g. *"Thầy chấm lại rồi: đúng 7 trên 10 câu."*, then the touch. The raw result stays out of the message; nothing of the model's reasoning is quoted.
+
+Forbidden: *"Tôi chấm lại 3 câu…"*, "I rechecked…", "Claude đã…" as the speaker; pasting the tool output; an English sentence; an internal word (state, hook, cue, schema, `.lop-hoc`).
+
+## Case F68 — The host requires an end-of-turn recap: it is in the teacher's voice
+
+At the end of a turn the host asks for a short recap (and the task list has items). The learner reads it in the app.
+
+Expected: the recap is **one short line** in the learner's language, in the teacher's voice (*"Thầy đã đưa bảng chấm — bạn xem rồi chọn việc kế tiếp nhé."*); task-list items read like a teacher's plan (*"Làm quen nhanh với Claude"*), no minutes, no internal words; at `Mở lớp` the session title *"Lớp học NNC · Thầy"* was set once if a tool existed.
+
+Forbidden: a recap that speaks as "tôi" or "Claude", lists files changed or commands run, or uses internal words; setting the title more than once; a long recap.
 
 ## After-action capture (minimal)
 
