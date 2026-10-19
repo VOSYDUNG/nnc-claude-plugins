@@ -6,15 +6,15 @@ Lớp học **luôn mở**: giáo viên AI đứng lớp cho từng người, kh
 - [ ] Dòng **Người hỗ trợ** ở đầu `HUONG-DAN.md` đã có tên và kênh liên hệ (người phát hành điền khi đóng gói; gói tự tải từ repo thì tự điền). Tin *Soạn tin nhờ hỗ trợ* và *Phiếu kết quả* của học viên gửi về đây.
 
 ## Cập nhật
-- Gói từ 0.7.2 trở đi **tự cập nhật** theo nhánh phát hành; không cần phát gói mới cho mỗi bản.
-- Máy đã cài bản trước 0.7.2: phát gói mới một lần, học viên giải nén đè lên thư mục cũ.
+- Lớp học **tự cập nhật** theo nhánh phát hành; không cần phát gói mới cho mỗi bản sửa.
+- Bản lớn, hoặc máy còn chạy bản cũ: gửi học viên **ZIP mới** kèm câu *hãy cài đặt lớp học NNC cho tôi*. Claude Code tự cập nhật thư mục lớp, sửa nguồn cài cũ (có sao lưu) và giữ nguyên `.lop-hoc`. Không cần giải nén đè hay gỡ plugin.
 - Kiểm bản đang chạy trên một máy: mở `%USERPROFILE%\.claude\plugins\installed_plugins.json` bằng Notepad (chỉ xem, không sửa), tìm `lop-hoc@nnc-claude-plugins` → `version`.
 
 ## Trước khi học (mỗi máy, khoảng 10 phút)
 - [ ] Claude Desktop đã cài, đăng nhập đúng tài khoản; tab **Code** mở được. Mỗi học viên một tài khoản còn hạn mức.
 - [ ] Phiên bản Claude Code từ **2.1.286** trở lên (cần cho giao diện lớp học).
-- [ ] Thư mục **Lop-hoc-NNC** đã giải nén; mở thử một phiên (**+ New → This computer → Open folder…**), **đồng ý** tin cậy và cài công cụ lớp học.
-- [ ] Bục giảng hiện *"Lớp đang chờ giáo viên"*. Gõ `/` thấy **nnc:work-first-learning**.
+- [ ] Học viên đã cài bằng **ZIP** và câu *hãy cài đặt lớp học NNC cho tôi*; Claude dẫn tới khi mở phiên mới ở thư mục **Lop-hoc-NNC** (**+ New → This computer → Open folder…**), **đồng ý** tin cậy và cài công cụ lớp học.
+- [ ] Bục giảng hiện *"Lớp đang chờ giáo viên"* (chưa thấy thì gõ `/reload-plugins`). Gõ `/` thấy **nnc:work-first-learning**.
 - [ ] Chế độ quyền ở thanh dưới ô nhập: **Auto**. Không có Auto thì **Manual**. **Không bật Bypass permissions.**
 - [ ] Nhắc học viên chuẩn bị **một việc gần đây có file** (bản sao, đã che thông tin). Không có cũng được: lớp có dữ liệu mẫu.
 
@@ -31,11 +31,11 @@ Lớp học **luôn mở**: giáo viên AI đứng lớp cho từng người, kh
 ## Khi gặp sự cố
 | Sự cố | Xử lý |
 |---|---|
-| Không thấy bục giảng | Đóng phiên, mở phiên mới trong thư mục lớp; kiểm tra đã đồng ý cài công cụ lớp học |
+| Không thấy bục giảng | Gõ `/reload-plugins` rồi chờ vài giây; vẫn không thấy thì mở phiên mới trong thư mục lớp và kiểm tra đã đồng ý cài công cụ lớp học |
 | Không được hỏi cài công cụ | Kiểm tra máy có mạng tới GitHub; mở lại phiên; xem **+ → Plugins** có `nnc` và `lop-hoc` |
 | Máy không đọc được file Excel mẫu (không có Python) | Bình thường: giáo viên dùng Excel trên máy hoặc bản CSV đi kèm dữ liệu mẫu |
 | Hết hạn mức 5 giờ | Giáo viên đã lưu chỗ; học tiếp sau giờ làm mới (bấm **Tiếp tục**) |
-| Claude không làm được một bước | Mở sách tự học đúng mục giáo viên chỉ, học viên làm theo sách |
+| Claude không làm được một bước | Giáo viên tra sách tự học và cho học viên xem đúng chỗ trên bục; vẫn kẹt thì học viên bấm **Soạn tin nhờ hỗ trợ** |
 | Học viên định dùng dữ liệu thật nhạy cảm | Dừng lại, làm trên bản sao đã che, hoặc chuyển sang file mẫu |
-| Máy cũ vẫn chạy bản trước sau khi giải nén gói mới đè lên | Mở phiên mới trong thư mục lớp. Vẫn cũ: người phát hành gỡ nguồn cũ trên máy đó (`claude plugin marketplace remove nnc-claude-plugins`), rồi mở lại thư mục lớp và đồng ý cài công cụ (chỗ học trong `.lop-hoc` không mất) |
-| Học viên người Lào | Giáo viên hỏi tiếng học ngay đầu lớp; chọn ພາສາລາວ thì bảng lớp chuyển tiếng Lào. Câu tiếng Lào đang chờ người bản ngữ duyệt: thấy câu khó hiểu thì ghi vào phiếu phản hồi |
+| Máy vẫn chạy bản cũ | Gửi lại ZIP mới kèm câu *hãy cài đặt lớp học NNC cho tôi*; Claude Code sửa nguồn cài cũ (có sao lưu), không gỡ plugin; chỗ học trong `.lop-hoc` giữ nguyên |
+| Học viên người Lào | Giáo viên hỏi tiếng học ngay đầu lớp; chọn ພາສາລາວ thì bảng lớp chuyển tiếng Lào. Câu tiếng Lào đang chờ người bản ngữ duyệt: thấy câu khó hiểu thì báo người hỗ trợ |

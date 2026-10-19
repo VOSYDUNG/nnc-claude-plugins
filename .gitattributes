@@ -1,3 +1,6 @@
 # launchers must keep their native line endings on every checkout (autocrlf would break the shebang)
 plugins/nnc/bin/oser text eol=lf
 plugins/nnc/bin/oser.cmd text eol=crlf
+
+# Gói lớp học luôn LF trên mọi máy (máy có core.autocrlf=true từng checkout ra CRLF và đóng ZIP CRLF — L07)
+lop-hoc-mau/** text eol=lf

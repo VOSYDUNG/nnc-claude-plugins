@@ -67,7 +67,7 @@ class LopHocPackage(unittest.TestCase):
 
     def test_nnc_version_carries_lophoc_0120_and_guide_has_reload_hint(self):
         nnc = json.loads(NNC.read_text(encoding="utf-8"))["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
         self.assertEqual(self.entries["nnc"]["version"], nnc)
         guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
         self.assertIn("Chưa thấy bục giảng: gõ `/reload-plugins`", guide)
@@ -160,6 +160,25 @@ class LopHocPackage(unittest.TestCase):
             with zipfile.ZipFile(dest) as z:
                 self.assertIn("Lop-hoc-NNC/Tai-lieu/NGUON.md", z.namelist())
         self.assertFalse((MAU / "Tai-lieu" / "NGUON.md").exists())
+
+    def test_update_guidance_is_the_current_method(self):
+        # L05 (0.12.1): gói không còn cách cập nhật cũ (giải nén đè, gỡ nguồn bằng tay); bản lớn = ZIP mới + câu cài đặt.
+        for name in ("HUONG-DAN.md", "NGUOI-DUNG-LOP.md"):
+            text = (MAU / name).read_text(encoding="utf-8")
+            for old in ("0.7.2", "giải nén gói mới", "marketplace remove"):
+                self.assertNotIn(old, text, f"{name}: {old}")
+            update = text.split("## Cập nhật", 1)[1].split("\n## ", 1)[0]
+            self.assertIn("hãy cài đặt lớp học NNC cho tôi", update, name)
+            self.assertIn(".lop-hoc" if name == "NGUOI-DUNG-LOP.md" else "chỗ học", update, name)
+
+    def test_package_is_lf_on_every_machine(self):
+        # L07 (0.12.1): máy có core.autocrlf=true từng checkout gói ra CRLF và đóng ZIP CRLF.
+        self.assertIn("lop-hoc-mau/** text eol=lf", (ROOT / ".gitattributes").read_text(encoding="utf-8"))
+        for p in MAU.rglob("*"):
+            if p.is_file() and p.suffix in (".md", ".json"):
+                self.assertNotIn(b"\r\n", p.read_bytes(), p.relative_to(ROOT).as_posix())
+        builder = (ROOT / "tools" / "build_lop_hoc_mau.py").read_text(encoding="utf-8")
+        self.assertEqual(builder.count('encoding="utf-8", newline="\\n")'), 2,"the builder writes CLAUDE.md and settings.json with LF")
 
     def test_no_internal_names_or_links_in_tracked_files(self):
         try:

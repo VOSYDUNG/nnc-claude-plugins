@@ -108,14 +108,14 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
-        self.assertIn("+lophoc.0.12.0", self.plugin)
+        self.assertIn("+lophoc.0.12.1", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.12.0", frontmatter)
+        self.assertIn("version: 0.12.1", frontmatter)
         self.assertNotIn("version: 0.9.0", frontmatter)
         self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
@@ -514,10 +514,10 @@ class StageV08Tests(unittest.TestCase):
     # --- versions --------------------------------------------------------
 
     def test_versions(self):
-        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.8", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
         self.assertNotIn("alpha.3", nnc)
@@ -877,10 +877,10 @@ class RealScreenV10Tests(unittest.TestCase):
         cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
 
     def test_versions(self):
-        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.10", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -1009,10 +1009,10 @@ class SelfDrivingV11Tests(unittest.TestCase):
         cls.s13 = cls.skill.split("## 13. A self-driving teacher", 1)[1].split("For installation, release gates", 1)[0]
 
     def test_versions(self):
-        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.11", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -1200,10 +1200,10 @@ class TeacherVoiceV12Tests(unittest.TestCase):
         cls.s14 = cls.skill.split("## 14. Giọng thầy và khung", 1)[1]
 
     def test_versions(self):
-        self.assertIn("version: 0.12.0", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.12", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.0")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
