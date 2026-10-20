@@ -5,8 +5,8 @@ Dùng ở phần **Làm quen nhanh** của vòng việc đầu tiên (nhóm A: 1
 Mỗi thẻ có: `id` (dùng trong sổ định nghĩa) · **Một câu** · **Ví dụ đời thường** · **Số liệu thật trên máy** · **Giải thích thêm** (cách nói thứ hai, khi học viên bấm *Giải thích thêm*) · **Gọi tên khi dùng** · **2 câu nhớ lại** (đáp án đúng ✓ và vì sao).
 
 Quy tắc chung:
-- Trình bày mỗi thẻ ≤ 3 dòng. Số liệu chỉ nói khi **đã thấy thật** trong buổi (thẻ usage trên bục giảng hoặc vòng tròn hạn mức cuối thanh dưới ô nhập do học viên đọc, Settings > Usage, kết quả `/status` ở bản dòng lệnh, tên model giáo viên đang chạy). Chưa thấy thì nhờ học viên đọc trên bục — đọc được chính là kỹ năng D2. **Không đoán, không nói theo trí nhớ.**
-- Câu nhớ lại dùng **nút trên bục** (`choices`) hoặc **widget trả lời** (v0.8, SKILL §12); hộp câu hỏi gốc chỉ khi không có bục. **Phương án đầu tiên luôn là "Chưa chắc — cô nhắc lại"** (mặc định khi hết 60 giây). Chọn phương án này hoặc hết giờ **không** tính là nhớ đúng; giáo viên nhắc lại thẻ trong ≤ 30 giây.
+- Trình bày mỗi thẻ ≤ 3 dòng. Số liệu chỉ nói khi **đã thấy thật** trong buổi (thẻ usage trên bục giảng hoặc vòng tròn hạn mức cuối thanh dưới ô nhập do học viên đọc, Settings > Usage, kết quả `/status` ở bản dòng lệnh, tên model giáo viên đang chạy). Chưa thấy thì chỉ chỗ (ảnh chụp có đánh dấu hoặc hình thanh dưới ô nhập) và nhờ học viên **bấm** vào đó — không bắt đọc lại số (SKILL §12.3). **Không đoán, không nói theo trí nhớ.**
+- Câu nhớ lại dùng **nút trên bục** (`choices`) hoặc **widget trả lời** (v0.8, SKILL §12); hộp câu hỏi gốc chỉ khi không có bục. **Có thể thêm một phương án "Chưa chắc — cô nhắc lại"**, tối đa một lần mỗi bộ câu hỏi (SKILL §12.8); đáp án đúng không đặt đầu tiên. Chọn phương án này hoặc hết giờ **không** tính là nhớ đúng; giáo viên nhắc lại thẻ trong ≤ 30 giây.
 - Các phương án sai là hiểu lầm thường gặp, không gài bẫy chữ.
 
 ---

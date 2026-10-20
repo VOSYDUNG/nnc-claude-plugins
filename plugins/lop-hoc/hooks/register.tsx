@@ -6,6 +6,7 @@ import type {
   AskOpen,
   BadgeEntry,
   BandMode,
+  FeedbackRecord,
   BoardSpec,
   ChoicesSpec,
   DriveId,
@@ -18,6 +19,7 @@ import type {
   LessonPart,
   LessonSkill,
   LessonState,
+  LessonStep,
   LiveState,
   OneTouch,
   PanelKind,
@@ -45,11 +47,16 @@ import {
   usageTimelineSvg,
   weekResetSvg,
 } from './art'
+import { LESSON_V1, stepById } from './giao-an'
 import { DELEGATION_HEADS, STR, isLang } from './i18n'
-import type { Lang } from './i18n'
+import type { AddrId, BubbleKind, Lang } from './i18n'
 import { SHOT_MAX_BYTES, shotFromBase64, shotPathOf } from './shot'
 import type { ShotDrawn } from './shot'
 
+// Lớp học NNC v0.13 — một bục giảng ba tầng (docs/oser-r2/LOP-HOC-V13-THIET-KE.md §2): màn Thiết lập (ngôn ngữ · cách gọi · thầy/cô),
+//   tầng 1 = bong bóng lời nói hoặc thẻ bước (Bước k/N · để … · việc cần làm · Xong / Chưa được / Gợi ý), tầng 2 = một hình,
+//   tầng 3 = thanh bước + Giơ tay · Xin phép · ⋯; ngân sách dòng theo maxRows; thang im lặng 45 giây (nhắc trên bục) rồi 2 · 3,5 · 5 phút;
+//   giao diện sáng/tối theo cài đặt theme của app.
 // Lớp học NNC v0.12 — bọc kín khung thầy (docs/oser-r2/LOP-HOC-V12-THIET-KE.md §1): dòng việc (ToolUse), nhóm việc (ToolGroup),
 //   kết quả (ToolResult), lệnh (CommandOutput) là MỘT dòng của thầy kèm nút "Xem chi tiết"; hộp câu hỏi có khung đầy đủ;
 //   khối suy nghĩ lúc đang chạy (turn.step) chỉ còn "Thầy đang suy nghĩ…". Ngoài thư mục lớp học không đổi gì.
@@ -74,6 +81,10 @@ const PANE = 'lop-hoc'
 const TITLE = 'Lớp học NNC'
 const STATE = '.lop-hoc/state.json'
 const BADGES = '.lop-hoc/huy-hieu.json'
+// v0.13 — nơi nhận góp ý (người phát hành chèn vào gói lúc đóng ZIP; không có trong repo công khai).
+const FEEDBACK_CONFIG = '.claude/phan-hoi.json'
+// Bản lớp học ghi kèm mỗi góp ý; bài kiểm giữ khớp với plugin.json.
+export const CLASS_VERSION = '0.13.0'
 const TAG = '[Lớp học] '
 const CUE = '[Giáo án] '
 
@@ -84,11 +95,13 @@ const WATCH_MS = 1_500
 const LONG_BOX_MS = 90_000
 const ANSWER_MS = 60_000
 const CUE_GAP_MS = 20_000
-// v0.11 — thang im lặng: học viên không tác động từ lúc giáo viên nói xong. Nấc 1 sau 90 giây, nấc 2 sau 3 phút,
-// nấc 3 sau 5 phút nữa; lúc thử thách có giờ hoặc làm việc thật (hands-on | form) thì nấc 1 chờ 3 phút.
-const SILENCE_FIRST_MS = 90_000
+// v0.13 — thang im lặng: học viên không tác động từ lúc giáo viên nói xong (thời gian cộng dồn từ lúc đó, không tính lúc thầy đang làm việc).
+// 45 giây: bục tự nhắc (không gửi gì). Nấc 1 sau 2 phút, nấc 2 sau 3,5 phút, nấc 3 sau 5 phút;
+// lúc thử thách có giờ hoặc làm việc thật (hands-on | form) thì nấc 1 chờ 3 phút.
+const NUDGE_MS = 45_000
+const SILENCE_FIRST_MS = 120_000
 const SILENCE_WORK_MS = 3 * 60_000
-const SILENCE_WAIT_MS = [SILENCE_FIRST_MS, 3 * 60_000, 5 * 60_000] as const
+const SILENCE_WAIT_MS = [SILENCE_FIRST_MS, 210_000, 5 * 60_000] as const
 // v0.11 — lời giáo viên dài hơn ngưỡng này (ký tự) thì gập: 3 dòng đầu + nút "Xem đầy đủ".
 const FOLD_CHARS = 600
 const FOLD_LINES = 3
@@ -111,13 +124,37 @@ const BAR_DIMS: Record<'mini' | 'normal' | 'wide', { w: number; h: number }> = {
 const BOARD_W: Record<'mini' | 'normal' | 'wide', number> = { mini: 180, normal: 260, wide: 380 }
 // Ảnh chụp màn hình có đánh dấu rộng hơn hình SVG thường (cỡ rộng: 560 × 340 điểm).
 const SHOT_W: Record<'mini' | 'normal' | 'wide', number> = { mini: 280, normal: 420, wide: 560 }
-const SHOT_H = 340
+// v0.13 — trần chiều cao của hình ở tầng 2 (điểm ảnh): hình SVG 180, ảnh chụp 260.
+const SVG_CAP = 180
+const SHOT_CAP = 260
 const BOARD = '#123F1E'
 const CHALK = '#F4F4EC'
 const CHALK_DIM = '#B9D3BF'
 const CHALK_Y = '#FFEA00'
 const INK = '#1f2a1f'
 const ALERT = '#FF8A80'
+
+// v0.13 — bảng màu sáng/tối của bục (docs §2.6). Tối = bảng lớp xanh đậm của 0.12; sáng = nền xanh nhạt, chữ xanh đen.
+export type Palette = { board: string; ink: string; dim: string; accent: string; frame: string; onAccent: string; alert: string; onAlert: string }
+export const DARK: Palette = { board: BOARD, ink: CHALK, dim: CHALK_DIM, accent: CHALK_Y, frame: CHALK_Y, onAccent: INK, alert: ALERT, onAlert: INK }
+export const LIGHT: Palette = { board: '#EAF4EC', ink: '#14301B', dim: '#3F6A4A', accent: '#006D11', frame: '#008816', onAccent: '#FFFFFF', alert: ALERT, onAlert: '#14301B' }
+// Giá trị của hàng cài đặt `theme`: có chữ "light" thì sáng; còn lại (dark, auto, không đọc được) thì tối.
+export function paletteOf(theme: unknown): Palette {
+  return typeof theme === 'string' && /light/i.test(theme) ? LIGHT : DARK
+}
+
+// Cách gọi học viên: bốn lựa chọn sẵn (nhãn theo tiếng) hoặc chữ tự viết ≤ 30 ký tự. Lưu dạng tiếng Việt chuẩn ('Anh' · 'Chị' · 'Em' · 'Bạn').
+const ADDR_IDS: readonly AddrId[] = ['anh', 'chi', 'em', 'ban']
+const ADDR_VI: Record<AddrId, string> = { anh: 'Anh', chi: 'Chị', em: 'Em', ban: 'Bạn' }
+const ADDR_MAX = 30
+const clipAddr = (v: string) => v.trim().slice(0, ADDR_MAX)
+const ADDR_DEFAULT = ADDR_VI.ban
+export const addrId = (stored: string): AddrId | null => ADDR_IDS.find(id => ADDR_VI[id] === stored) ?? null
+// Chữ gọi hiển thị / gửi giáo viên: lựa chọn sẵn đổi theo tiếng, chữ tự viết giữ nguyên.
+export function addrLabel(stored: string, lang: Lang): string {
+  const id = addrId(stored)
+  return id ? STR[lang].addr[id] : stored
+}
 
 const rev = atom({ plugin: 'lop-hoc', key: 'rev' } as const, 0)
 const isClassroom = atom({ plugin: 'lop-hoc', key: 'isClassroom' } as const, false)
@@ -152,6 +189,15 @@ const silenceAtom = atom({ plugin: 'lop-hoc', key: 'silence' } as const, { at: 0
 const foldOpen = atom({ plugin: 'lop-hoc', key: 'foldOpen' } as const, [] as string[])
 // v0.12 — các dòng việc / nhóm việc / kết quả / lệnh học viên đã mở chi tiết ra ("Thành phần:requestId").
 const detailOpen = atom({ plugin: 'lop-hoc', key: 'detailOpen' } as const, [] as string[])
+// v0.13
+const bubbleAtom = atom({ plugin: 'lop-hoc', key: 'bubble' } as const, '' as '' | BubbleKind)
+const themeAtom = atom({ plugin: 'lop-hoc', key: 'theme' } as const, 'dark' as 'dark' | 'light')
+const boardPref = atom({ plugin: 'lop-hoc', key: 'boardPref' } as const, '')
+const hintAtom = atom({ plugin: 'lop-hoc', key: 'hint' } as const, { id: '', level: 0 } as { id: string; level: 0 | 1 | 2 | 3 })
+const settingsOpen = atom({ plugin: 'lop-hoc', key: 'settingsOpen' } as const, false)
+const panelPick = atom({ plugin: 'lop-hoc', key: 'panelPick' } as const, '' as '' | 'off' | PanelKind)
+const progressOpen = atom({ plugin: 'lop-hoc', key: 'progressOpen' } as const, false)
+const typingAtom = atom({ plugin: 'lop-hoc', key: 'typing' } as const, false)
 
 // ── Phần học (v0.7: giáo viên chuyển phần khi đạt mốc; mod chỉ hiển thị) ────────
 const S0: PlanSegment = { id: '0', title: 'Vào lớp', drive: 'ket-noi' }
@@ -286,7 +332,111 @@ export function parseState(raw: unknown): ClassState | null {
     board: boardOf(raw.board),
     choices: choicesOf(raw.choices),
     loops_done: typeof raw.loops_done === 'number' && Number.isFinite(raw.loops_done) ? Math.min(999, Math.max(0, Math.round(raw.loops_done))) : undefined,
+    step: stepOf(raw.step),
+    feedback: feedbackOf(raw.feedback),
   }
+}
+
+const FB_KINDS = ['chot-vong', 'xin-nghi', 'gop-y', 'loi-lop', 'kho'] as const
+const FB_LEVELS = ['chan', 'lon', 'nho', 'gop-y'] as const
+const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '')
+// v0.13 — góp ý thầy ghi trong state.json: id ≤ 60, loai/muc trong danh mục, chữ cắt ngắn; thiếu id hoặc thay_danh_gia thì bỏ.
+export function feedbackOf(v: unknown): FeedbackRecord | null {
+  if (!isObj(v)) return null
+  const id = clip(v.id, 60)
+  const thay = clip(v.thay_danh_gia, 600)
+  if (!id || !thay) return null
+  const loai = (FB_KINDS as readonly string[]).includes(String(v.loai)) ? (v.loai as FeedbackRecord['loai']) : 'gop-y'
+  const muc = (FB_LEVELS as readonly string[]).includes(String(v.muc)) ? (v.muc as FeedbackRecord['muc']) : 'gop-y'
+  const rec: FeedbackRecord = { id, loai, muc, thay_danh_gia: thay }
+  const buoc = clip(v.buoc, 40)
+  if (buoc) rec.buoc = buoc
+  const hv = clip(v.hoc_vien_noi, 500)
+  if (hv) rec.hoc_vien_noi = hv
+  const de = clip(v.de_xuat, 400)
+  if (de) rec.de_xuat = de
+  return rec
+}
+
+// Cấu hình nơi nhận: { url: https…, token }. Sai hay thiếu thì null (không gửi).
+export function feedbackConfigOf(v: unknown): { url: string; token: string } | null {
+  if (!isObj(v)) return null
+  const url = typeof v.url === 'string' ? v.url.trim() : ''
+  const token = typeof v.token === 'string' ? v.token.trim() : ''
+  return /^https:\/\/[^\s]+$/.test(url) && token ? { url, token } : null
+}
+
+// v0.13 — bước hiện tại: { id, title? } (id chữ hoặc số; title thay tên bước của giáo án). Sai kiểu thì coi như không có.
+export function stepOf(v: unknown): LessonStep | null {
+  const idOf = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? String(x) : nonEmpty(x))
+  if (!isObj(v)) {
+    const id = idOf(v)
+    return id ? { id: cutStr(id, 24) } : null
+  }
+  const id = idOf(v.id)
+  if (!id) return null
+  const title = nonEmpty(v.title)
+  return { id: cutStr(id, 24), ...(title ? { title: cutStr(title, 60) } : {}) }
+}
+
+// Bước đang hiển thị trên thẻ. Không có state.step → bước '0'. Id có trong giáo án: k/N, why, gợi ý theo tiếng; title của giáo viên thì thắng
+// (và bỏ why + gợi ý của giáo án vì không còn chắc khớp). Id lạ: chỉ có title của giáo viên (không có thì thẻ không có tiêu đề).
+export type StepView = { id: string; k: number | null; n: number; title: string; cueTitle: string; why: string | null; hints: readonly string[] | null }
+export function stepView(step: LessonStep | null | undefined, lang: Lang): StepView {
+  const id = step?.id ?? '0'
+  const plan = stepById(id)
+  const n = LESSON_V1.length
+  if (!plan) return { id, k: null, n, title: step?.title ?? '', cueTitle: step?.title ?? '', why: null, hints: null }
+  const k = LESSON_V1.findIndex(x => x.id === id) + 1
+  if (step?.title) return { id, k, n, title: step.title, cueTitle: step.title, why: null, hints: null }
+  const t = plan[lang]
+  return { id, k, n, title: t.title, cueTitle: plan.vi.title, why: t.why, hints: t.hints }
+}
+
+// Bong bóng lời nói: một khối của luồng turn.step cho biết thầy đang làm gì. Khối khác (input, stop…) không đổi bong bóng.
+export function bubbleKind(c: { kind: string; name?: string }): BubbleKind | null {
+  if (c.kind === 'thinking') return 'think'
+  if (c.kind === 'text') return 'say'
+  if (c.kind !== 'tool') return null
+  const name = c.name ?? ''
+  if (name === 'Read' || name === 'Glob' || name === 'Grep') return 'read'
+  if (name === 'Write' || name === 'Edit' || name === 'NotebookEdit') return 'write'
+  if (name === 'Bash' || name === 'PowerShell') return 'run'
+  if (name === 'WebFetch' || name === 'WebSearch') return 'web'
+  return 'work'
+}
+
+// Ngân sách dòng của bục (docs §2.2): các nấc rút gọn theo thứ tự — bỏ khoảng cách giữa các tầng → hình thu thành nút "Xem hình"
+// → hàng sao/thử thách/hộp quà thành chữ → tầng 3 chỉ còn thanh bước + ⋯. maxRows <= 0 (không biết) = không rút gọn.
+export type BudgetIn = {
+  maxRows: number
+  base: number // phần không rút gọn (viền, nhãn Bypass, tầng 1, menu mở, bảng mở)
+  board: number // hình đầy đủ (0 = không có hình)
+  boardHidden: number // nút Xem hình thay hình (0 nếu không có hình)
+  deco: number
+  decoCompact: number
+  tier3: number
+  tier3Min: number
+  seps: number // số khoảng giữa các tầng
+  boardMode: 'auto' | 'show' | 'hide' // show: học viên mở hình · hide: học viên/tầng 1 ẩn hình · auto: ngân sách quyết định
+}
+export type BudgetOut = { showBoard: boolean; compact: boolean; tier3Min: boolean; gap: 0 | 1; rows: number }
+export function fitBudget(b: BudgetIn): BudgetOut {
+  const total = (showBoard: boolean, compact: boolean, min: boolean, gap: 0 | 1) =>
+    b.base + (showBoard ? b.board : b.boardHidden) + (compact ? b.decoCompact : b.deco) + (min ? b.tier3Min : b.tier3) + b.seps * gap
+  const startShow = b.boardMode !== 'hide'
+  const fit = (showBoard: boolean, compact: boolean, min: boolean, gap: 0 | 1): BudgetOut | null => {
+    const rows = total(showBoard, compact, min, gap)
+    return b.maxRows <= 0 || rows <= b.maxRows ? { showBoard, compact, tier3Min: min, gap, rows } : null
+  }
+  const ladder: [boolean, boolean, boolean, 0 | 1][] = [[startShow, false, false, 1], [startShow, false, false, 0]]
+  if (b.boardMode === 'auto') ladder.push([false, false, false, 0])
+  ladder.push([b.boardMode === 'show', true, false, 0], [b.boardMode === 'show', true, true, 0])
+  for (const [sb, c, m, g] of ladder) {
+    const r = fit(sb, c, m, g)
+    if (r) return r
+  }
+  return { showBoard: b.boardMode === 'show', compact: true, tier3Min: true, gap: 0, rows: total(b.boardMode === 'show', true, true, 0) }
 }
 
 // ── v0.6: các trường mới, đọc phòng thủ (sai kiểu thì coi như không có) ─────────
@@ -449,6 +599,20 @@ export function challengeLeft(c: LessonChallenge | null | undefined, now: number
   return { leftMs: Math.min(totalMs, Math.max(0, end - now)), totalMs }
 }
 
+// Thanh bước (tầng 3): N chấm — đã xong · đang ở · còn lại. Terminal dùng chữ: ● xong · ◉ đang ở · ○ còn lại.
+export function railSvg(k: number, n: number, p: Palette): string {
+  const dots = Array.from({ length: n }, (_, i) => {
+    const cx = 8 + i * 16
+    if (i + 1 < k) return `<circle cx="${cx}" cy="7" r="4" fill="${p.accent}"/>`
+    if (i + 1 === k) return `<circle cx="${cx}" cy="7" r="6" fill="none" stroke="${p.accent}" stroke-width="1.5"/><circle cx="${cx}" cy="7" r="3.5" fill="${p.accent}"/>`
+    return `<circle cx="${cx}" cy="7" r="3.5" fill="none" stroke="${p.dim}" stroke-width="1.5"/>`
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n * 16}" height="14" viewBox="0 0 ${n * 16} 14">${dots.join('')}</svg>`
+}
+export function railText(k: number, n: number): string {
+  return Array.from({ length: n }, (_, i) => (i + 1 < k ? '●' : i + 1 === k ? '◉' : '○')).join('')
+}
+
 // Cỡ hình lấy từ thẻ <svg> gốc (hình do hooks/art.ts vẽ, cỡ có thể đổi theo nội dung).
 function svgSize(src: string, w: number, h: number): { width: number; height: number } {
   const head = /<svg\b[^>]*>/.exec(src)?.[0] ?? ''
@@ -591,12 +755,16 @@ async function syncBody($: EngineInterface) {
     lastRaw = raw
     await update($, stateVer, n => n + 1)
   }
-  if (s?.language && s.language !== curLang) {
-    curLang = s.language
-    try {
-      await $.store.set('language', curLang)
-    } catch {}
+  // v0.13: học viên đã chọn tiếng ở màn Thiết lập thì state.json không đổi được nữa; chưa chọn thì dùng tiếng giáo viên ghi (không lưu).
+  if (!langChosen && s?.language && s.language !== curLang) curLang = s.language
+  // Đổi bước thì nấc Gợi ý của bước cũ bỏ đi.
+  const stepNow = s?.step?.id ?? '0'
+  if (stepNow !== lastStepId) {
+    lastStepId = stepNow
+    await update($, hintAtom, () => ({ id: '', level: 0 }))
   }
+  // v0.13: góp ý thầy vừa ghi → gửi lên nơi nhận (mỗi id một lần; lỗi mạng thì đồng hồ thử lại).
+  if (s?.feedback) void sendFeedback($, s)
   // Có state mà thiếu segment: giữ phần đang hiển thị (không tụt về Phần 0). Không có state: chưa có phần nào.
   const prevLive = await read($, liveAtom)
   const seg = s?.segment ? (SEGMENTS_BY_ID[s.segment.id] ? { ...SEGMENTS_BY_ID[s.segment.id]!, title: s.segment.title || SEGMENTS_BY_ID[s.segment.id]!.title, drive: s.segment.drive } : { id: s.segment.id, title: s.segment.title, drive: s.segment.drive }) : s ? prevLive.segment : null
@@ -741,6 +909,15 @@ export function defaultLabel(questions: unknown): string {
 
 // ── Trạng thái của module (mất khi nạp lại; đồng hồ buổi học nằm trong $.state) ──
 let turns = 0
+// v0.13 — lúc lượt giảng hiện tại bắt đầu (thời gian thầy làm việc không tính vào im lặng của học viên).
+let turnStartAt = 0
+// Lựa chọn của học viên (thiết lập): cách gọi đã lưu, chữ đang gõ ở ô tự viết, ảnh chụp lúc mở lại màn Thiết lập, đã chọn tiếng chưa,
+// bước đã thấy ở lần nạp state gần nhất (đổi bước thì nấc Gợi ý về 0).
+let curAddress: string | null = null
+let addrDraft = ''
+let langChosen = false
+let settingsBase: { language: Lang; address: string; teacher: TeacherKindId } | null = null
+let lastStepId = '0'
 let ticks = 0
 let ticking = false
 let draft = { goal: '', src: '', out: '', check: '' }
@@ -848,7 +1025,8 @@ async function sendSilenceCue($: EngineInterface, rung: 1 | 2 | 3, now: number):
     return { ...l, lastCueAt: now, quiet: true }
   })
   if (!ok) return false
-  await update($, silenceAtom, () => ({ at: now, rung }))
+  // Giữ mốc từ lúc thầy nói xong: các nấc cộng dồn (2 · 3,5 · 5 phút), không tính lại từ nấc vừa gửi.
+  await update($, silenceAtom, x => ({ ...x, rung }))
   void submitCue($, `Học viên im lặng · nấc ${rung}`)
   return true
 }
@@ -910,7 +1088,11 @@ async function tickBody($: EngineInterface) {
   if (!(await read($, isClassroom))) return
   const now = await $.clock.now()
   ticks += 1
-  if (ticks % 6 === 0) void refreshUsage($)
+  if (ticks % 6 === 0) {
+    void refreshUsage($)
+    void refreshTheme($)
+    if (goodState?.feedback) void sendFeedback($, goodState)
+  }
   let l = await read($, lessonAtom)
   await persist($, l, now)
   if (!l || l.over) return
@@ -935,6 +1117,8 @@ async function tickBody($: EngineInterface) {
   try {
     box = (await $.prompt.read()).text.trim()
   } catch {}
+  // Ô nhập đang có chữ: bục không nhắc "bấm Xong" (học viên đang làm).
+  if ((await read($, typingAtom)) !== !!box) await update($, typingAtom, () => !!box)
   // Đang gõ = học viên đang tác động.
   if (box && !l.pause) {
     if (l.quiet) {
@@ -1127,6 +1311,64 @@ async function markChoicesDone($: EngineInterface) {
 
 // Đồng hồ buổi học cũng lưu vào $.store (theo thư mục lớp) để mở lại app vẫn học tiếp được.
 let savedJson = ''
+// ── v0.13: gửi góp ý lên Drive người phụ trách ───────────────────────────────────
+// Thầy ghi state.feedback; bục gửi một lần mỗi id bằng $.http.fetch (qua Claude, không cần lệnh, không hỏi quyền).
+// Thử tối đa 5 lần; không có cấu hình thì không gửi gì. Kèm: cách gọi học viên đã chọn, ngôn ngữ, thầy/cô, bản lớp.
+const FB_SENT = 'phan-hoi-da-gui'
+let fbBusy = false
+const fbTries: Record<string, number> = {}
+async function readFeedbackConfig($: EngineInterface): Promise<{ url: string; token: string } | null> {
+  try {
+    if (!(await $.fs.exists(FEEDBACK_CONFIG))) return null
+    return feedbackConfigOf(JSON.parse(String(await $.fs.read(FEEDBACK_CONFIG))))
+  } catch {
+    return null
+  }
+}
+export function feedbackBody(rec: FeedbackRecord, meta: { token: string; hoc_vien: string; ngon_ngu: Lang; giao_vien: string; gui_luc: string }): string {
+  return JSON.stringify({ token: meta.token, ban: CLASS_VERSION, hoc_vien: meta.hoc_vien, ngon_ngu: meta.ngon_ngu, giao_vien: meta.giao_vien, gui_luc: meta.gui_luc, ...rec })
+}
+// Apps Script trả {"ok":true}; một số máy nhận 302 sang script.googleusercontent.com (lệnh đã chạy xong) — cũng là đã tới.
+export function feedbackDelivered(r: { status: number; ok: boolean; text: string; headers: Record<string, string> }): boolean {
+  if (r.ok) return /"ok"\s*:\s*true/.test(r.text)
+  return r.status >= 300 && r.status < 400 && /^https:\/\/script\.googleusercontent\.com\//.test(r.headers['location'] ?? '')
+}
+async function sendFeedback($: EngineInterface, s: ClassState) {
+  const rec = s.feedback
+  if (!rec || fbBusy) return
+  if ((fbTries[rec.id] ?? 0) >= 5) return
+  fbBusy = true
+  try {
+    let sent: string[] = []
+    try {
+      const v = await $.store.get(FB_SENT)
+      if (Array.isArray(v)) sent = v.filter((x): x is string => typeof x === 'string')
+    } catch {}
+    if (sent.includes(rec.id)) return
+    const cfg = await readFeedbackConfig($)
+    if (!cfg) return
+    fbTries[rec.id] = (fbTries[rec.id] ?? 0) + 1
+    const kind = (await read($, lessonAtom))?.teacher ?? (await read($, teacherPick))
+    const body = feedbackBody(rec, {
+      token: cfg.token,
+      hoc_vien: addrLabel(effectiveAddr(s), curLang),
+      ngon_ngu: curLang,
+      giao_vien: kind,
+      gui_luc: new Date(await $.clock.now()).toISOString(),
+    })
+    const r = await $.http.fetch(cfg.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body })
+    if (!feedbackDelivered(r)) return
+    try {
+      await $.store.set(FB_SENT, [...sent, rec.id].slice(-200))
+    } catch {}
+    $.ui.toast(L().feedbackSent(teacherName(kind)))
+  } catch {
+    // mạng lỗi: để lần đồng hồ sau thử lại
+  } finally {
+    fbBusy = false
+  }
+}
+
 async function storeKey($: EngineInterface): Promise<string | null> {
   try {
     const cwd = await $.session.cwd()
@@ -1183,9 +1425,35 @@ function usagePart(u: UsageInfo | null): string {
   return five || week ? ` · hạn mức ${[five, week].filter(Boolean).join(' · ')}` : ''
 }
 
+// Cách gọi đang có hiệu lực: chữ đang gõ → lựa chọn đã lưu → chữ giáo viên ghi (state.address) → "Bạn".
+function effectiveAddr(s: ClassState | null): string {
+  const typed = addrDraft.trim()
+  if (typed) return clipAddr(typed)
+  return curAddress ?? (s?.address?.trim() ? clipAddr(cap(s.address.trim())) : ADDR_DEFAULT)
+}
+
+// Lưu thiết lập vào $.store (ngôn ngữ, cách gọi, giáo viên) và ghi nhớ ở module.
+async function saveSettings($: EngineInterface, v: { language: Lang; address: string; teacher: TeacherKindId }) {
+  curLang = v.language
+  curAddress = v.address
+  addrDraft = ''
+  langChosen = true
+  try {
+    await $.store.set('language', v.language)
+    await $.store.set('address', v.address)
+    await $.store.set('teacher', v.teacher)
+  } catch {}
+}
+
 async function startLesson($: EngineInterface) {
   const now = await $.clock.now()
   const teacher = await read($, teacherPick)
+  const address = effectiveAddr(goodState)
+  await saveSettings($, { language: curLang, address, teacher })
+  await update($, hintAtom, () => ({ id: '', level: 0 }))
+  await update($, boardPref, () => '')
+  await update($, settingsOpen, () => false)
+  lastStepId = goodState?.step?.id ?? '0'
   const usage = await read($, usageAtom)
   const lesson: Lesson = {
     teacher,
@@ -1209,12 +1477,11 @@ async function startLesson($: EngineInterface) {
   view = { teacher, seg: S0 }
   choiceSince = null
   modeSent = permissionLabel(curModes)
-  try {
-    await $.store.set('teacher', teacher)
-  } catch {}
   const effort = await read($, effortAtom)
   const open = [
     `giáo viên ${teacher}`,
+    `ngôn ngữ ${curLang}`,
+    `gọi “${addrLabel(address, curLang)}”`,
     modeSent ? `chế độ ${modeSent}` : '',
     usage?.model ? `model ${usage.model}` : '',
     effort ? `effort ${effort}` : '',
@@ -1228,7 +1495,22 @@ async function loadPrefs($: EngineInterface) {
     if (isTeacherKind(t)) await update($, teacherPick, () => t)
     const lg = await $.store.get('language')
     curLang = isLang(lg) ? lg : 'vi'
+    langChosen = isLang(lg)
+    const ad = await $.store.get('address')
+    curAddress = typeof ad === 'string' && ad.trim() ? clipAddr(ad) : null
   } catch {}
+  addrDraft = ''
+  settingsBase = null
+}
+
+// v0.13 — giao diện sáng/tối: hàng cài đặt `theme` của app. Đọc lúc mở phiên và mỗi 30 giây; không đọc được thì tối.
+async function refreshTheme($: EngineInterface) {
+  let theme: 'dark' | 'light' = 'dark'
+  try {
+    const row = (await $.config.list()).find(r => r.key === 'theme')
+    if (row && paletteOf(row.value) === LIGHT) theme = 'light'
+  } catch {}
+  if ((await read($, themeAtom)) !== theme) await update($, themeAtom, () => theme)
 }
 
 async function setup($: EngineInterface) {
@@ -1239,6 +1521,7 @@ async function setup($: EngineInterface) {
   await restoreLesson($)
   await syncState($)
   await refreshUsage($)
+  await refreshTheme($)
   return true
 }
 
@@ -1313,6 +1596,8 @@ export const register: Register = on => {
 
   on('turn.start', async ($, e, next) => {
     turns += 1
+    turnStartAt = await $.clock.now()
+    await update($, bubbleAtom, () => '')
     await update($, workingAtom, () => true)
     await update($, turnIdAtom, () => e.turnId)
     return next(e)
@@ -1329,6 +1614,9 @@ export const register: Register = on => {
     // (các đoạn còn lại để trống). Khối đã ký mà engine ghi lại không đổi.
     let shown = false
     for await (const c of next(e)) {
+      // v0.13 — bong bóng lời nói trên bục: thầy đang nghĩ / nói / đọc / ghi / chạy lệnh / tra cứu.
+      const bk = bubbleKind(c as { kind: string; name?: string })
+      if (bk && (await read($, bubbleAtom)) !== bk) await update($, bubbleAtom, () => bk)
       if (c.kind !== 'thinking') {
         yield c
         continue
@@ -1345,12 +1633,15 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     await update($, workingAtom, () => false)
+    await update($, bubbleAtom, () => '')
     await update($, turnIdAtom, () => '')
     askSeen = null
     if (await read($, isClassroom)) {
       // Giáo viên nói xong: thang im lặng đếm từ đây (nấc đã gửi giữ nguyên, chỉ học viên tác động mới xoá).
+      // Đang ở một nấc (thầy trả lời tín hiệu im lặng): cộng dồn, chỉ dịch mốc đúng bằng thời gian thầy làm việc.
       const doneAt = await $.clock.now()
-      await update($, silenceAtom, x => ({ ...x, at: doneAt }))
+      const spent = turnStartAt > 0 ? Math.max(0, doneAt - turnStartAt) : 0
+      await update($, silenceAtom, x => (x.rung > 0 ? { ...x, at: x.at + spent } : { ...x, at: doneAt }))
       await update($, askAtom, () => null)
       await syncState($)
       await update($, rev, n => n + 1)
@@ -1388,12 +1679,18 @@ export const register: Register = on => {
     return ran
   }).catch(($, e, next) => next(e))
 
-  // ── Bục giảng: dải trên ô nhập ──────────────────────────────────────────────
+  // ── Bục giảng: dải trên ô nhập, ba tầng (v0.13) ─────────────────────────────
+  // Tầng 1 = bong bóng lời nói (thầy đang làm việc) hoặc thẻ bước; tầng 2 = một hình + sao/thử thách/hộp quà; tầng 3 = thanh bước + nút phụ.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || !(await read($, isClassroom))) return next(e)
     await read($, rev)
     const { Box, Text, Button } = $.ui.resolve(e)
     const isDesktop = e.surface === 'desktop'
+    const svg = (key: string, source: string, alt: string, dims: object = {}): RenderChildren => {
+      const { Svg } = $.ui.resolve(e)
+      return <Svg key={key} source={source} alt={alt} {...dims} />
+    }
+    const P = paletteOf(await read($, themeAtom))
     const lesson = await read($, lessonAtom)
     const now = (await read($, nowAtom)) || (lesson?.startedAt ?? 0)
     const mode = await read($, modeAtom)
@@ -1408,7 +1705,8 @@ export const register: Register = on => {
     const T = teacherName(kind)
     const t = teacherLower(kind)
     const S = L()
-    const address = cap(s?.address || (curLang === 'lo' ? 'ເຈົ້າ' : 'anh/chị'))
+    const addrStored = effectiveAddr(s)
+    const address = addrLabel(addrStored, curLang)
     const live = await read($, liveAtom)
     const seg = shownSeg(lesson, live)
     view = { teacher: kind, seg }
@@ -1425,40 +1723,97 @@ export const register: Register = on => {
       const { Svg } = $.ui.resolve(e)
       podium = <Svg key="podium" source={teacherPodiumSvg(kind, running ? emotion : 'hi', presence)} alt={curLang === 'lo' ? `${T} ຢູ່ກະດານ` : `${T} trên bục giảng`} width={dims.w} height={dims.h} isInteractive />
     }
-    // Chế độ Bypass: nhãn cảnh báo luôn thấy được trên bục.
-    const bypassChip = isBypass(modeLabel) ? <Text key="bypass" bold color={INK} backgroundColor={ALERT}>{L().bypassChip(modeLabel)}</Text> : null
+    // Chế độ Bypass: nhãn cảnh báo luôn thấy được trên bục (trước tầng 1).
+    const bypassChip = isBypass(modeLabel) ? <Text key="bypass" bold color={P.onAlert} backgroundColor={P.alert}>{L().bypassChip(modeLabel)}</Text> : null
     const board = (children: RenderChildren[], gap = 1) => (
-      <Box flexDirection="row" gap={2} alignItems="center" backgroundColor={BOARD} paddingX={1} paddingY={1}>
+      <Box flexDirection="row" gap={2} alignItems="center" backgroundColor={P.board} paddingX={1} paddingY={1}>
         {podium}
         <Box flexDirection="column" gap={gap} flexGrow={1}>
           {children}
         </Box>
       </Box>
     )
-    const claudeRow = line ? <Text color={CHALK_DIM}>{S.myClaude(line)}</Text> : null
+    const claudeRow = line ? <Text color={P.dim}>{S.myClaude(line)}</Text> : null
     const pick = (key: string, label: string, isOn: boolean, onPress: () => unknown) =>
       isOn ? <Button key={key} label={label} variant="primary" onPress={onPress} /> : <Button key={key} label={label} onPress={onPress} />
+    const refresh = () => update($, rev, n => n + 1)
 
-    // Chưa vào lớp (hoặc đã xin nghỉ): chọn giáo viên rồi Vào lớp. Lớp luôn mở, không chọn thời lượng.
-    if (!running) {
+    // ── Màn Thiết lập (v0.13): vào lớp lần đầu (Vào lớp) hoặc mở lại từ ⋯ (Lưu). Ngôn ngữ · cách gọi · giáo viên. ──
+    const settingsScreen = async (edit: boolean) => {
       const tp = await read($, teacherPick)
+      const typed = addrDraft.trim()
+      const pid = typed ? null : addrId(addrStored)
+      const { Input } = $.ui.resolve(e)
+      const row = (key: string, label: string, kids: RenderChildren[]) => (
+        <Box key={key} flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+          <Text color={P.dim}>{label}</Text>
+          {kids}
+        </Box>
+      )
+      const chooseLang = async (l: Lang) => {
+        curLang = l
+        await refresh()
+      }
+      const chooseAddr = async (v: string) => {
+        addrDraft = ''
+        curAddress = v
+        await refresh()
+      }
+      const save = async () => {
+        const nv = { language: curLang, address: effectiveAddr(goodState), teacher: await read($, teacherPick) }
+        const base = settingsBase
+        await saveSettings($, nv)
+        await update($, lessonAtom, l => (l ? { ...l, teacher: nv.teacher } : l))
+        await update($, settingsOpen, () => false)
+        settingsBase = null
+        await refresh()
+        const changed = !base || base.language !== nv.language || base.address !== nv.address || base.teacher !== nv.teacher
+        if (changed) await sendPressCue($, `Thiết lập · ngôn ngữ ${nv.language} · gọi “${addrLabel(nv.address, nv.language)}” · giáo viên ${nv.teacher}`)
+        else await touch($)
+      }
+      const cancel = async () => {
+        if (settingsBase) {
+          curLang = settingsBase.language
+          curAddress = settingsBase.address
+          await update($, teacherPick, () => settingsBase!.teacher)
+        }
+        addrDraft = ''
+        settingsBase = null
+        await update($, settingsOpen, () => false)
+        await refresh()
+      }
       return board([
-        <Text bold color={CHALK_Y}>{S.title}</Text>,
+        <Text bold color={P.accent}>{edit ? S.setTitle : S.title}</Text>,
         bypassChip,
-        lesson?.over === 'xin-nghi' ? <Text color={CHALK}>{S.leftSaved(t)}</Text> : null,
-        <Text color={CHALK}>{S.waiting}</Text>,
-        // Chưa biết học viên dùng tiếng nào: thêm một dòng bằng thứ tiếng còn lại.
-        <Text color={CHALK_DIM}>{STR[curLang === 'lo' ? 'vi' : 'lo'].waiting}</Text>,
-        <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-          <Text color={CHALK_DIM}>{S.teacherWord}</Text>
-          {TEACHERS.map(x => pick(`t-${x.id}`, S.teacherLabel(x.id), tp === x.id, () => update($, teacherPick, () => x.id)))}
-        </Box>,
-        claudeRow,
-        <Box flexDirection="row" gap={1}>
-          <Button key="enter" label={S.enter} variant="primary" onPress={() => startLesson($)} />
-        </Box>,
+        !edit && lesson?.over === 'xin-nghi' ? <Text color={P.ink}>{S.leftSaved(t)}</Text> : null,
+        // Một ngôn ngữ cho cả bục (v0.13): hàng chọn ngôn ngữ đứng đầu, mỗi nút ghi bằng chính thứ tiếng của nó;
+        // chọn xong thì mọi chữ đổi theo, không còn dòng song ngữ.
+        row('row-lang', S.setLang, [pick('lang-vi', 'Tiếng Việt', curLang === 'vi', () => chooseLang('vi')), pick('lang-lo', 'ພາສາລາວ', curLang === 'lo', () => chooseLang('lo'))]),
+        edit ? null : <Text color={P.ink}>{S.waiting}</Text>,
+        row('row-addr', S.setAddress, [
+          ...ADDR_IDS.map(id => pick(`addr-${id}`, S.addr[id], pid === id, () => chooseAddr(ADDR_VI[id]))),
+          e.surface === 'desktop' || e.surface === 'terminal' ? (
+            <Input key="addr-text" label={S.setAddressFree} placeholder={S.setAddressHint} value={addrDraft || (addrId(addrStored) ? '' : addrStored)} onInput={(v: string) => { addrDraft = v.slice(0, ADDR_MAX) }} onSubmit={async (v: string) => { addrDraft = clipAddr(v); await refresh() }} />
+          ) : null,
+        ]),
+        row('row-teacher', S.teacherWord, TEACHERS.map(x => pick(`t-${x.id}`, S.teacherLabel(x.id), tp === x.id, () => update($, teacherPick, () => x.id)))),
+        edit ? null : claudeRow,
+        edit ? (
+          <Box flexDirection="row" gap={1}>
+            <Button key="luu" label={S.save} variant="primary" onPress={save} />
+            <Button key="thiet-lap-thoi" label={S.cancel} onPress={cancel} />
+          </Box>
+        ) : (
+          <Box flexDirection="row" gap={1}>
+            <Button key="enter" label={S.enter} variant="primary" onPress={() => startLesson($)} />
+          </Box>
+        ),
       ])
     }
+
+    // Chưa vào lớp (hoặc đã xin nghỉ): màn Thiết lập rồi Vào lớp. Lớp luôn mở, không chọn thời lượng.
+    if (!running) return settingsScreen(false)
+    if (await read($, settingsOpen)) return settingsScreen(true)
 
     const xinNghi = <Button key="xin-nghi" label={S.leave} onPress={async () => {
       await update($, modeAtom, () => 'normal')
@@ -1468,7 +1823,7 @@ export const register: Register = on => {
     // Mở lại app: lớp vẫn mở, giáo viên chờ học viên bấm Tiếp tục.
     if (lesson.pause === 'cho') {
       return board([
-        <Text bold color={CHALK_Y}>{S.waitingResume(T, t)}</Text>,
+        <Text bold color={P.accent}>{S.waitingResume(T, t)}</Text>,
         <Box flexDirection="row" gap={1}>
           <Button key="tiep-tuc" label={S.resume} variant="primary" onPress={async () => {
             if (await resume($)) await sendPressCue($, 'Học viên trở lại')
@@ -1481,8 +1836,8 @@ export const register: Register = on => {
     // Xin phép: lớp chờ học viên quay lại.
     if (lesson.pause === 'xin-phep') {
       return board([
-        <Text bold color={CHALK_Y}>{S.inBreak(S.reasons.find(r => r.vi === lesson.pauseNote)?.label ?? lesson.pauseNote)}</Text>,
-        <Text color={CHALK_DIM}>{S.keepSeat(T, address.toLowerCase())}</Text>,
+        <Text bold color={P.accent}>{S.inBreak(S.reasons.find(r => r.vi === lesson.pauseNote)?.label ?? lesson.pauseNote)}</Text>,
+        <Text color={P.dim}>{S.keepSeat(T, address.toLowerCase())}</Text>,
         <Box flexDirection="row" gap={1}>
           <Button key="quay-lai" label={S.backToClass} variant="primary" onPress={async () => {
             if (await resume($)) await sendPressCue($, 'Học viên trở lại')
@@ -1502,7 +1857,7 @@ export const register: Register = on => {
         }} />
       )
       return board([
-        <Text bold color={CHALK_Y}>{S.chooseReason(t)}</Text>,
+        <Text bold color={P.accent}>{S.chooseReason(t)}</Text>,
         <Box flexDirection="row" gap={1} flexWrap="wrap">
           {S.reasons.map(r => reason(r.key, r.label, r.vi))}
           <Button key="xin-phep-thoi" label={S.cancel} onPress={() => update($, modeAtom, () => 'normal')} />
@@ -1510,10 +1865,28 @@ export const register: Register = on => {
       ])
     }
 
+    // v0.13: học viên góp ý cho lớp (⋯ → Góp ý cho lớp): lời của học viên đến thầy, thầy ghi góp ý để bục gửi đi.
+    if (mode === 'gop-y' && (e.surface === 'desktop' || e.surface === 'terminal')) {
+      const { Input } = $.ui.resolve(e)
+      return board([
+        <Text bold color={P.accent}>{S.feedbackTitle(t)}</Text>,
+        <Input key="gop-y-o" label={S.feedbackLabel} placeholder={S.feedbackPlaceholder} value="" submitLabel={S.send} autoFocus onSubmit={async (v: string) => {
+          const text = v.trim().slice(0, 500)
+          if (!text) return
+          await update($, modeAtom, () => 'normal')
+          await touch($)
+          await $.prompt.submit({ text: `${TAG}Góp ý: ${text}`, asUser: true })
+        }} />,
+        <Box flexDirection="row" gap={1}>
+          <Button key="gop-y-thoi" label={S.cancel} onPress={() => update($, modeAtom, () => 'normal')} />
+        </Box>,
+      ])
+    }
+
     if (mode === 'gio-tay' && (e.surface === 'desktop' || e.surface === 'terminal')) {
       const { Input } = $.ui.resolve(e)
       return board([
-        <Text bold color={CHALK_Y}>{S.raised(address, t)}</Text>,
+        <Text bold color={P.accent}>{S.raised(address, t)}</Text>,
         <Input key="ke" label={S.tellLabel(t)} placeholder={S.tellPlaceholder} value="" submitLabel={S.send} autoFocus onSubmit={async (v: string) => {
           const text = v.trim()
           if (!text) return
@@ -1534,7 +1907,7 @@ export const register: Register = on => {
         <Input key={`f-${key}`} label={label} placeholder={placeholder} value={draft[key]} onInput={(v: string) => { draft = { ...draft, [key]: v } }} onSubmit={(v: string) => { draft = { ...draft, [key]: v } }} />
       )
       return board([
-        <Text bold color={CHALK_Y}>{S.formTitle}</Text>,
+        <Text bold color={P.accent}>{S.formTitle}</Text>,
         field('goal', ...S.formFields.goal),
         field('src', ...S.formFields.src),
         field('out', ...S.formFields.out),
@@ -1559,53 +1932,76 @@ export const register: Register = on => {
       ])
     }
 
-    // Bình thường: phần học (giáo viên ghi khi đạt mốc), lượt của học viên, nút.
+    // ── Bình thường: ba tầng ─────────────────────────────────────────────────
     const shown = seg ?? S0
     const drive = shown.drive
     const ask = await read($, askAtom)
-    const working = e.props.isWorking
-    const parts = s?.status === 'active' ? (s.result_parts ?? []) : []
-    const panel = s?.panel ?? null
+    const working = !!e.props.isWorking
+    const parts = s?.result_parts ?? []
+    const pp = await read($, panelPick)
+    const panel: PanelKind | null = pp === 'off' ? null : (pp || (s?.panel ?? null)) || null
     const isPractice = shown.id === '2' || shown.id === '3'
     const timedAsk = timedKind(live.activity?.kind)
     const loops = typeof s?.loops_done === 'number' && s.loops_done > 0 ? s.loops_done : 0
+    const ver = await read($, stateVer)
+    const maxRows = typeof e.props.maxRows === 'number' && e.props.maxRows > 0 ? e.props.maxRows : 0
+    const cols = typeof e.props.bodyColumns === 'number' && e.props.bodyColumns > 0 ? e.props.bodyColumns : 100
+    const textCols = Math.max(20, cols - (isDesktop ? 18 : 4))
+    const wr = (x: string) => Math.max(1, Math.ceil(x.length / textCols))
+    const ROW_PX = 24
+    const pxRows = (h: number) => Math.max(1, Math.ceil(h / ROW_PX))
 
+    // Bảng "Hạn mức" / "Claude của tôi" (giáo viên mở bằng state.panel, hoặc học viên mở từ ⋯).
     let panelRows: RenderChildren[] = []
+    let panelEst = 0
     if (panel === 'usage') {
       const nowIso = new Date(now || Date.now()).toISOString()
       const five = usage?.five
       const week = usage?.week
       let pics: RenderChildren[] = []
       if (isDesktop && (five || week)) {
-        const { Svg } = $.ui.resolve(e)
         pics = [
-          five ? <Svg key="usage-5h" source={usageTimelineSvg({ percentUsed: five.percentUsed, resetsAt: five.resetsAt, now: nowIso })} alt={`Hạn mức 5 giờ: đã dùng ${Math.round(five.percentUsed)}%`} /> : null,
-          week ? <Svg key="usage-week" source={weekResetSvg({ percentUsed: week.percentUsed, resetsAt: week.resetsAt, now: nowIso })} alt={`Hạn mức tuần: đã dùng ${Math.round(week.percentUsed)}%`} /> : null,
+          five ? svg('usage-5h', usageTimelineSvg({ percentUsed: five.percentUsed, resetsAt: five.resetsAt, now: nowIso }), `Hạn mức 5 giờ: đã dùng ${Math.round(five.percentUsed)}%`) : null,
+          week ? svg('usage-week', weekResetSvg({ percentUsed: week.percentUsed, resetsAt: week.resetsAt, now: nowIso }), `Hạn mức tuần: đã dùng ${Math.round(week.percentUsed)}%`) : null,
         ]
       }
       panelRows = [
-        <Text bold color={CHALK_Y}>{S.usageTitle}</Text>,
+        <Text bold color={P.accent}>{S.usageTitle}</Text>,
         ...pics,
-        five ? <Text color={CHALK}>{S.usageFive(Math.round(five.percentUsed), resetTime(five.resetsAt))}</Text> : null,
-        week ? <Text color={CHALK}>{S.usageWeek(Math.round(week.percentUsed), resetDay(week.resetsAt))}</Text> : null,
-        !five && !week ? <Text color={CHALK_DIM}>{S.usageUnknown(t)}</Text> : null,
+        five ? <Text color={P.ink}>{S.usageFive(Math.round(five.percentUsed), resetTime(five.resetsAt))}</Text> : null,
+        week ? <Text color={P.ink}>{S.usageWeek(Math.round(week.percentUsed), resetDay(week.resetsAt))}</Text> : null,
+        !five && !week ? <Text color={P.dim}>{S.usageUnknown(t)}</Text> : null,
       ]
+      panelEst = 3 + (isDesktop ? 6 : 0)
     } else if (panel === 'claude') {
       panelRows = [
-        <Text bold color={CHALK_Y}>{S.mine}</Text>,
-        <Text color={CHALK}>{line || S.usageUnknown(t)}</Text>,
-        <Text color={CHALK_DIM}>{S.mineHelp}</Text>,
+        <Text bold color={P.accent}>{S.mine}</Text>,
+        <Text color={P.ink}>{line || S.usageUnknown(t)}</Text>,
+        <Text color={P.dim}>{S.mineHelp}</Text>,
       ]
+      panelEst = 2 + wr(S.mineHelp) + (line ? wr(line) - 1 : 0)
     }
+    const progressShown = await read($, progressOpen)
+    const progressRows: RenderChildren[] = progressShown
+      ? [
+          <Text key="progress-title" bold color={P.accent}>{S.menuProgress}</Text>,
+          parts.length ? (
+            <Box key="progress-parts" flexDirection="row" gap={2} flexWrap="wrap">
+              {parts.map((p, i) => (
+                <Text key={`rp-${i}`} color={p.done ? P.accent : P.dim}>{`${p.done ? '✓' : '○'} ${cut(p.label, 30)}`}</Text>
+              ))}
+            </Box>
+          ) : <Text key="progress-none" color={P.dim}>{S.progressNone}</Text>,
+        ]
+      : []
+    const progressEst = progressShown ? 3 : 0
 
-    const headline = working ? S.working(T, address.toLowerCase()) : `${S.yourTurn}${s?.next_action ? ` · ${cut(s.next_action, 80)}` : ''}`
-
-    // ── v0.6: nút một chạm, thử thách, sao, huy hiệu, hộp quà ──
+    // ── Nút một chạm, thử thách, sao, huy hiệu, hộp quà (v0.6) ──
     const isActive = !s || s.status === 'active'
     const one = isActive ? (s?.one_touch ?? null) : null
     const oneHash = one ? `${one.label}\n${one.text}` : ''
     const oneTouch = one && !working && (await read($, oneTouchUsed)) !== oneHash ? (
-      <Box flexDirection="row">
+      <Box key="one-touch-row" flexDirection="row">
         <Button key="one-touch" label={`▶ ${cut(one.label, 60)}`} variant="primary" onPress={async () => {
           await touch($)
           await update($, entered, () => true)
@@ -1622,55 +2018,57 @@ export const register: Register = on => {
     // Kệ huy hiệu: hình tự lấy 4 cái gần nhất và ghi "+n"; ẩn khi hộp câu hỏi gốc đang mở.
     const allBadges = ask ? [] : await read($, badgesAtom)
     const badges = allBadges.slice(-4)
-    const extras: RenderChildren[] = []
-    if (challenge && chLeft) {
-      if (isDesktop) {
-        const { Svg } = $.ui.resolve(e)
-        const src = challengeRingSvg({ remainingMs: chLeft.leftMs, totalMs: chLeft.totalMs })
-        extras.push(<Svg key="challenge" source={src} alt={`Thử thách còn ${mmss(chLeft.leftMs)}`} {...svgSize(src, 56, 56)} />)
-        extras.push(<Text key="challenge-title" bold color={chLeft.leftMs > 0 ? CHALK_Y : CHALK_DIM}>{`${cut(challenge.title, 40)}${chLeft.leftMs > 0 ? '' : ' · hết giờ'}`}</Text>)
-      } else {
-        extras.push(<Text key="challenge-title" bold color={chLeft.leftMs > 0 ? CHALK_Y : CHALK_DIM}>{`Thử thách ${mmss(chLeft.leftMs)} · ${cut(challenge.title, 40)}${chLeft.leftMs > 0 ? '' : ' · hết giờ'}`}</Text>)
+    const extrasPresent = !!((challenge && chLeft) || stars || badges.length)
+    // compact = hàng chật: bỏ hình, chỉ còn chữ.
+    const extrasOf = (compact: boolean): RenderChildren => {
+      const pics = isDesktop && !compact
+      const extras: RenderChildren[] = []
+      if (challenge && chLeft) {
+        if (pics) {
+          const src = challengeRingSvg({ remainingMs: chLeft.leftMs, totalMs: chLeft.totalMs })
+          extras.push(svg('challenge', src, `Thử thách còn ${mmss(chLeft.leftMs)}`, svgSize(src, 56, 56)))
+          extras.push(<Text key="challenge-title" bold color={chLeft.leftMs > 0 ? P.accent : P.dim}>{`${cut(challenge.title, 40)}${chLeft.leftMs > 0 ? '' : ' · hết giờ'}`}</Text>)
+        } else {
+          extras.push(<Text key="challenge-title" bold color={chLeft.leftMs > 0 ? P.accent : P.dim}>{`Thử thách ${mmss(chLeft.leftMs)} · ${cut(challenge.title, 40)}${chLeft.leftMs > 0 ? '' : ' · hết giờ'}`}</Text>)
+        }
       }
-    }
-    if (stars) {
-      if (isDesktop) {
-        const { Svg } = $.ui.resolve(e)
-        const src = starRowSvg(stars)
-        extras.push(<Svg key="stars" source={src} alt={S.starsAlt(stars)} {...svgSize(src, 24 * Math.min(stars, 5) + 40, 24)} />)
-      } else {
-        extras.push(<Text key="stars" color={CHALK_Y}>{`★ ${stars}`}</Text>)
+      if (stars) {
+        if (pics) {
+          const src = starRowSvg(stars)
+          extras.push(svg('stars', src, S.starsAlt(stars), svgSize(src, 24 * Math.min(stars, 5) + 40, 24)))
+        } else {
+          extras.push(<Text key="stars" color={P.accent}>{`★ ${stars}`}</Text>)
+        }
       }
-    }
-    if (badges.length) {
-      if (isDesktop) {
-        const { Svg } = $.ui.resolve(e)
-        const shelf: BadgeRef[] = allBadges.map(b => ({ id: b.id, label: b.label }))
-        const src = badgeShelfSvg(shelf)
-        extras.push(<Svg key="badges" source={src} alt={`${S.badgesText}: ${badges.map(b => b.label).join(', ')}`} {...svgSize(src, 240, 56)} />)
-      } else {
-        const more = allBadges.length - badges.length
-        extras.push(<Text key="badges" color={CHALK}>{`${S.badgesText}: ${badges.map(b => cut(b.label, 24)).join(' · ')}${more > 0 ? ` · +${more}` : ''}`}</Text>)
+      if (badges.length) {
+        if (pics) {
+          const shelf: BadgeRef[] = allBadges.map(b => ({ id: b.id, label: b.label }))
+          const src = badgeShelfSvg(shelf)
+          extras.push(svg('badges', src, `${S.badgesText}: ${badges.map(b => b.label).join(', ')}`, svgSize(src, 240, 56)))
+        } else {
+          const more = allBadges.length - badges.length
+          extras.push(<Text key="badges" color={P.ink}>{`${S.badgesText}: ${badges.map(b => cut(b.label, 24)).join(' · ')}${more > 0 ? ` · +${more}` : ''}`}</Text>)
+        }
       }
+      return extras.length ? (
+        <Box key="extras" flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+          {extras}
+        </Box>
+      ) : null
     }
-    const extrasRow = extras.length ? (
-      <Box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
-        {extras}
-      </Box>
-    ) : null
 
     const gift = await read($, giftAtom)
-    let giftRow: RenderChildren = null
-    if (gift === 'opening' || (gift === 'closed' && isActive && s?.gift_box && !working)) {
+    const giftPresent = gift === 'opening' || (gift === 'closed' && isActive && !!s?.gift_box && !working)
+    const giftOf = (compact: boolean): RenderChildren => {
+      if (!giftPresent) return null
       const isOpen = gift === 'opening'
-      let pic: RenderChildren = <Text color={CHALK_Y}>{isOpen ? S.giftOpening : S.giftWaiting}</Text>
-      if (isDesktop) {
-        const { Svg } = $.ui.resolve(e)
+      let pic: RenderChildren = <Text color={P.accent}>{isOpen ? S.giftOpening : S.giftWaiting}</Text>
+      if (isDesktop && !compact) {
         const src = giftBoxSvg(isOpen)
-        pic = <Svg key="gift" source={src} alt={isOpen ? 'Hộp quà đang mở' : 'Hộp quà'} {...svgSize(src, 64, 64)} />
+        pic = svg('gift', src, isOpen ? 'Hộp quà đang mở' : 'Hộp quà', svgSize(src, 64, 64))
       }
-      giftRow = (
-        <Box flexDirection="row" gap={1} alignItems="center">
+      return (
+        <Box key="gift-row" flexDirection="row" gap={1} alignItems="center">
           {pic}
           {isOpen ? null : <Button key="hop-qua" label={S.giftOpen} variant="primary" onPress={async () => {
             await touch($)
@@ -1684,126 +2082,47 @@ export const register: Register = on => {
       )
     }
 
-    const header = (
-      <Box flexDirection="row" gap={1} alignItems="center">
-        <Text backgroundColor={DRIVE_COLOR[drive]} color={INK}>{` ${S.part} ${shown.id} · ${curLang === 'vi' ? shown.title : (S.segments[shown.id] ?? shown.title)} `}</Text>
-        <Text color={CHALK_DIM}>{loops ? S.loops(T, loops) : T}</Text>
-      </Box>
-    )
-    const headRow = <Text bold={!working} color={working ? CHALK_DIM : CHALK_Y}>{headline}</Text>
-    const askRow = ask && !ask.handled && timedAsk ? <Text color={CHALK}>{S.pickFor(T, mmss(ANSWER_MS - (now - ask.openedAt)))}</Text> : null
+    // ── Tầng 1: thẻ bước ─────────────────────────────────────────────────────
+    const sv = stepView(s?.step, curLang)
+    const hint = await read($, hintAtom)
+    const hintLevel = hint.id === sv.id ? hint.level : 0
+    const hintText = hintLevel > 0 && sv.hints ? (sv.hints[hintLevel - 1] ?? null) : null
+    const cueTitle = sv.cueTitle ? ` · ${sv.cueTitle}` : ''
+    const stepAct = (what: string) => () => sendPressCue($, `${what} · bước ${sv.id}${cueTitle}`)
+    const onHint = async () => {
+      const cur = await read($, hintAtom)
+      const was = cur.id === sv.id ? cur.level : 0
+      let level = was >= 3 ? 1 : was + 1
+      // Bước không có gợi ý sẵn thì không có gì để hiện tại chỗ: bỏ nấc 1, đi thẳng nấc 2.
+      if (level === 1 && !sv.hints) level = 2
+      await update($, hintAtom, () => ({ id: sv.id, level: level as 1 | 2 | 3 }))
+      if (level === 1) await touch($)
+      else await sendPressCue($, `Gợi ý · bước ${sv.id} · nấc ${level}`)
+    }
+    const typing = await read($, typingAtom)
+    const sil = await read($, silenceAtom)
+    const nudge = !working && !typing && !ask && !lesson.pause && now > 0 && now - sil.at >= NUDGE_MS
+
+    const askRow = ask && !ask.handled && timedAsk ? <Text key="ask-row" color={P.ink}>{S.pickFor(T, mmss(ANSWER_MS - (now - ask.openedAt)))}</Text> : null
     // Hộp câu hỏi gốc (không phải câu đố/trò chơi) mở từ 90 giây: bục tự nhắc chọn dòng đầu, cho tới khi hộp đóng.
-    const waitHint = ask && !ask.handled && !timedAsk && now - ask.openedAt >= LONG_BOX_MS ? <Text key="wait-hint" bold color={INK} backgroundColor={CHALK_Y}>{` ${S.waitHint(t)} `}</Text> : null
+    const waitHint = ask && !ask.handled && !timedAsk && now - ask.openedAt >= LONG_BOX_MS ? <Text key="wait-hint" bold color={P.onAccent} backgroundColor={P.accent}>{` ${S.waitHint(t)} `}</Text> : null
     const helpRow = s?.help_needed ? (
-      <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-        <Text bold color={INK} backgroundColor={ALERT}>{S.helpNeeded}</Text>
+      <Box key="help-row" flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+        <Text bold color={P.onAlert} backgroundColor={P.alert}>{S.helpNeeded}</Text>
         <Button key="nho-ho-tro" label={S.helpButton} onPress={async () => {
           await touch($)
           await $.prompt.submit({ text: `${TAG}Soạn tin nhờ hỗ trợ`, asUser: true })
         }} />
       </Box>
     ) : null
-    const destRow = s?.destination ? <Text color={CHALK_DIM}>{`${S.dest}: ${cut(s.destination, 80)}`}</Text> : null
-    const partsRow = parts.length ? (
-      <Box flexDirection="row" gap={2} flexWrap="wrap">
-        {parts.map((p, i) => (
-          <Text key={`rp-${i}`} color={p.done ? CHALK_Y : CHALK_DIM}>{`${p.done ? '✓' : '○'} ${cut(p.label, 30)}`}</Text>
-        ))}
-      </Box>
-    ) : null
-    // ── v0.8: sân khấu do giáo viên dựng ─────────────────────────────────────
-    const isMini = size === 'mini'
-    const ver = await read($, stateVer)
-    // Nhãn thông tin sống: ẩn theo mặc định; chỉ hiện cái giáo viên ghi trong show, và cái đang chỉ (point).
-    const pointed = spec.point
-    const factIds = [...spec.show, ...(pointed && !spec.show.includes(pointed) ? [pointed] : [])]
-    const pctOf = (id: FactId | null): number | null =>
-      id === 'usage5' ? (usage?.five?.percentUsed ?? null) : id === 'usageWeek' ? (usage?.week?.percentUsed ?? null) : (usage?.context ?? null)
-    const factValue = (id: FactId): string => {
-      if (id === 'mode') return modeLabel
-      if (id === 'effort') return cap(effort)
-      if (id === 'model') return usage?.model ? modelLabel(usage.model) : ''
-      const p = pctOf(id)
-      return p == null ? '' : `${Math.round(p)}%`
-    }
-    const factChips: RenderChildren[] = []
-    for (const id of factIds) {
-      const v = factValue(id)
-      if (id === 'mode' && !v) continue
-      if (id === pointed) factChips.push(<Text key={`fact-${id}`} bold color={INK} backgroundColor={CHALK_Y}>{` ▼ ${S.facts[id]} ${v || '…'} `}</Text>)
-      else if (v) factChips.push(<Text key={`fact-${id}`} color={CHALK}>{`${S.facts[id]} ${v}`}</Text>)
-    }
-    const factsRow = factChips.length && panel !== 'claude' ? (
-      <Box flexDirection="row" gap={2} flexWrap="wrap">
-        {factChips}
-      </Box>
-    ) : null
-
-    // Chỉ vào thanh dưới ô nhập: hình thanh với vùng được tô vàng và mũi tên (desktop), hoặc một dòng chữ (terminal).
-    let pointRow: RenderChildren = null
-    if (pointed) {
-      const areaText = factValue(pointed)
-      const barOpts = { mode: modeLabel, model: usage?.model ? modelLabel(usage.model) : '', effort: cap(effort), percent: pctOf(pointed === 'mode' || pointed === 'model' || pointed === 'effort' ? 'context' : pointed), point: pointed }
-      let mock: RenderChildren
-      if (isDesktop) {
-        const { Svg } = $.ui.resolve(e)
-        const bd = BAR_DIMS[size]
-        mock = <Svg key="bar-mock" source={bottomBarSvg(barOpts)} alt={S.barAlt(`${S.facts[pointed]}${areaText ? ` ${areaText}` : ''}`)} width={bd.w} height={bd.h} />
-      } else {
-        const seg = (id: FactId, text: string) => (id === pointed ? <Text key={`bar-${id}`} bold color={INK} backgroundColor={CHALK_Y}>{`▼ ${text}`}</Text> : <Text key={`bar-${id}`} color={CHALK}>{text}</Text>)
-        mock = (
-          <Box key="bar-mock" flexDirection="row" gap={2}>
-            {seg('mode', modeLabel || '—')}
-            {seg('model', barOpts.model || '—')}
-            {seg('effort', barOpts.effort || '—')}
-            {seg(pointed === 'usage5' || pointed === 'usageWeek' ? pointed : 'context', barOpts.percent != null ? `◔ ${Math.round(barOpts.percent)}%` : '◔')}
-          </Box>
-        )
-      }
-      pointRow = (
-        <Box flexDirection="column">
-          {mock}
-          <Text bold color={CHALK_Y}>{`▲ ${S.barNote}`}</Text>
-        </Box>
-      )
-    }
-
-    // Bảng nhỏ (slide): tiêu đề, ≤ 5 dòng, hình SVG đã lọc (terminal chỉ có chữ).
-    // v0.10: ảnh chụp màn hình có đánh dấu (shot) thắng svg; không vẽ được ảnh thì quay về svg. Terminal: một dòng chữ thay ảnh.
-    const bd = s?.board ?? null
-    let boardRow: RenderChildren = null
-    if (bd) {
-      let pic: RenderChildren = null
-      let shotNote: RenderChildren = null
-      const drawn = bd.shot && isDesktop ? await loadShot($, bd.shot, ver) : null
-      if (drawn) {
-        const { Svg } = $.ui.resolve(e)
-        pic = <Svg key="board-shot" source={drawn.svg} alt={S.shotAlt(bd.title || '')} {...svgBox(drawn.svg, SHOT_W[size], SHOT_H)} />
-      } else if (bd.shot && !isDesktop && (await shotReady($, bd.shot))) {
-        shotNote = <Text key="board-shot-note" bold color={CHALK_Y}>{S.shotNote(T)}</Text>
-      } else if (isDesktop && bd.svg) {
-        const { Svg } = $.ui.resolve(e)
-        pic = <Svg key="board-svg" source={bd.svg} alt={S.boardAlt(bd.title || '')} {...svgBox(bd.svg, BOARD_W[size])} />
-      }
-      boardRow = (
-        <Box flexDirection="column" borderStyle="round" borderColor={CHALK_Y} paddingX={1}>
-          {bd.title ? <Text bold color={CHALK_Y}>{bd.title}</Text> : null}
-          {pic}
-          {shotNote}
-          {bd.lines.map((x, i) => (
-            <Text key={`bl-${i}`} color={CHALK}>{x}</Text>
-          ))}
-        </Box>
-      )
-    }
 
     // Lựa chọn: nút lớn, không chặn ô nhập; bấm gửi một lần rồi ẩn đến khi state.json được ghi lại.
     const cs = live.choices
     const csKey = cs ? choiceKey(cs, ver) : ''
     const csExpired = !!cs && (await read($, choiceExpired)) === csKey
     const choicesRow = cs && !working && (await read($, choiceDone)) !== csKey ? (
-      <Box flexDirection="column" gap={1}>
-        {cs.prompt ? <Text bold color={CHALK_Y}>{cs.prompt}</Text> : null}
+      <Box key="choices-row" flexDirection="column">
+        {cs.prompt ? <Text bold color={P.accent}>{cs.prompt}</Text> : null}
         <Box flexDirection="row" gap={2} flexWrap="wrap">
           {cs.options.map((o, i) => {
             const star = csExpired && i === cs.default
@@ -1816,11 +2135,141 @@ export const register: Register = on => {
             return star ? <Button key={`choice-${i}`} label={label} variant="primary" onPress={onPress} /> : <Button key={`choice-${i}`} label={label} onPress={onPress} />
           })}
         </Box>
-        {csExpired ? <Text color={CHALK_DIM}>{S.choiceExpired(t)}</Text> : null}
+        {csExpired ? <Text color={P.dim}>{S.choiceExpired(t)}</Text> : null}
       </Box>
     ) : null
 
-    // Nút phụ: các nút giáo viên chọn (podium.buttons); Giơ tay · Xin phép · Xin nghỉ luôn với tới được qua nhóm "⋯".
+    const bubbleKey = await read($, bubbleAtom)
+    const bubbleRow = (
+      <Box key="bubble" flexDirection="column" borderStyle="round" borderColor={P.frame} paddingX={1}>
+        <Text bold color={P.accent}>{S.bubble(bubbleKey || 'work', T)}</Text>
+      </Box>
+    )
+    const headRow = sv.title ? <Text key="step-head" bold color={P.accent}>{sv.k ? S.stepHead(sv.k, sv.n, sv.title) : sv.title}</Text> : null
+    const whyRow = sv.why ? <Text key="step-why" color={P.ink}>{S.stepWhy(sv.why)}</Text> : null
+    const nextRow = s?.next_action ? <Text key="next-row" color={P.dim}>{`${S.yourTurn} · ${cut(s.next_action, 80)}`}</Text> : null
+    const hintRow = hintText ? <Text key="hint-text" color={P.ink}>{`${S.hintLabel(hintLevel)} · ${hintText}`}</Text> : null
+    const nudgeRow = nudge ? <Text key="nudge" bold color={P.accent}>{S.nudge}</Text> : null
+    const stepButtons = (
+      <Box key="step-buttons" flexDirection="row" gap={1} flexWrap="wrap">
+        <Button key="xong" label={S.stepDone} variant="primary" onPress={stepAct('Xong')} />
+        <Button key="chua-duoc" label={S.stepNot} onPress={stepAct('Chưa được')} />
+        <Button key="goi-y-buoc" label={S.stepHint} onPress={onHint} />
+      </Box>
+    )
+    const tier1Rows = (working ? 3 : (headRow ? wr(sv.k ? S.stepHead(sv.k, sv.n, sv.title) : sv.title) : 0) + (whyRow ? wr(S.stepWhy(sv.why ?? '')) : 0) + (nextRow ? 1 : 0)
+      + (hintRow ? wr(`${S.hintLabel(hintLevel)} · ${hintText ?? ''}`) : 0) + (oneTouch ? 1 : 0)
+      + (choicesRow ? (cs?.prompt ? 1 : 0) + 1 + (csExpired ? 1 : 0) : 0) + (askRow ? 1 : 0) + (waitHint ? wr(S.waitHint(t)) : 0) + (nudgeRow ? wr(S.nudge) : 0) + 1)
+      + (helpRow ? 1 : 0)
+
+    // ── Tầng 2: một hình (bảng giáo viên dựng, chỉ chỗ trên thanh dưới ô nhập) ──
+    const isMini = size === 'mini'
+    const pointed = spec.point
+    const pctOf = (id: FactId | null): number | null =>
+      id === 'usage5' ? (usage?.five?.percentUsed ?? null) : id === 'usageWeek' ? (usage?.week?.percentUsed ?? null) : (usage?.context ?? null)
+    const factValue = (id: FactId): string => {
+      if (id === 'mode') return modeLabel
+      if (id === 'effort') return cap(effort)
+      if (id === 'model') return usage?.model ? modelLabel(usage.model) : ''
+      const p = pctOf(id)
+      return p == null ? '' : `${Math.round(p)}%`
+    }
+    // Chỉ vào thanh dưới ô nhập: hình thanh với vùng được tô vàng và mũi tên (desktop), hoặc một dòng chữ (terminal).
+    let pointRow: RenderChildren = null
+    let pointEst = 0
+    if (pointed) {
+      const areaText = factValue(pointed)
+      const barOpts = { mode: modeLabel, model: usage?.model ? modelLabel(usage.model) : '', effort: cap(effort), percent: pctOf(pointed === 'mode' || pointed === 'model' || pointed === 'effort' ? 'context' : pointed), point: pointed }
+      let mock: RenderChildren
+      if (isDesktop) {
+        const bd2 = BAR_DIMS[size]
+        mock = svg('bar-mock', bottomBarSvg(barOpts), S.barAlt(`${S.facts[pointed]}${areaText ? ` ${areaText}` : ''}`), { width: bd2.w, height: bd2.h })
+        pointEst = pxRows(bd2.h) + 1
+      } else {
+        const seg2 = (id: FactId, text: string) => (id === pointed ? <Text key={`bar-${id}`} bold color={P.onAccent} backgroundColor={P.accent}>{`▼ ${text}`}</Text> : <Text key={`bar-${id}`} color={P.ink}>{text}</Text>)
+        mock = (
+          <Box key="bar-mock" flexDirection="row" gap={2}>
+            {seg2('mode', modeLabel || '—')}
+            {seg2('model', barOpts.model || '—')}
+            {seg2('effort', barOpts.effort || '—')}
+            {seg2(pointed === 'usage5' || pointed === 'usageWeek' ? pointed : 'context', barOpts.percent != null ? `◔ ${Math.round(barOpts.percent)}%` : '◔')}
+          </Box>
+        )
+        pointEst = 2
+      }
+      pointRow = (
+        <Box key="point-row" flexDirection="column">
+          {mock}
+          <Text bold color={P.accent}>{`▲ ${S.barNote}`}</Text>
+        </Box>
+      )
+    }
+    const bd = s?.board ?? null
+    const hasBoard = !!bd || !!pointed
+    let boardEst = pointEst
+    if (bd) {
+      boardEst += 2 + (bd.title ? 1 : 0) + bd.lines.reduce((a, x) => a + wr(x), 0)
+      if (bd.shot) boardEst += isDesktop ? pxRows(SHOT_CAP) : 1
+      else if (isDesktop && bd.svg) boardEst += pxRows(svgBox(bd.svg, BOARD_W[size], SVG_CAP).height)
+    }
+    const pref = await read($, boardPref)
+    const prefVal = pref.startsWith(`${ver}:`) ? pref.slice(String(ver).length + 1) : ''
+    const boardMode: BudgetIn['boardMode'] = prefVal === 'open' ? 'show' : prefVal === 'closed' || oneTouch || choicesRow ? 'hide' : 'auto'
+
+    // ── Tầng 3: thanh bước + nút phụ ──
+    const ALWAYS: PodiumButtonId[] = ['raise-hand', 'ask-leave']
+    const menuOpen = await read($, moreOpen)
+    const menuEst = menuOpen ? 2 : 0
+    const giftEstFull = giftPresent ? (isDesktop ? pxRows(64) : 1) : 0
+    const extrasEstFull = extrasPresent ? (isDesktop ? pxRows(56) : 1) : 0
+    const tier2Present = hasBoard || extrasPresent || giftPresent
+    const fit = fitBudget({
+      maxRows,
+      base: 2 + (bypassChip ? 1 : 0) + tier1Rows + menuEst + panelEst + progressEst,
+      board: hasBoard ? boardEst + (boardMode === 'auto' ? 0 : 1) : 0,
+      boardHidden: hasBoard ? 1 : 0,
+      deco: extrasEstFull + giftEstFull,
+      decoCompact: (extrasPresent ? 1 : 0) + (giftPresent ? 1 : 0),
+      tier3: 2,
+      tier3Min: 1,
+      seps: 1 + (tier2Present ? 1 : 0),
+      boardMode,
+    })
+
+    let boardRow: RenderChildren = null
+    if (bd && fit.showBoard) {
+      let pic: RenderChildren = null
+      let shotNote: RenderChildren = null
+      const drawn = bd.shot && isDesktop ? await loadShot($, bd.shot, ver) : null
+      if (drawn) pic = svg('board-shot', drawn.svg, S.shotAlt(bd.title || ''), svgBox(drawn.svg, SHOT_W[size], SHOT_CAP))
+      else if (bd.shot && !isDesktop && (await shotReady($, bd.shot))) shotNote = <Text key="board-shot-note" bold color={P.accent}>{S.shotNote(T)}</Text>
+      else if (isDesktop && bd.svg) pic = svg('board-svg', bd.svg, S.boardAlt(bd.title || ''), svgBox(bd.svg, BOARD_W[size], SVG_CAP))
+      boardRow = (
+        <Box key="board-row" flexDirection="column" borderStyle="round" borderColor={P.frame} paddingX={1}>
+          {bd.title ? <Text bold color={P.accent}>{bd.title}</Text> : null}
+          {pic}
+          {shotNote}
+          {bd.lines.map((x, i) => (
+            <Text key={`bl-${i}`} color={P.ink}>{x}</Text>
+          ))}
+        </Box>
+      )
+    }
+    const picToggle = hasBoard && (!fit.showBoard || boardMode !== 'auto') ? (
+      <Button key="xem-hinh" label={fit.showBoard ? S.hidePic : S.showPic} onPress={() => update($, boardPref, () => `${ver}:${fit.showBoard ? 'closed' : 'open'}`)} />
+    ) : null
+    const tier2 = tier2Present ? (
+      <Box key="tier2" flexDirection="column" gap={fit.gap}>
+        {picToggle}
+        {boardRow}
+        {fit.showBoard ? pointRow : null}
+        {extrasPresent ? extrasOf(fit.compact) : null}
+        {giftOf(fit.compact)}
+      </Box>
+    ) : null
+
+    // Nút phụ: Giơ tay · Xin phép luôn thấy (trừ khi chật: chỉ thanh bước + ⋯); các nút giáo viên chọn (podium.buttons) đi cùng;
+    // còn lại nằm trong ⋯ cùng Thiết lập · Claude của tôi · Tiến độ.
     const btn: Record<PodiumButtonId, () => RenderChildren> = {
       'raise-hand': () => (
         <Button key="gio-tay" label={S.raiseHand} onPress={async () => {
@@ -1860,33 +2309,68 @@ export const register: Register = on => {
         </Box>
       ),
     }
-    const ALWAYS: PodiumButtonId[] = ['raise-hand', 'ask-leave', 'leave']
-    const chosen = spec.buttons.filter(id => !working || ALWAYS.includes(id))
-    const hidden = ALWAYS.filter(id => !spec.buttons.includes(id))
-    const open = await read($, moreOpen)
-    const buttonsRow = chosen.length || hidden.length ? (
-      <Box flexDirection="row" gap={1} flexWrap="wrap">
-        {chosen.map(id => btn[id]())}
-        {hidden.length && open ? hidden.map(id => btn[id]()) : null}
-        {hidden.length ? <Button key="more" label={open ? S.moreClose : S.more} onPress={() => update($, moreOpen, v => !v)} /> : null}
+    const direct: PodiumButtonId[] = fit.tier3Min ? [] : [...ALWAYS, ...spec.buttons.filter(id => !ALWAYS.includes(id) && !working)]
+    const menuIds: PodiumButtonId[] = (['raise-hand', 'ask-leave', 'result-sheet', 'leave', ...(working ? [] : (['slower', 'faster', 'delegate'] as PodiumButtonId[]))] as PodiumButtonId[]).filter(id => !direct.includes(id))
+    const openSettings = async () => {
+      settingsBase = { language: curLang, address: addrStored, teacher: kind }
+      addrDraft = ''
+      await update($, teacherPick, () => kind)
+      await update($, moreOpen, () => false)
+      await touch($)
+      await update($, settingsOpen, () => true)
+    }
+    const moreButton = <Button key="more" label={menuOpen ? S.moreClose : S.more} onPress={() => update($, moreOpen, v => !v)} />
+    const menuRow = menuOpen ? (
+      <Box key="menu-row" flexDirection="row" gap={1} flexWrap="wrap">
+        <Button key="thiet-lap" label={S.setMenu} onPress={openSettings} />
+        {menuIds.map(id => btn[id]())}
+        <Button key="claude-cua-toi" label={S.mine} onPress={() => update($, panelPick, () => (panel ? 'off' : 'claude'))} />
+        <Button key="tien-do" label={S.menuProgress} onPress={() => update($, progressOpen, v => !v)} />
+        <Button key="gop-y" label={S.feedbackMenu} onPress={async () => { await touch($); await update($, modeAtom, () => 'gop-y') }} />
+      </Box>
+    ) : null
+    const railNode: RenderChildren = sv.k
+      ? isDesktop
+        ? svg('rail', railSvg(sv.k, sv.n, P), S.railAlt(sv.k, sv.n), { width: sv.n * 16, height: 14 })
+        : <Text key="rail" color={P.accent}>{railText(sv.k, sv.n)}</Text>
+      : null
+    const partChip = (
+      <Box key="part-chip" flexDirection="row" gap={1} alignItems="center">
+        <Text backgroundColor={DRIVE_COLOR[drive]} color={INK}>{` ${S.part} ${shown.id} · ${curLang === 'vi' ? shown.title : (S.segments[shown.id] ?? shown.title)} `}</Text>
+        <Text color={P.dim}>{loops ? S.loops(T, loops) : T}</Text>
+      </Box>
+    )
+    const tier3 = (
+      <Box key="tier3" flexDirection="column">
+        <Box flexDirection="row" gap={2} alignItems="center" flexWrap="wrap">
+          {railNode}
+          {fit.tier3Min && isMini ? null : partChip}
+          {fit.tier3Min ? moreButton : null}
+        </Box>
+        {fit.tier3Min ? null : (
+          <Box flexDirection="row" gap={1} flexWrap="wrap">
+            {direct.map(id => btn[id]())}
+            {moreButton}
+          </Box>
+        )}
+        {menuRow}
+      </Box>
+    )
+
+    const tier1 = (
+      <Box key="tier1" flexDirection="column">
+        {working ? bubbleRow : [headRow, whyRow, nextRow, hintRow, oneTouch, choicesRow, askRow, waitHint, nudgeRow, stepButtons]}
+        {helpRow}
+      </Box>
+    )
+    const lower = panelRows.length || progressRows.length ? (
+      <Box key="lower" flexDirection="column">
+        {panelRows}
+        {progressRows}
       </Box>
     ) : null
 
-    const infoRow = isMini ? null : factsRow
-
-    // Dải chật (ước số dòng vượt chỗ) mà có phần v0.6: thu khoảng cách, bỏ dòng phụ, xếp theo thứ tự ưu tiên
-    // nút một chạm → Lượt của bạn → thử thách/sao/huy hiệu → các nút khác. Nhãn Bypass luôn ở đầu.
-    const hasSix = !!(oneTouch || choicesRow || extrasRow || giftRow)
-    const miniDest = isMini ? null : destRow
-    const miniParts = isMini ? null : partsRow
-    const lines = [bypassChip, header, oneTouch, choicesRow, headRow, askRow, waitHint, extrasRow, helpRow, miniDest, miniParts, ...panelRows, boardRow, pointRow, infoRow, giftRow].filter(x => x != null).length + 2
-    const maxRows = typeof e.props.maxRows === 'number' && e.props.maxRows > 0 ? e.props.maxRows : 0
-    const crowded = hasSix && maxRows > 0 && 2 + lines * 2 - 1 > maxRows
-    const top: RenderChildren[] = crowded
-      ? [bypassChip, waitHint, oneTouch, choicesRow, headRow, askRow, extrasRow, header, helpRow, miniParts, ...panelRows, boardRow, pointRow, giftRow]
-      : [bypassChip, header, headRow, askRow, waitHint, oneTouch, choicesRow, boardRow, pointRow, infoRow, extrasRow, helpRow, miniDest, miniParts, ...panelRows, giftRow]
-
-    return board([...top, buttonsRow], crowded ? 0 : 1)
+    return board([bypassChip, tier1, tier2, tier3, lower], fit.gap)
   })
 
   // ── Hộp câu hỏi gốc: khung thầy đầy đủ (viền tròn, hình thầy trên Desktop, dòng tiêu đề) quanh hộp gốc ──────

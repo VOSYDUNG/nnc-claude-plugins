@@ -67,7 +67,14 @@ export type LessonState = {
   podium?: PodiumSpec | null
   board?: BoardSpec | null
   choices?: ChoicesSpec | null
+  // v0.13: bước hiện tại của vòng việc (giáo viên ghi). id: '0'–'7' theo giáo án dựng sẵn (hooks/giao-an.ts) hoặc id riêng;
+  // title (tuỳ chọn) thay tên bước của giáo án cho các vòng sau.
+  step?: LessonStep | null
+  // v0.13 — góp ý thầy ghi để bục gửi lên Drive của người phụ trách (mỗi id gửi một lần).
+  feedback?: FeedbackRecord | null
 }
+
+export type LessonStep = { id: string; title?: string }
 
 // Bản cũ v0.4 (lop-hoc/1) vẫn đọc được: stage 0–5 được đổi sang phần học.
 export type LessonStateV1 = {
@@ -123,7 +130,12 @@ export type ActivityTrack = { key: string; fromEl: number }
 export type GiftPhase = 'closed' | 'opening' | 'opened'
 
 // Bục giảng: bình thường · form giao việc 4 ý · chọn lý do xin phép · ô "Kể cô nghe".
-export type BandMode = 'normal' | 'form' | 'xin-phep' | 'gio-tay'
+export type BandMode = 'normal' | 'form' | 'xin-phep' | 'gio-tay' | 'gop-y'
+
+// v0.13 — một bản góp ý: thầy tự đánh giá buổi học và chuyển lời học viên (nếu có), không file, không số liệu.
+export type FeedbackKind = 'chot-vong' | 'xin-nghi' | 'gop-y' | 'loi-lop' | 'kho'
+export type FeedbackLevel = 'chan' | 'lon' | 'nho' | 'gop-y'
+export type FeedbackRecord = { id: string; loai: FeedbackKind; muc: FeedbackLevel; buoc?: string; hoc_vien_noi?: string; thay_danh_gia: string; de_xuat?: string }
 
 // Kiểu cũ (v0.4) còn được hooks/art.ts dùng cho các hình cũ.
 export type CharId = 'la' | 'nang' | 'hop'
@@ -163,6 +175,16 @@ declare module 'claude-code' {
       foldOpen: string[]
       // v0.12: dòng việc / nhóm việc / kết quả / lệnh đã mở chi tiết ("Thành phần:requestId").
       detailOpen: string[]
+      // v0.13: bong bóng lời nói (việc thầy đang làm, '' = chưa có), giao diện sáng/tối, lựa chọn xem/ẩn hình ("lần ghi:open|closed"),
+      // nấc Gợi ý của bước hiện tại, màn Thiết lập mở lại, bảng "Claude của tôi"/hạn mức học viên tự mở, danh sách Tiến độ, ô nhập đang có chữ.
+      bubble: '' | 'think' | 'say' | 'read' | 'write' | 'run' | 'web' | 'work'
+      theme: 'dark' | 'light'
+      boardPref: string
+      hint: { id: string; level: 0 | 1 | 2 | 3 }
+      settingsOpen: boolean
+      panelPick: '' | 'off' | PanelKind
+      progressOpen: boolean
+      typing: boolean
     }
   }
 }

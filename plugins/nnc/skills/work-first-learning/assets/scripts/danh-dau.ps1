@@ -7,8 +7,9 @@
   Lop hoc NNC v0.10. Windows PowerShell 5.1, chi dung .NET co san (System.Drawing), khong module.
   Anh goc khong bi sua. Khung to: nen vang trong suot + vien bo goc 5 px #C9A800, boc them 6 px.
   Mui ten day chi vao khung tu phia con nhieu cho trong hon; nhan nam trong vien thuoc vang gan duoi mui ten.
-  Cat vung co ngu canh quanh khung (it nhat 640x360 neu anh cho phep, khung luon nam trong, co le),
-  thu ve rong <= MaxWidth, luu JPEG ha chat luong 85 -> 40 cho den khi <= MaxBytes.
+  Cat vung co ngu canh quanh khung (it nhat MinCropW x MinCropH, mac dinh 400x240 tu v0.13 de vung can bam
+  hien to tren buc giang; khung luon nam trong, co le), thu ve rong <= MaxWidth, ve BAN DO NHO ca cua so
+  o goc tren phai (khung do = vung da cat) tru khi -NoMap, luu JPEG ha chat luong 85 -> 40 cho den khi <= MaxBytes.
 
 .PARAMETER In        Anh vao. Mac dinh .lop-hoc\man-hinh.png
 .PARAMETER Out       Anh ra. Mac dinh .lop-hoc\chi-tay.jpg
@@ -16,6 +17,9 @@
 .PARAMETER Label     Nhan (tieng Viet/Lao), tuy chon. Co chu Lao -> font Leelawadee UI, con lai Segoe UI.
 .PARAMETER MaxWidth  Rong toi da cua anh ra (mac dinh 960).
 .PARAMETER MaxBytes  Dung luong toi da (mac dinh 92160 = 90 KB).
+.PARAMETER MinCropW Rong toi thieu cua vung cat (mac dinh 400).
+.PARAMETER MinCropH Cao toi thieu cua vung cat (mac dinh 240).
+.PARAMETER NoMap    Khong ve ban do nho ca cua so.
 
 .OUTPUTS
   "OK <rong>x<cao> <bytes> <duong dan>" (exit 0)  |  "ERR <ma> ..." (exit 1)
@@ -26,7 +30,10 @@ param(
     [Parameter(Mandatory = $true)][string]$Box,
     [string]$Label = '',
     [int]$MaxWidth = 960,
-    [int]$MaxBytes = 92160
+    [int]$MaxBytes = 92160,
+    [int]$MinCropW = 400,
+    [int]$MinCropH = 240,
+    [switch]$NoMap
 )
 
 $ErrorActionPreference = 'Stop'
@@ -170,7 +177,7 @@ function Get-Layout([double]$k) {
 function Get-Crop($L, [double]$k) {
     $mg = $margin * $k
     $cx0 = $L.minX - $mg; $cy0 = $L.minY - $mg; $cx1 = $L.maxX + $mg; $cy1 = $L.maxY + $mg
-    $minW = [Math]::Min(640.0, $W); $minH = [Math]::Min(360.0, $H)
+    $minW = [Math]::Min([double]$MinCropW, $W); $minH = [Math]::Min([double]$MinCropH, $H)
     if (($cx1 - $cx0) -lt $minW) { $m = ($cx0 + $cx1) / 2; $cx0 = $m - $minW / 2; $cx1 = $m + $minW / 2 }
     if (($cy1 - $cy0) -lt $minH) { $m = ($cy0 + $cy1) / 2; $cy0 = $m - $minH / 2; $cy1 = $m + $minH / 2 }
     # dich vao trong anh, giu nguyen kich thuoc khi co the
@@ -272,6 +279,17 @@ $g.Dispose()
 # ---- cat + thu nho ------------------------------------------------------------------
 $cropRect = New-Object System.Drawing.Rectangle($crop[0], $crop[1], $crop[2], $crop[3])
 $cropped = $src.Clone($cropRect, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+# Ban do nho: ca cua so (da co dau) thu nho, giu lai truoc khi bo anh lon.
+$thumb = $null
+if (-not $NoMap) {
+    $tw = [int][Math]::Min(320, $W)
+    $th = [int][Math]::Max(1, [Math]::Round($H * ($tw / [double]$W)))
+    $thumb = New-Object System.Drawing.Bitmap($tw, $th, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+    $tg2 = [System.Drawing.Graphics]::FromImage($thumb)
+    $tg2.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $tg2.DrawImage($src, 0, 0, $tw, $th)
+    $tg2.Dispose()
+}
 $src.Dispose()
 
 $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
@@ -300,12 +318,34 @@ function Resize-To([System.Drawing.Bitmap]$img, [int]$w) {
     return $r
 }
 
+# Ve ban do nho len anh ra: goc tren phai, nen trang, khung do = vung da cat.
+function Add-Map([System.Drawing.Bitmap]$img) {
+    if ($null -eq $thumb) { return }
+    $mw = [int][Math]::Min(220, [Math]::Max(110, [Math]::Round($img.Width * 0.30)))
+    $mh = [int][Math]::Max(1, [Math]::Round($thumb.Height * ($mw / [double]$thumb.Width)))
+    if ($mh + 20 -gt $img.Height -or $mw + 20 -gt $img.Width) { return }
+    $mx = $img.Width - $mw - 10; $my = 10
+    $mg2 = [System.Drawing.Graphics]::FromImage($img)
+    $mg2.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $mg2.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $bg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+    $mg2.FillRectangle($bg, $mx - 4, $my - 4, $mw + 8, $mh + 8)
+    $mg2.DrawImage($thumb, $mx, $my, $mw, $mh)
+    $frame = New-Object System.Drawing.Pen($ink, [single]2)
+    $mg2.DrawRectangle($frame, $mx - 4, $my - 4, $mw + 8, $mh + 8)
+    $red = New-Object System.Drawing.Pen([System.Drawing.ColorTranslator]::FromHtml('#E5484D'), [single]3)
+    $sx = $mw / [double]$W; $sy = $mh / [double]$H
+    $mg2.DrawRectangle($red, [single]($mx + $crop[0] * $sx), [single]($my + $crop[1] * $sy), [single][Math]::Max(6, $crop[2] * $sx), [single][Math]::Max(6, $crop[3] * $sy))
+    $bg.Dispose(); $frame.Dispose(); $red.Dispose(); $mg2.Dispose()
+}
+
 $targetW = [Math]::Min($MaxWidth, $cropped.Width)
 $final = $null
 $bytes = $null
 $done = $false
 while (-not $done) {
     $final = Resize-To $cropped $targetW
+    Add-Map $final
     foreach ($q in 85, 80, 75, 70, 65, 60, 55, 50, 45, 40) {
         $bytes = Save-Jpeg $final $q
         if ($bytes.Length -le $MaxBytes) { $done = $true; break }
@@ -317,6 +357,7 @@ while (-not $done) {
     }
 }
 $cropped.Dispose()
+if ($null -ne $thumb) { $thumb.Dispose() }
 
 try {
     $dirOut = [System.IO.Path]::GetDirectoryName($outPath)

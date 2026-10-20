@@ -30,6 +30,9 @@ RELEASE_REF = "lop-hoc-release"
 SUPPORT_FILE = ROOT / ".lien-he-ho-tro.txt"
 SOURCES_FILE = ROOT / ".nguon-tai-lieu.md"
 SOURCES_ARC = "Lop-hoc-NNC/Tai-lieu/NGUON.md"
+# v0.13: nơi nhận góp ý (url + token của Apps Script) — chỉ trong ZIP, từ file gitignore ở máy người phát hành.
+FEEDBACK_FILE = ROOT / ".phan-hoi.json"
+FEEDBACK_ARC = "Lop-hoc-NNC/.claude/phan-hoi.json"
 SUPPORT_LINE = re.compile(r"^\*\*Người hỗ trợ của bạn:\*\*.*$", re.M)
 
 
@@ -96,7 +99,23 @@ def make_zip(dest: Path, who: str | None = None, nguon: Path | None = None) -> b
                 z.write(p, arc)
         if nguon is not None:
             z.writestr(SOURCES_ARC, nguon.read_text(encoding="utf-8"))
+        fb = feedback_config()
+        if fb is not None:
+            z.writestr(FEEDBACK_ARC, json.dumps(fb, ensure_ascii=False, indent=2) + "\n")
     return nguon is not None
+
+
+def feedback_config(path: Path | None = None) -> dict | None:
+    """Cấu hình nơi nhận góp ý {url, token} từ .phan-hoi.json; thiếu, sai hay không phải https thì None."""
+    p = path or FEEDBACK_FILE
+    if not p.is_file():
+        return None
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+    url, token = str(d.get("url", "")).strip(), str(d.get("token", "")).strip()
+    return {"url": url, "token": token} if url.startswith("https://") and token else None
 
 
 if __name__ == "__main__":
@@ -115,4 +134,5 @@ if __name__ == "__main__":
         included = make_zip(Path(a.zip), who, src)
         print("support line:", "filled" if who else "left blank")
         print("Tai-lieu/NGUON.md:", "included" if included else "not included (no source file)")
+        print(".claude/phan-hoi.json:", "included" if feedback_config() else "not included (no .phan-hoi.json with url and token)")
     print(f"lop-hoc-mau built for {REPO}@{a.ref}")

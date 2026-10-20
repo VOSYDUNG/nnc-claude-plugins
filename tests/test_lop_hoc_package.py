@@ -67,7 +67,7 @@ class LopHocPackage(unittest.TestCase):
 
     def test_nnc_version_carries_lophoc_0120_and_guide_has_reload_hint(self):
         nnc = json.loads(NNC.read_text(encoding="utf-8"))["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.13.0")
         self.assertEqual(self.entries["nnc"]["version"], nnc)
         guide = (MAU / "HUONG-DAN.md").read_text(encoding="utf-8")
         self.assertIn("Chưa thấy bục giảng: gõ `/reload-plugins`", guide)
@@ -179,6 +179,23 @@ class LopHocPackage(unittest.TestCase):
                 self.assertNotIn(b"\r\n", p.read_bytes(), p.relative_to(ROOT).as_posix())
         builder = (ROOT / "tools" / "build_lop_hoc_mau.py").read_text(encoding="utf-8")
         self.assertEqual(builder.count('encoding="utf-8", newline="\\n")'), 2,"the builder writes CLAUDE.md and settings.json with LF")
+
+    def test_feedback_config_only_in_the_zip(self):
+        # v0.13: nơi nhận góp ý chèn vào ZIP từ .phan-hoi.json (gitignore); repo không có, mod giữ CLASS_VERSION khớp plugin.json.
+        b = _builder()
+        self.assertIn(".phan-hoi.json", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+        self.assertFalse((MAU / ".claude" / "phan-hoi.json").exists())
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / "fb.json"
+            good.write_text(json.dumps({"url": "https://script.google.com/macros/s/x/exec", "token": "t"}), encoding="utf-8")
+            self.assertEqual(b.feedback_config(good), {"url": "https://script.google.com/macros/s/x/exec", "token": "t"})
+            bad = Path(tmp) / "bad.json"
+            bad.write_text(json.dumps({"url": "http://x", "token": "t"}), encoding="utf-8")
+            self.assertIsNone(b.feedback_config(bad))
+            self.assertIsNone(b.feedback_config(Path(tmp) / "none.json"))
+        reg = (ROOT / "plugins" / "lop-hoc" / "hooks" / "register.tsx").read_text(encoding="utf-8")
+        lop = json.loads(LOPHOC.read_text(encoding="utf-8"))["version"]
+        self.assertIn(f"export const CLASS_VERSION = '{lop}'", reg)
 
     def test_no_internal_names_or_links_in_tracked_files(self):
         try:

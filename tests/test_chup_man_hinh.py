@@ -164,8 +164,14 @@ class MarkScriptStaticTests(unittest.TestCase):
         self.assertIn("0x0EFF", self.code)
 
     def test_crop_resize_and_jpeg_size_loop(self):
-        self.assertRegex(self.code, r"\$minW = \[Math\]::Min\(640\.0, \$W\)")
-        self.assertRegex(self.code, r"\$minH = \[Math\]::Min\(360\.0, \$H\)")
+        # v0.13: vung cat sat hon (400x240) de vung can bam hien to tren buc; co ban do nho ca cua so.
+        self.assertRegex(self.code, r"\$minW = \[Math\]::Min\(\[double\]\$MinCropW, \$W\)")
+        self.assertRegex(self.code, r"\$minH = \[Math\]::Min\(\[double\]\$MinCropH, \$H\)")
+        self.assertRegex(self.params, r"\[int\]\$MinCropW\s*=\s*400")
+        self.assertRegex(self.params, r"\[int\]\$MinCropH\s*=\s*240")
+        self.assertRegex(self.params, r"\[switch\]\$NoMap")
+        self.assertIn("function Add-Map", self.code)
+        self.assertIn("Add-Map $final", self.code)
         self.assertRegex(self.code, r"foreach \(\$q in 85, 80, 75, 70, 65, 60, 55, 50, 45, 40\)")
         self.assertIn("EncoderParameter([System.Drawing.Imaging.Encoder]::Quality", self.code)
         self.assertIn("$bytes.Length -le $MaxBytes", self.code)

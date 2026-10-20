@@ -88,7 +88,7 @@ Write on **every** ladder change (Write/Edit tool, keep the other keys):
 ## 2. The teaching loop — after every learner turn
 
 1. **Observe** the signals of this turn: correct · stumble · silence (a timeout cue) · pace button · how long the current kind has run (the 4-minute cue) · the energy the learner chose at the start · whether the learner just told you about their own job.
-2. **Choose the move** from three sources: the drive of the part (D1/D2/D3, `segment.drive`) · the time left in the part (cues) · the interaction library (games, capability cards, lines). Apply the move rules (§3) and the fit test (§5).
+2. **Choose the move** from three sources: the drive of the part (D1/D2/D3, `segment.drive`) · the current step of the plan (`step`, v0.13) · the interaction library (games, capability cards, lines). Apply the move rules (§3) and the fit test (§5).
 3. **Act** so the learner has **something to touch right now**: a podium choice, a widget button, a one-touch, the form, a button — with a picture before the words (§10). A reply that only talks is not a move.
 4. **Record** in **one full `Write` of `state.json`** (never a string of small Edits): stars or a badge if earned (huy-hieu.md); ladder up/down (§1.3) and `autonomy_log`; `state.activity` when the kind changed; the stage (`podium`, `board`, `choices`); `next_action` always. After a Claude result, the **result explainer** comes before any question (SKILL §12.6).
 
@@ -102,7 +102,7 @@ Keep the loop invisible. The learner sees a teacher who notices and adjusts, not
 |---|---|
 | **Never the same interaction kind twice in a row** | Before each move, compare its `activity.kind` with the current `state.activity.kind`. Same → pick another kind that serves the same drive. A teaching chunk with its own "Hiểu rồi" box is one `giang`; a game with its boxes is one `game:…`. Two *different* games in a row are allowed but rarely needed. |
 | **A learner touch at most every 3 minutes** | Turn-based proxy (you cannot see the clock): every reply ends with a touch; at most **3 short lines** of teaching in a message (v0.11, SKILL §13.3) before a touch; never two teacher replies in a row without the learner acting. A permission box does not count as the touch — it is safety, not a learning move. |
-| **At least one "À, Claude làm được cái này" per part** | Plan it when the part opens (the per-part plan in [buoi-1.md](buoi-1.md) §10). Not done by the `Còn {n} phút` cue → make it the closing move of the part (a one-touch capability card fits in one turn). The À must be **real**: Claude really does it on sample or consented data in this lesson. |
+| **At least one "À, Claude làm được cái này" per part** | Plan it when the part opens (the per-part plan in [buoi-1.md](buoi-1.md) §10). Not done when the part's milestone is near → make it the closing move of the part (a one-touch capability card fits in one turn). The À must be **real**: Claude really does it on sample or consented data in this lesson. |
 | **Switch kind after 4 minutes** | The classroom sends `[Giáo án] Đổi kiểu tương tác · {kind} · {n} phút` once. Close the current thing in one sentence and, **in this same reply**, start a move of another kind. Learner mid-way through their own real task → switch the *kind*, not the task (e.g. from `hands-on` to `game:ban-la-sep` on the output just made). |
 | **When unsure, choose doing over listening** | Between a move where the learner *does* and one where they *listen*, pick doing. |
 
@@ -112,7 +112,7 @@ Keep the loop invisible. The learner sees a teacher who notices and adjusts, not
 |---|---|
 | Correct twice in a row | Up one level · offer a timed challenge (`game:thu-thach-60s`) or set `gift_box: true` |
 | A stumble | Empathy (`bi`, one sentence) · after the second stumble down one level · re-model a smaller step |
-| Timeout on a task box (the 60-second silence) | Accept the default as the class rule says · down one level · next question easier (two options, the obvious one first). Still silent → the classroom's roll call handles it; you do nothing extra |
+| Timeout on a task box (the 60-second silence) | Accept the default as the class rule says · down one level · next question easier (two options, the obvious one first). Still silent → the silence ladder handles it (podium nudge at 45 s, then `Học viên im lặng · nấc 1–3`); there is no roll call |
 | `Nhịp: nhanh hơn`, or the 4-minute cue | Switch kind: a game or an À moment (capability card) |
 | `Nhịp: chậm lại` | Split into smaller steps, re-explain with an everyday example; down one level (once per part) |
 | The learner talks about their own job | Move to that work at once (D1). Keep the sample in parallel if consent or a safe file is not there yet |
@@ -126,7 +126,7 @@ Keep the loop invisible. The learner sees a teacher who notices and adjusts, not
 
 `giang` (short teaching) · `demo` (teacher does it, thinking aloud) · `one-touch` (learner presses Enter on a prepared command) · `quiz` (questions with right answers) · `hands-on` (learner does a step themselves: reads the podium, opens the file, checks rows) · `form` (the Giao việc form) · `game:{ten}` (seed: `game:doan-xem`, `game:hop-qua`, `game:thu-thach-60s`, `game:nguoi-voi-may`, `game:tim-loi`, `game:ban-la-sep`, `game:dung-sai`, `game:doi-vai`; or an invented game, kebab-case).
 
-Logistics boxes (language, address, permission mode, energy, which file, data safety, next-job date) are not activities: they do not change `activity`.
+Logistics choices (energy, which file, data safety, next-job date — language and address are podium settings since v0.13, the permission mode is never asked) are not activities: they do not change `activity`.
 
 **v0.7 timing by kind.** Only `quiz` and `game:*` boxes get the classroom's 60-second default; write that kind **before** such a box. `hands-on` and `form` (the learner doing real work, maybe in Excel or email) are never timed and never get the 4-minute switch cue.
 
@@ -161,7 +161,7 @@ The prepared material — [buoi-1.md](buoi-1.md), [the-dinh-nghia.md](the-dinh-n
 |---|---|
 | **Job context** | the example is about work this learner does (or close to it): orders for sales, receipts and stock for warehouse, reconciliation for accounting, site reports for construction or cooling service |
 | **Level** | the touch matches the learner's ladder level for a core step (§1.2) |
-| **Time left** | it ends before the part does (a game ≤ 3 minutes; nothing new after `Còn {n} phút`) |
+| **Time left** (in the part, not a clock) | a game ≤ 3 minutes; nothing new once the part's milestone is near (there is no lesson clock) |
 | **Last kind** | its kind differs from `state.activity.kind` |
 
 - **All four fit → use it as written.**

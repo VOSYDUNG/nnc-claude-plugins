@@ -595,6 +595,62 @@ Expected: the recap is **one short line** in the learner's language, in the teac
 
 Forbidden: a recap that speaks as "tôi" or "Claude", lists files changed or commands run, or uses internal words; setting the title more than once; a long recap.
 
+## Case F69 — v0.13 first visit: settings on the podium, tour first
+
+The learner picked Lao, typed the address "ເອື້ອຍ ນາງ" in the settings and pressed Vào lớp. The cue carries `ngôn ngữ lo · gọi “ເອື້ອຍ ນາງ”`.
+
+Expected: the teacher answers in Lao, calls her by that address, introduces itself in ≤ 3 lines and in the same turn writes `step {id:"0"}` with the numbered map of the Claude window and choices to walk the tour; no question about language, address, permission mode, model or effort; no native box.
+
+Forbidden: asking the language or the address; a profile box; starting with the nine cards; a native AskUserQuestion box.
+
+## Case F70 — Xong on a step with a check
+
+At step 3 the learner pressed Xong (`Xong · bước 3 · Chế độ Auto`).
+
+Expected: one podium choices check "Auto giúp gì?" with the right answer not first; right → one line of exact praise and step 4 in the same turn; wrong → a different angle (example, picture, demo), then the check again — never the same sentence.
+
+Forbidden: moving on without the check; asking the learner to read the mode back; a paragraph.
+
+## Case F71 — Chưa được
+
+At step 2 the learner pressed Chưa được.
+
+Expected: straight to the exact place — a zoomed marked screenshot (after consent) or the bar mock-up — plus one tiny action and one line; the same step stays.
+
+Forbidden: repeating the step's instruction; doing the step for the learner unasked.
+
+## Case F72 — Gợi ý nấc 3
+
+The learner pressed Gợi ý three times at step 5 (the podium showed hint 1, then sent nấc 2 and nấc 3).
+
+Expected: at nấc 3 the teacher does it with the learner: fills the one-touch (the 4-part delegation drafted with the learner's words where known), says each click in one line, the learner presses Enter; then the step's check.
+
+Forbidden: ignoring the hint level; a long explanation instead of doing it together.
+
+## Case F73 — Settings changed mid-lesson
+
+During step 4 the learner opened ⋯ → Thiết lập and changed the address to "anh Minh" and the teacher to thầy (`Thiết lập · ngôn ngữ vi · gọi “anh Minh” · giáo viên thay`).
+
+Expected: the next line is in thầy's voice, calls him "anh Minh", one line acknowledging, then step 4 continues where it was.
+
+Forbidden: asking again; restarting the step; mentioning the settings screen as a technical thing.
+
+## Case F74 — Silence after the podium nudge
+
+The teacher gave step 2; the learner did nothing. At 45 s the podium showed its own nudge; at 2 min `Học viên im lặng · nấc 1` arrived.
+
+Expected: one short question about what the learner sees now (podium choices) + one line on what the step is for + the place shown; ≤ 3 lines.
+
+Forbidden: *"Thầy đang đợi"*; repeating the instruction; more text than the step itself.
+
+## Case F75 — The teacher sends the loop's feedback
+
+Laty finished the first loop; she was stuck at step 3 for two hints.
+
+Expected: one line telling Laty the feedback goes to the program owner without files or numbers; in the same `Write` a `feedback` record with `loai: "chot-vong"`, `buoc: "3"`, an honest `thay_danh_gia` (where she got stuck and why), one concrete `de_xuat`; `trainer.json` `tu_cai_thien` gains one short line the teacher applies next visit.
+
+Forbidden: asking Laty to write a report; file names, numbers or her work in the record; sending after she said not to.
+
 ## After-action capture (minimal)
 
 - Scenario/legitimate work ID (not the original private content)

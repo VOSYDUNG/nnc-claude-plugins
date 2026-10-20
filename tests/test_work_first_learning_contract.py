@@ -108,14 +108,14 @@ class WorkFirstLearningContract(unittest.TestCase):
 
     def test_plugin_baseline_unchanged(self):
         self.assertIn('"version": "5.1.0-alpha.2', self.plugin)
-        self.assertIn("+lophoc.0.12.1", self.plugin)
+        self.assertIn("+lophoc.0.13.0", self.plugin)
         self.assertNotIn("5.1.0-alpha.3", self.plugin)
 
     def test_skill_frontmatter_and_links(self):
         self.assertTrue(self.skill.startswith("---\n"))
         frontmatter = self.skill.split("---", 2)[1]
         self.assertIn("name: work-first-learning", frontmatter)
-        self.assertIn("version: 0.12.1", frontmatter)
+        self.assertIn("version: 0.13.0", frontmatter)
         self.assertNotIn("version: 0.9.0", frontmatter)
         self.assertNotIn("version: 0.7.3", frontmatter)
         self.assertNotIn("version: 0.6.0", frontmatter)
@@ -514,14 +514,14 @@ class StageV08Tests(unittest.TestCase):
     # --- versions --------------------------------------------------------
 
     def test_versions(self):
-        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.13.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.8", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.13.0")
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
         self.assertNotIn("alpha.3", nnc)
-        self.assertIn("evaluation cases F1–F68", self.skill)
+        self.assertIn("evaluation cases F1–F75", self.skill)
 
     # --- the visual toolbox ----------------------------------------------
 
@@ -624,7 +624,7 @@ class StageV08Tests(unittest.TestCase):
 
     def test_new_cues_exact(self):
         for cue in (
-            "[Giáo án] Mở lớp · giáo viên {thay\\|co} · chế độ {label} · model {m} · effort {e} · hạn mức 5 giờ {p}% · tuần {q}%",
+            "[Giáo án] Mở lớp · giáo viên {thay\\|co} · ngôn ngữ {vi\\|lo} · gọi “{address}” · chế độ {label} · model {m} · effort {e} · hạn mức 5 giờ {p}% · tuần {q}%",
             "[Giáo án] Chế độ quyền · {label}",
             "[Giáo án] Hết hạn chọn · {id}",
             "[Giáo án] Hộp chờ lâu · {label}",
@@ -877,10 +877,10 @@ class RealScreenV10Tests(unittest.TestCase):
         cls.market = json.loads(MARKET.read_text(encoding="utf-8"))
 
     def test_versions(self):
-        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.13.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.10", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.13.0")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -1009,10 +1009,10 @@ class SelfDrivingV11Tests(unittest.TestCase):
         cls.s13 = cls.skill.split("## 13. A self-driving teacher", 1)[1].split("For installation, release gates", 1)[0]
 
     def test_versions(self):
-        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.13.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.11", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.13.0")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -1181,7 +1181,7 @@ class SelfDrivingV11Tests(unittest.TestCase):
                        "propose the next loop yourself, default continue", "Evidence over insistence (v0.11)",
                        "change position only on new evidence"):
             self.assertIn(phrase, self.template, phrase)
-        self.assertIn("(v0.12)", self.template.splitlines()[0])
+        self.assertIn("(v0.13)", self.template.splitlines()[0])
         generated = MAU_CLAUDE.read_text(encoding="utf-8")
         self.assertEqual(generated.count("Evidence over insistence (v0.11)"), 1)
         self.assertIn("Silence means", generated)
@@ -1200,10 +1200,10 @@ class TeacherVoiceV12Tests(unittest.TestCase):
         cls.s14 = cls.skill.split("## 14. Giọng thầy và khung", 1)[1]
 
     def test_versions(self):
-        self.assertIn("version: 0.12.1", self.skill.split("---", 2)[1])
+        self.assertIn("version: 0.13.0", self.skill.split("---", 2)[1])
         self.assertIn("What changed in v0.12", self.skill)
         nnc = json.loads(self.plugin)["version"]
-        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.12.1")
+        self.assertEqual(nnc, "5.1.0-alpha.2+lophoc.0.13.0")
         self.assertNotIn("alpha.3", nnc)
         entry = {p["name"]: p for p in self.market["plugins"]}["nnc"]
         self.assertEqual(entry["version"], nnc)
@@ -1221,7 +1221,7 @@ class TeacherVoiceV12Tests(unittest.TestCase):
     def test_scenarios_f67_f68(self):
         self.assertIn("## Case F67", self.scen)
         self.assertIn("## Case F68", self.scen)
-        self.assertNotIn("Case F69", self.scen)
+        self.assertNotIn("Case F76", self.scen)
         self.assertIn("F67–F68", self.skill)
         f67 = self.scen.split("## Case F67", 1)[1].split("## Case F68", 1)[0]
         for phrase in ("tool result", "thầy", "Tôi chấm lại 3 câu"):
@@ -1231,11 +1231,77 @@ class TeacherVoiceV12Tests(unittest.TestCase):
             self.assertIn(phrase, f68, phrase)
 
     def test_template_one_line_and_generated_copy(self):
-        self.assertIn("(v0.12)", self.template.splitlines()[0])
+        self.assertIn("(v0.13)", self.template.splitlines()[0])
         lines = [l for l in self.template.splitlines() if l.startswith("- **Teacher's voice and frame (v0.12).**")]
         self.assertEqual(len(lines), 1)
         generated = MAU_CLAUDE.read_text(encoding="utf-8")
         self.assertEqual(generated.count("Teacher's voice and frame (v0.12)"), 1)
+
+
+class BuiltInLessonV13Tests(unittest.TestCase):
+    """v0.13: một bục giảng, giáo án vòng việc đầu dựng sẵn, thầy dẫn từng bước."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = SKILL.read_text(encoding="utf-8")
+        refs = SKILL.parent / "references"
+        cls.plan = (refs / "giao-an-vong-1.md").read_text(encoding="utf-8")
+        cls.buoi1 = (refs / "buoi-1.md").read_text(encoding="utf-8")
+        cls.tt = (refs / "tuong-tac.md").read_text(encoding="utf-8")
+        cls.scen = (refs / "scenarios.md").read_text(encoding="utf-8")
+        cls.template = (SKILL.parent / "templates" / "classroom-CLAUDE.md").read_text(encoding="utf-8")
+        cls.mod_plan = (ROOT / "plugins" / "lop-hoc" / "hooks" / "giao-an.ts").read_text(encoding="utf-8")
+
+    def test_plan_ids_and_titles_match_the_podium(self):
+        ids = re.findall(r"id: '(\d+)',\n\s+vi: \{\n\s+title: '([^']+)'", self.mod_plan)
+        self.assertEqual([i for i, _ in ids], [str(n) for n in range(8)])
+        for sid, title in ids:
+            self.assertIn(f"| `{sid}` | {title} |", self.plan, (sid, title))
+            self.assertIn(f"### Step {sid} · {title}", self.plan, (sid, title))
+
+    def test_skill_v013_rules(self):
+        for phrase in ("What changed in v0.13", "These rules win over anything older",
+                       "giao-an-vong-1.md", "never ask them", "no native question box",
+                       "## 15. Thầy dẫn từng bước (v0.13)", "Tour first", "Task first, concepts inside",
+                       "Understood, not just clicked", "Hints in three levels", "Engaging voice",
+                       '"step": { "id": "0"'):
+            self.assertIn(phrase, self.skill, phrase)
+        for cue in ("`[Giáo án] Thiết lập · ngôn ngữ", "`[Giáo án] Xong · bước {id} · {title}`",
+                    "`[Giáo án] Chưa được · bước {id} · {title}`", "`[Giáo án] Gợi ý · bước {id} · nấc 2"):
+            self.assertIn(cue, self.skill, cue)
+        row = next(l for l in self.skill.splitlines() if l.startswith("| `[Giáo án] Mở lớp"))
+        self.assertIn("ngôn ngữ {vi\\|lo} · gọi “{address}”", row)
+        self.assertIn("never ask them", row)
+
+    def test_plan_signals_and_voice(self):
+        for phrase in ("`[Giáo án] Xong · bước {id} · {title}`", "`[Giáo án] Chưa được", "Gợi ý · bước {id} · nấc 3",
+                       "never ask them", "ask before telling", "≤ 3 short lines", "OTC · HC · SPM"):
+            self.assertIn(phrase, self.plan, phrase)
+
+    def test_references_updated(self):
+        self.assertIn("v0.13: the first loop now follows the built-in plan", self.buoi1)
+        for title in ("T73 · Tham quan lớp học", "T74 · Học ở đây thế nào", "T75 · Xong → kiểm hiểu",
+                      "T76 · Chưa được / Gợi ý nấc 2–3", "T77 · Giọng thầy cuốn hút", "T78 · Đổi thiết lập giữa giờ"):
+            self.assertIn("### " + title, self.tt, title)
+        for n in range(69, 75):
+            self.assertIn(f"## Case F{n} ", self.scen, n)
+        self.assertIn("Built-in first loop and one podium (v0.13)", self.template)
+        self.assertIn("no native `AskUserQuestion` box", self.template)
+
+
+class FeedbackV13Tests(unittest.TestCase):
+    """v0.13: thầy tự gửi góp ý; học viên không phải viết báo cáo."""
+
+    def test_feedback_rules(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        for phrase in ("### 15.1 Góp ý — you send it", '"feedback": { "id"', "thay_danh_gia", "hoc_vien_noi",
+                       "de_xuat", "tu_cai_thien", "If they say not to send", "`Góp ý: …`"):
+            self.assertIn(phrase, skill, phrase)
+        refs = SKILL.parent / "references"
+        self.assertIn("### T79 · Gửi góp ý buổi học", (refs / "tuong-tac.md").read_text(encoding="utf-8"))
+        self.assertIn("## Case F75 — The teacher sends the loop's feedback", (refs / "scenarios.md").read_text(encoding="utf-8"))
+        self.assertIn('loai: \"chot-vong\"', (refs / "giao-an-vong-1.md").read_text(encoding="utf-8"))
+        self.assertIn("You send the feedback (v0.13)", (SKILL.parent / "templates" / "classroom-CLAUDE.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

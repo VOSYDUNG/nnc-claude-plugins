@@ -5,6 +5,10 @@
 
 export type Lang = 'vi' | 'lo'
 
+// v0.13 — bong bóng lời nói: giáo viên đang làm gì (từ luồng turn.step).
+export type BubbleKind = 'think' | 'say' | 'read' | 'write' | 'run' | 'web' | 'work'
+export type AddrId = 'anh' | 'chi' | 'em' | 'ban'
+
 export type Strings = {
   title: string
   waiting: string
@@ -22,6 +26,11 @@ export type Strings = {
   reasons: { key: string; vi: string; label: string }[]
   cancel: string
   raised: (addr: string, t: string) => string
+  feedbackMenu: string
+  feedbackTitle: (t: string) => string
+  feedbackLabel: string
+  feedbackPlaceholder: string
+  feedbackSent: (T: string) => string
   tellLabel: (t: string) => string
   tellPlaceholder: string
   send: string
@@ -111,11 +120,33 @@ export type Strings = {
     commandError: (T: string, cmd: string) => string
     thinking: (T: string) => string
   }
+  // v0.13 — màn Thiết lập, thẻ bước, bong bóng lời nói, ba tầng của bục.
+  setTitle: string
+  setLang: string
+  setAddress: string
+  setAddressFree: string
+  setAddressHint: string
+  addr: Record<AddrId, string>
+  save: string
+  setMenu: string
+  stepHead: (k: number, n: number, title: string) => string
+  stepWhy: (why: string) => string
+  stepDone: string
+  stepNot: string
+  stepHint: string
+  hintLabel: (n: number) => string
+  nudge: string
+  showPic: string
+  hidePic: string
+  bubble: (k: BubbleKind, T: string) => string
+  menuProgress: string
+  progressNone: string
+  railAlt: (k: number, n: number) => string
 }
 
 const vi: Strings = {
   title: 'Lớp học NNC',
-  waiting: 'Lớp đang chờ giáo viên · chọn thầy hoặc cô, rồi bấm Vào lớp',
+  waiting: 'Lớp đang chờ giáo viên · chọn ngôn ngữ, cách gọi, thầy hoặc cô, rồi bấm Vào lớp',
   teacherWord: 'Giáo viên',
   teacherLabel: k => (k === 'thay' ? 'Thầy' : 'Cô'),
   teacherSelf: k => (k === 'thay' ? 'Thầy' : 'Cô'),
@@ -134,6 +165,11 @@ const vi: Strings = {
   ],
   cancel: 'Thôi',
   raised: (addr, t) => `${addr} giơ tay · ${t} đang nghe`,
+  feedbackMenu: 'Góp ý cho lớp',
+  feedbackTitle: t => `Góp ý để ${t} dạy tốt hơn`,
+  feedbackLabel: 'Bạn thấy chỗ nào khó, chỗ nào hay?',
+  feedbackPlaceholder: 'Viết một hai câu, rồi bấm Enter',
+  feedbackSent: T => `${T} đã gửi góp ý buổi học cho người phụ trách lớp (không kèm file hay số liệu của bạn).`,
   tellLabel: t => `Kể ${t} nghe`,
   tellPlaceholder: 'Viết điều muốn hỏi hoặc kể, rồi bấm Enter',
   send: 'gửi',
@@ -236,11 +272,33 @@ const vi: Strings = {
     commandError: (T, cmd) => `▸ Lệnh /${cmd} gặp trục trặc — ${T} đang xử lý`,
     thinking: T => `${T} đang suy nghĩ…`,
   },
+  setTitle: 'Thiết lập',
+  setLang: 'Ngôn ngữ',
+  setAddress: 'Gọi tôi là',
+  setAddressFree: 'Hoặc tự viết',
+  setAddressHint: 'Tên hoặc cách gọi (tối đa 30 chữ)',
+  addr: { anh: 'Anh', chi: 'Chị', em: 'Em', ban: 'Bạn' },
+  save: 'Lưu',
+  setMenu: 'Thiết lập',
+  stepHead: (k, n, title) => `Bước ${k}/${n} · ${title}`,
+  // Lời của giáo án đôi khi đã mở đầu bằng "để" (bước 3): không lặp chữ.
+  stepWhy: why => `để ${why.replace(/^để\s+/i, '')}`,
+  stepDone: 'Xong',
+  stepNot: 'Chưa được',
+  stepHint: 'Gợi ý',
+  hintLabel: n => `Gợi ý ${n}/3`,
+  nudge: '👉 Làm xong thì bấm Xong — chưa biết làm thì bấm Gợi ý',
+  showPic: 'Xem hình',
+  hidePic: 'Ẩn hình',
+  bubble: (k, T) => `${T} ${({ think: 'đang nghĩ cách làm…', say: 'đang nói với bạn…', read: 'đang đọc file…', write: 'đang ghi file…', run: 'đang chạy một lệnh trên máy…', web: 'đang tra cứu…', work: 'đang làm việc…' })[k]}`,
+  menuProgress: 'Tiến độ',
+  progressNone: 'Chưa có mục nào được ghi',
+  railAlt: (k, n) => `Bước ${k} trên ${n}`,
 }
 
 const lo: Strings = {
   title: 'ຫ້ອງຮຽນ NNC',
-  waiting: 'ຫ້ອງຮຽນລໍຖ້າຄູ · ເລືອກຄູຜູ້ຊາຍ ຫຼື ຄູຜູ້ຍິງ, ແລ້ວກົດ ເຂົ້າຫ້ອງ',
+  waiting: 'ຫ້ອງຮຽນລໍຖ້າຄູ · ເລືອກພາສາ, ຄຳເອີ້ນ, ຄູຜູ້ຊາຍ ຫຼື ຄູຜູ້ຍິງ, ແລ້ວກົດ ເຂົ້າຫ້ອງ',
   teacherWord: 'ຄູ',
   teacherLabel: k => (k === 'thay' ? 'ຄູຜູ້ຊາຍ' : 'ຄູຜູ້ຍິງ'),
   teacherSelf: () => 'ຄູ',
@@ -259,6 +317,11 @@ const lo: Strings = {
   ],
   cancel: 'ຍົກເລີກ',
   raised: () => 'ຍົກມື · ຄູກຳລັງຟັງ',
+  feedbackMenu: 'ສະເໜີຄວາມຄິດເຫັນ',
+  feedbackTitle: () => 'ສະເໜີຄວາມຄິດເຫັນໃຫ້ຄູສອນດີຂຶ້ນ',
+  feedbackLabel: 'ເຈົ້າເຫັນວ່າບ່ອນໃດຍາກ, ບ່ອນໃດດີ?',
+  feedbackPlaceholder: 'ຂຽນໜຶ່ງສອງປະໂຫຍກ, ແລ້ວກົດ Enter',
+  feedbackSent: () => 'ຄູສົ່ງຄວາມຄິດເຫັນຂອງຫ້ອງຮຽນໃຫ້ຜູ້ຮັບຜິດຊອບແລ້ວ (ບໍ່ມີໄຟລ໌ ຫຼື ຕົວເລກຂອງເຈົ້າ).',
   tellLabel: () => 'ເລົ່າໃຫ້ຄູຟັງ',
   tellPlaceholder: 'ຂຽນສິ່ງທີ່ຢາກຖາມ ຫຼື ເລົ່າ, ແລ້ວກົດ Enter',
   send: 'ສົ່ງ',
@@ -361,6 +424,27 @@ const lo: Strings = {
     commandError: (T, cmd) => `▸ ຄຳສັ່ງ /${cmd} ມີບັນຫາ — ${T}ກຳລັງແກ້ໄຂ`,
     thinking: T => `${T}ກຳລັງຄິດ…`,
   },
+  setTitle: 'ຕັ້ງຄ່າ',
+  setLang: 'ພາສາ',
+  setAddress: 'ເອີ້ນຂ້ອຍວ່າ',
+  setAddressFree: 'ຫຼື ຂຽນເອງ',
+  setAddressHint: 'ຊື່ ຫຼື ຄຳເອີ້ນ (ສູງສຸດ 30 ຕົວອັກສອນ)',
+  addr: { anh: 'ອ້າຍ', chi: 'ເອື້ອຍ', em: 'ນ້ອງ', ban: 'ທ່ານ' },
+  save: 'ບັນທຶກ',
+  setMenu: 'ຕັ້ງຄ່າ',
+  stepHead: (k, n, title) => `ຂັ້ນ ${k}/${n} · ${title}`,
+  stepWhy: why => `ເພື່ອ ${why}`,
+  stepDone: 'ແລ້ວ',
+  stepNot: 'ຍັງບໍ່ໄດ້',
+  stepHint: 'ແນະນຳ',
+  hintLabel: n => `ແນະນຳ ${n}/3`,
+  nudge: '👉 ເຮັດແລ້ວກົດ ແລ້ວ — ຍັງບໍ່ຮູ້ວິທີເຮັດກົດ ແນະນຳ',
+  showPic: 'ເບິ່ງຮູບ',
+  hidePic: 'ເຊື່ອງຮູບ',
+  bubble: (k, T) => `${T}${({ think: 'ກຳລັງຄິດວິທີເຮັດ…', say: 'ກຳລັງເວົ້າກັບເຈົ້າ…', read: 'ກຳລັງອ່ານໄຟລ໌…', write: 'ກຳລັງຂຽນໄຟລ໌…', run: 'ກຳລັງແລ່ນຄຳສັ່ງໃນເຄື່ອງ…', web: 'ກຳລັງຄົ້ນຫາ…', work: 'ກຳລັງເຮັດວຽກ…' })[k]}`,
+  menuProgress: 'ຄວາມຄືບໜ້າ',
+  progressNone: 'ຍັງບໍ່ມີລາຍການທີ່ບັນທຶກ',
+  railAlt: (k, n) => `ຂັ້ນ ${k} ໃນ ${n}`,
 }
 
 export const STR: Record<Lang, Strings> = { vi, lo }

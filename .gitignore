@@ -16,3 +16,6 @@ plugins/lop-hoc/tsconfig.json
 
 # Danh mục liên kết tài liệu nội bộ cho giáo viên tra cứu (chèn vào ZIP, không đưa lên repo)
 .nguon-tai-lieu.md
+
+# Nơi nhận góp ý của lớp (url + token Apps Script) — chèn vào ZIP, không đưa lên repo
+.phan-hoi.json

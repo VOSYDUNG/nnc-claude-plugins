@@ -1,6 +1,6 @@
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { challengeLeft, foldPreview, silenceDue, permissionLabel, modelLabel, touchesLedger, podiumOf, boardOf, choicesOf, describeTool, groupParts, toolKind } from '../hooks/register'
+import { feedbackOf, feedbackConfigOf, feedbackBody, feedbackDelivered, CLASS_VERSION, challengeLeft, foldPreview, silenceDue, fitBudget, paletteOf, DARK, LIGHT, stepView, stepOf, bubbleKind, railText, addrLabel, permissionLabel, modelLabel, touchesLedger, podiumOf, boardOf, choicesOf, describeTool, groupParts, toolKind } from '../hooks/register'
 import { STR } from '../hooks/i18n'
 import { jpegBytes, pngBytes, toB64 } from './shot-fixtures'
 
@@ -24,6 +24,10 @@ const STATE2 = JSON.stringify({
   help_needed: true,
 })
 
+// v0.13 — Mở lớp mang thêm ngôn ngữ và cách gọi (mặc định "Bạn"; có state.address thì lấy từ đó).
+const OPEN_BAN = '[Giáo án] Mở lớp · giáo viên co · ngôn ngữ vi · gọi “Bạn”'
+const OPEN_CHI = '[Giáo án] Mở lớp · giáo viên co · ngôn ngữ vi · gọi “Chị”'
+
 const FORBIDDEN = /runtime|prompt|state|hook|mod |token|Nhắc Claude|Tạm dừng|Lưu và dừng/i
 
 type Io = {
@@ -39,6 +43,8 @@ type Io = {
   renders: Record<string, Record<string, unknown>>
   // Số lần mod đọc byte của tệp nhị phân giả (ảnh chụp).
   blobReads: number
+  // Mọi giá trị mod đã ghi vào $.store (khoá → giá trị cuối).
+  stored: Record<string, unknown>
 }
 
 // Tệp nhị phân giả (ảnh chụp): base64 + giờ sửa; fs.read { as: 'bytes' } và fs.stat đọc từ đây.
@@ -46,8 +52,18 @@ type Blob = { b64: string; mtime: number }
 const blobBytes = (b64: string) => Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0)
 
 function classroom(on: On, files: Record<string, string>, store: Record<string, unknown> = {}, blobs: Record<string, Blob> = {}): Io {
-  const io: Io = { sent: [], filled: [], toasts: [], writes: [], aborted: [], box: { text: '' }, clock: mock.clock(on, { now: T0 }), onAbort: () => {}, renders: {}, blobReads: 0 }
-  mock.store(on, store)
+  const io: Io = { sent: [], filled: [], toasts: [], writes: [], aborted: [], box: { text: '' }, clock: mock.clock(on, { now: T0 }), onAbort: () => {}, renders: {}, blobReads: 0, stored: { ...store } }
+  // $.store trong bộ nhớ (như mock.store) nhưng cho test đọc lại mọi giá trị mod đã lưu.
+  on('store.get', async (_$, e) => ({ value: io.stored[e.key] }) as never)
+  on('store.set', async (_$, e) => {
+    io.stored[e.key] = e.value
+    return { value: undefined } as never
+  })
+  on('store.delete', async (_$, e) => {
+    delete io.stored[e.key]
+    return { value: undefined } as never
+  })
+  on('store.keys', async () => ({ value: Object.keys(io.stored) }) as never)
   on('session.cwd', async () => ({ value: 'D:/sandbox' }) as never)
   on('session.start', async (_$, e) => ({ cwd: e.cwd }))
   // Engine giả: nơi plugin nhường (next) vẽ một Box có key "engine" — tham chiếu hộp gốc.
@@ -112,7 +128,7 @@ const LONG = { timeoutMs: 60_000 }
 
 const BAND = {
   component: 'AbovePrompt',
-  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100 },
+  props: { hasSurvey: false, isWorking: false, maxRows: 40, bodyColumns: 100 },
 } as const
 
 const cues = (io: Io, s: string) => io.sent.filter(t => t === `[Giáo án] ${s}`).length
@@ -171,14 +187,15 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await noForbiddenWords(ui as never)
     await ui.press({ key: 't-thay' })
     await ui.press({ key: 'enter' })
-    expect(io.sent).toContain('[Giáo án] Mở lớp · giáo viên thay')
+    expect(io.sent).toContain('[Giáo án] Mở lớp · giáo viên thay · ngôn ngữ vi · gọi “Bạn”')
     expect(await ui.find({ text: /Phần 0 · Vào lớp/ })).toBeDefined()
-    // Bục yên tĩnh mặc định: chỉ có nhóm "⋯"; Giơ tay · Xin phép · Xin nghỉ vẫn với tới được khi mở nhóm.
+    // Tầng 3: Giơ tay · Xin phép · ⋯ luôn thấy; Xin nghỉ · Phiếu kết quả nằm sau nhóm "⋯".
     expect(await ui.find({ key: 'more' })).toBeDefined()
+    for (const key of ['gio-tay', 'xin-phep']) expect(await ui.find({ key })).toBeDefined()
     expect(await ui.find({ key: 'phieu' })).toBeUndefined()
-    expect(await ui.find({ key: 'gio-tay' })).toBeUndefined()
+    expect(await ui.find({ key: 'xin-nghi' })).toBeUndefined()
     await ui.press({ key: 'more' })
-    for (const key of ['gio-tay', 'xin-phep', 'xin-nghi']) expect(await ui.find({ key })).toBeDefined()
+    for (const key of ['thiet-lap', 'xin-nghi', 'phieu', 'claude-cua-toi', 'tien-do']) expect(await ui.find({ key })).toBeDefined()
     await noForbiddenWords(ui as never)
     await ui.unmount()
   })
@@ -190,7 +207,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await io.clock.settle()
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
     await ui.press({ key: 'enter' })
-    expect(io.sent).toContain('[Giáo án] Mở lớp · giáo viên co · hạn mức 5 giờ 72% · tuần 22%')
+    expect(io.sent).toContain('[Giáo án] Mở lớp · giáo viên co · ngôn ngữ vi · gọi “Bạn” · hạn mức 5 giờ 72% · tuần 22%')
     await run($ as never, io, 3 * MIN)
     expect(io.sent.filter(x => x.includes('Hạn mức ·'))).toHaveLength(0)
     await ui.unmount()
@@ -204,7 +221,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await teacherTalks($ as never)
     await io.clock.advance(45 * MIN)
     // v0.11: chỉ còn thang im lặng (nấc 1 · 2 · 3, mỗi nấc một lần); không điểm danh, không tín hiệu nào khác.
-    expect(io.sent).toEqual(['[Giáo án] Mở lớp · giáo viên co', ...[1, 2, 3].map(n => `[Giáo án] Học viên im lặng · nấc ${n}`)])
+    expect(io.sent).toEqual([OPEN_CHI, ...[1, 2, 3].map(n => `[Giáo án] Học viên im lặng · nấc ${n}`)])
     expect(await ui.find({ text: /còn ở lớp không|tạm nghỉ/ })).toBeUndefined()
     expect(await ui.find({ key: 'co-mat' })).toBeUndefined()
     expect(await ui.find({ text: /Phần 2 · Việc thật của tôi/ })).toBeDefined()
@@ -335,11 +352,18 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'enter' })
     expect(await ui.find({ text: /Phần 2 · Việc thật của tôi/ })).toBeDefined()
     expect(await ui.find({ text: /Lượt của bạn · Bấm Giao việc, điền 4 ý/ })).toBeDefined()
+    // v0.13: hàng kết quả đã bỏ khỏi bục chính; nằm trong ⋯ → Tiến độ.
+    expect(await ui.find({ text: /✓ Đọc file/ })).toBeUndefined()
+    expect(await ui.find({ text: /Đang cần người hỗ trợ/ })).toBeDefined()
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 2 : 0) // hình thầy + thanh bước
+    await noForbiddenWords(ui as never)
+    await ui.press({ key: 'more' })
+    await ui.press({ key: 'tien-do' })
     expect(await ui.find({ text: /✓ Đọc file/ })).toBeDefined()
     expect(await ui.find({ text: /○ Tổng hợp/ })).toBeDefined()
-    expect(await ui.find({ text: /Đang cần người hỗ trợ/ })).toBeDefined()
-    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 1 : 0)
-    await noForbiddenWords(ui as never)
+    await ui.press({ key: 'tien-do' })
+    expect(await ui.find({ text: /✓ Đọc file/ })).toBeUndefined()
+    await ui.press({ key: 'more' })
     await ui.press({ key: 'nho-ho-tro' })
     expect(io.sent).toContain('[Lớp học] Soạn tin nhờ hỗ trợ')
     await ui.press({ key: 'phieu' })
@@ -359,17 +383,24 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
-  test(`${surface}: lớp tiếng Lào — cửa lớp có hai thứ tiếng; bục, nút, giao việc bằng tiếng Lào; tín hiệu giáo viên vẫn tiếng Việt`, LONG, async ($, on) => {
+  test(`${surface}: lớp tiếng Lào — cửa lớp một thứ tiếng, nút chọn ngôn ngữ ghi bằng chính tiếng đó; bục, nút, giao việc bằng tiếng Lào; tín hiệu giáo viên vẫn tiếng Việt`, LONG, async ($, on) => {
     const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC' }
     const io = classroom(on, files)
     await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
-    // Chưa biết tiếng: cửa lớp hiện cả hai.
+    // v0.13: một ngôn ngữ cho cả bục — chưa chọn thì tiếng Việt, không có dòng tiếng Lào; nút ພາສາລາວ ghi bằng tiếng Lào.
     expect(await ui.find({ text: /Lớp đang chờ giáo viên/ })).toBeDefined()
+    expect(await ui.find({ text: /ຫ້ອງຮຽນລໍຖ້າຄູ/ })).toBeUndefined()
+    expect(await ui.find({ key: 'lang-lo' })).toBeDefined()
+    // Chọn tiếng Lào: mọi chữ đổi sang tiếng Lào, không còn dòng tiếng Việt (lựa chọn của học viên thắng state.json).
+    await ui.press({ key: 'lang-lo' })
+    expect(await ui.find({ text: /ເລືອກພາສາ/ })).toBeDefined()
     expect(await ui.find({ text: /ຫ້ອງຮຽນລໍຖ້າຄູ/ })).toBeDefined()
+    expect(await ui.find({ text: /Lớp đang chờ giáo viên/ })).toBeUndefined()
     await ui.press({ key: 'enter' })
-    // Giáo viên hỏi xong, ghi language: 'lo'.
-    files['.lop-hoc/state.json'] = v7({ language: 'lo', segment: { id: '2', title: 'Việc thật của tôi', drive: 'D1' }, ...WITH_ALL })
+    expect(io.sent).toContain('[Giáo án] Mở lớp · giáo viên co · ngôn ngữ lo · gọi “ທ່ານ”')
+    // Giáo viên ghi language: 'vi' — không đổi được lựa chọn của học viên.
+    files['.lop-hoc/state.json'] = v7({ language: 'vi', segment: { id: '2', title: 'Việc thật của tôi', drive: 'D1' }, ...WITH_ALL })
     await teacherTalks($ as never)
     expect(await ui.find({ text: /ພາກ 2 · ວຽກແທ້ຂອງຂ້ອຍ/ })).toBeDefined()
     expect(await ui.find({ text: /Phần 2/ })).toBeUndefined()
@@ -404,7 +435,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ text: /claude-opus-5-5 · context 34% · 5 giờ 41% \(reset 14:20\) · tuần 22% \(reset 20\/10 10:00\)/ })).toBeDefined()
     await ui.press({ key: 'enter' })
     expect(await ui.find({ text: /5 giờ: đã dùng 41% · reset lúc 14:20/ })).toBeDefined()
-    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 3 : 0)
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 4 : 0) // thầy + hai thẻ hạn mức + thanh bước
     await noForbiddenWords(ui as never)
     await ui.unmount()
   })
@@ -469,6 +500,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
     await ui.press({ key: 'enter' })
     expect(await ui.find({ text: /Lượt của bạn · Tạo bản nháp biên bản/ })).toBeDefined()
+    await ui.press({ key: 'more' })
+    await ui.press({ key: 'tien-do' })
     expect(await ui.find({ text: /○ Bản nháp/ })).toBeDefined()
     const pane = await $.ui.mount({ plugin: 'lop-hoc', surface, component: 'Pane', requestId: 'lop-hoc', props: { title: 'Lớp học NNC' } } as never)
     expect(await pane.find({ text: /→ Phần 2 · Việc thật của tôi/ })).toBeDefined()
@@ -505,7 +538,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     files['.lop-hoc/state.json'] = v7({ segment: { id: '1', title: 'Làm quen nhanh', drive: 'D2' } })
     await run($ as never, io, 30 * MIN)
     expect(io.sent.filter(x => x.includes('Kiểm phần học'))).toHaveLength(0)
-    expect(io.sent).toEqual(['[Giáo án] Mở lớp · giáo viên co'])
+    expect(io.sent).toEqual([OPEN_BAN])
     await ui.unmount()
   })
 
@@ -643,7 +676,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'enter' })
     if (surface === 'terminal') expect(await ui.find({ text: '★ 3' })).toBeDefined()
     else expect(await svgByAlt(ui, /^3 sao trong buổi$/)).toBeDefined()
-    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 2 : 0)
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 3 : 0) // thầy + sao + thanh bước
     await noForbiddenWords(ui as never)
     await ui.unmount()
   })
@@ -720,25 +753,77 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
-  test(`${surface}: dải chật thì nút một chạm lên đầu, bỏ dòng phụ; không có từ kỹ thuật`, LONG, async ($, on) => {
-    const st = v6({ one_touch: ONE, stars: 2, challenge: { title: 'Thử 60 giây', seconds: 60, started_at: iso(T0) }, gift_box: true, badges_new: [BADGE1], destination: 'Bảng tổng hợp theo kênh', ...WITH_ALL })
+  test(`${surface}: ngân sách dòng — hình thu thành "Xem hình" khi có nút một chạm hoặc khi chật; dải chật chỉ còn thanh bước + ⋯; không có hàng đích/kết quả/nhãn sống; không có từ kỹ thuật`, LONG, async ($, on) => {
+    const board = { title: 'Bảng tổng hợp', lines: ['Kênh OTC', 'Kênh HC'] }
+    const st = v6({ one_touch: ONE, stars: 2, challenge: { title: 'Thử 60 giây', seconds: 60, started_at: iso(T0) }, gift_box: true, badges_new: [BADGE1], destination: 'Bảng tổng hợp theo kênh', result_parts: [{ label: 'Đọc file', done: true }], board, podium: { show: ['model', 'mode'] }, ...WITH_ALL })
     const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': st })
     await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
     const roomy = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND, props: { ...BAND.props, maxRows: 80 } } as never)
     await roomy.press({ key: 'enter' })
-    expect(await roomy.find({ text: /Đích: Bảng tổng hợp theo kênh/ })).toBeDefined()
+    // Hàng đích, hàng kết quả, nhãn thông tin sống đã bỏ khỏi bục chính.
+    expect(await roomy.find({ text: /Đích:/ })).toBeUndefined()
+    expect(await roomy.find({ text: /Đọc file/ })).toBeUndefined()
+    expect(await roomy.find({ text: /^Model |^Chế độ / })).toBeUndefined()
+    // Tầng 1 có nút một chạm: hình thu thành nút "Xem hình" (bấm mở, "Ẩn hình" đóng).
+    expect(await roomy.find({ key: 'one-touch' })).toBeDefined()
+    expect(await roomy.find({ text: 'Bảng tổng hợp' })).toBeUndefined()
+    expect((await roomy.find({ key: 'xem-hinh' }))?.props.label).toBe('Xem hình')
+    await roomy.press({ key: 'xem-hinh' })
+    expect(await roomy.find({ text: 'Bảng tổng hợp' })).toBeDefined()
+    expect((await roomy.find({ key: 'xem-hinh' }))?.props.label).toBe('Ẩn hình')
+    await roomy.press({ key: 'xem-hinh' })
+    expect(await roomy.find({ text: 'Bảng tổng hợp' })).toBeUndefined()
     await roomy.unmount()
-    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
-    expect(await ui.find({ text: /Đích:/ })).toBeUndefined()
+    // Chật (8 dòng): vẫn có nút một chạm và hộp quà; tầng 3 chỉ còn thanh bước + ⋯ (Giơ tay, Xin phép chuyển vào ⋯).
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND, props: { ...BAND.props, maxRows: 8 } } as never)
     expect(await ui.find({ key: 'one-touch' })).toBeDefined()
     expect(await ui.find({ key: 'hop-qua' })).toBeDefined()
+    expect(await ui.find({ key: 'gio-tay' })).toBeUndefined()
+    expect(await ui.find({ key: 'xin-phep' })).toBeUndefined()
+    expect(await ui.find({ key: 'more' })).toBeDefined()
+    await ui.press({ key: 'more' })
     expect(await ui.find({ key: 'gio-tay' })).toBeDefined()
+    expect(await ui.find({ key: 'xin-phep' })).toBeDefined()
     await noForbiddenWords(ui as never)
     expect(io.toasts.some(t => FORBIDDEN.test(t))).toBe(false)
     await ui.unmount()
   })
+
+  test(`${surface}: ngân sách dòng — không có nút một chạm: hình hiện khi đủ chỗ, thu thành "Xem hình" khi chật; học viên mở thì giữ mở đến khi state.json đổi`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({ board: { title: 'Bảng nhỏ', lines: ['một', 'hai'] } }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const roomy = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await roomy.press({ key: 'enter' })
+    expect(await roomy.find({ text: 'Bảng nhỏ' })).toBeDefined()
+    expect(await roomy.find({ key: 'xem-hinh' })).toBeUndefined()
+    await roomy.unmount()
+    const tight = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND, props: { ...BAND.props, maxRows: 9 } } as never)
+    expect(await tight.find({ text: 'Bảng nhỏ' })).toBeUndefined()
+    expect(await tight.find({ key: 'gio-tay' })).toBeDefined()
+    await tight.press({ key: 'xem-hinh' })
+    expect(await tight.find({ text: 'Bảng nhỏ' })).toBeDefined()
+    expect((await tight.find({ key: 'xem-hinh' }))?.props.label).toBe('Ẩn hình')
+    // Giáo viên ghi lại state: lựa chọn của học viên hết hiệu lực, chật thì thu lại.
+    files['.lop-hoc/state.json'] = v8({ board: { title: 'Bảng nhỏ', lines: ['một', 'hai', 'ba'] } })
+    await io.clock.advance(2 * SEC)
+    expect(await tight.find({ text: 'Bảng nhỏ' })).toBeUndefined()
+    await tight.unmount()
+  })
 }
 
+test('fitBudget: bỏ khoảng cách → thu hình → hàng sao/quà thành chữ → tầng 3 chỉ còn ⋯; hình do học viên mở thì không bị thu', () => {
+  const base = { maxRows: 20, base: 8, board: 10, boardHidden: 1, deco: 4, decoCompact: 2, tier3: 2, tier3Min: 1, seps: 2, boardMode: 'auto' as const }
+  expect(fitBudget({ ...base, maxRows: 26 })).toMatchObject({ showBoard: true, compact: false, tier3Min: false, gap: 1, rows: 26 })
+  expect(fitBudget({ ...base, maxRows: 24 })).toMatchObject({ showBoard: true, gap: 0, rows: 24 })
+  expect(fitBudget({ ...base, maxRows: 16 })).toMatchObject({ showBoard: false, compact: false, tier3Min: false, gap: 0, rows: 15 })
+  expect(fitBudget({ ...base, maxRows: 13 })).toMatchObject({ showBoard: false, compact: true, tier3Min: false })
+  expect(fitBudget({ ...base, maxRows: 12 })).toMatchObject({ showBoard: false, compact: true, tier3Min: true, rows: 12 })
+  expect(fitBudget({ ...base, maxRows: 5 })).toMatchObject({ showBoard: false, compact: true, tier3Min: true })
+  expect(fitBudget({ ...base, maxRows: 0 })).toMatchObject({ showBoard: true, compact: false, tier3Min: false, gap: 1 })
+  expect(fitBudget({ ...base, boardMode: 'hide' })).toMatchObject({ showBoard: false })
+  expect(fitBudget({ ...base, maxRows: 5, boardMode: 'show' })).toMatchObject({ showBoard: true, compact: true, tier3Min: true })
+})
 test('thử thách thiếu giờ bắt đầu: mod tự đóng dấu lúc thấy lần đầu, đếm lùi từ đó', async () => {
   const c = { title: 'Tìm 3 dòng lỗi — kiểm đóng dấu', seconds: 60, started_at: '' }
   const t0 = 1_800_000_000_000
@@ -789,7 +874,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await io.clock.advance(2 * SEC)
     expect(await ui.find({ text: /Phần 4 · Chốt vòng việc/ })).toBeDefined()
     // Đồng hồ chỉ đọc: không gửi thêm gì.
-    expect(io.sent).toEqual(['[Giáo án] Mở lớp · giáo viên co'])
+    expect(io.sent).toEqual([OPEN_CHI])
     await ui.unmount()
   })
 
@@ -804,7 +889,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
     expect(await ui.find({ text: /⚠ Bypass permissions/ })).toBeDefined()
     await ui.press({ key: 'enter' })
-    expect(io.sent).toContain('[Giáo án] Mở lớp · giáo viên co · chế độ Bypass permissions · model claude-opus-5-5 · hạn mức 5 giờ 41% · tuần 22%')
+    expect(io.sent).toContain('[Giáo án] Mở lớp · giáo viên co · ngôn ngữ vi · gọi “Bạn” · chế độ Bypass permissions · model claude-opus-5-5 · hạn mức 5 giờ 41% · tuần 22%')
     expect(await ui.find({ text: /⚠ Bypass permissions/ })).toBeDefined()
     await noForbiddenWords(ui as never)
     await io.clock.advance(5 * SEC)
@@ -826,7 +911,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
-  test(`${surface}: bục yên tĩnh mặc định — không có hàng thông tin sống; chỉ hiện nhãn giáo viên ghi trong show`, LONG, async ($, on) => {
+  test(`${surface}: bục yên tĩnh mặc định — không có hàng thông tin sống (kể cả khi giáo viên ghi show); chỉ thẻ bước, thanh bước, Giơ tay · Xin phép · ⋯`, LONG, async ($, on) => {
     const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({ next_action: 'Mở thư mục lớp' }) }
     const io = classroom(on, files)
     mockClaude(on)
@@ -838,19 +923,24 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ text: /Lượt của bạn · Mở thư mục lớp/ })).toBeDefined()
     expect(await ui.find({ text: /Model|Effort|Context|5 giờ|Chế độ|Opus/ })).toBeUndefined()
     expect(await ui.find({ text: /▼|▲/ })).toBeUndefined()
-    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 1 : 0)
-    expect(await ui.findAll({ type: 'Button' })).toHaveLength(1) // chỉ nhóm "⋯"
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 2 : 0) // hình thầy + thanh bước
+    // Xong · Chưa được · Gợi ý + Giơ tay · Xin phép + ⋯
+    expect((await ui.findAll({ type: 'Button' })).map(b => b.key)).toEqual(['xong', 'chua-duoc', 'goi-y-buoc', 'gio-tay', 'xin-phep', 'more'])
     files['.lop-hoc/state.json'] = v8({ podium: { show: ['model', 'usage5', 'mode', 'nonsense'] } })
     await io.clock.advance(2 * SEC)
-    expect(await ui.find({ text: 'Model Opus 5.5' })).toBeDefined()
-    expect(await ui.find({ text: '5 giờ 41%' })).toBeDefined()
-    expect(await ui.find({ text: 'Chế độ Auto' })).toBeDefined()
-    expect(await ui.find({ text: /▼/ })).toBeUndefined()
+    // v0.13: hàng nhãn sống đã bỏ — chế độ quyền, model, hạn mức xem ở ⋯ → Claude của tôi.
+    expect(await ui.find({ text: 'Model Opus 5.5' })).toBeUndefined()
+    expect(await ui.find({ text: 'Chế độ Auto' })).toBeUndefined()
+    await ui.press({ key: 'more' })
+    await ui.press({ key: 'claude-cua-toi' })
+    expect(await ui.find({ text: /claude-opus-5-5 · context 34% · 5 giờ 41%/ })).toBeDefined()
+    await ui.press({ key: 'claude-cua-toi' })
+    expect(await ui.find({ text: /claude-opus-5-5 · context 34%/ })).toBeUndefined()
     await bar.unmount()
     await ui.unmount()
   })
 
-  test(`${surface}: podium.point tô vàng nhãn và vẽ thanh dưới ô nhập với vùng được chỉ, kèm dòng "ở thanh dưới ô nhập"`, LONG, async ($, on) => {
+  test(`${surface}: podium.point vẽ thanh dưới ô nhập với vùng được chỉ, kèm dòng "ở thanh dưới ô nhập" (nhãn vàng đã bỏ)`, LONG, async ($, on) => {
     const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({ podium: { point: 'model' } }) }
     const io = classroom(on, files)
     mockClaude(on)
@@ -859,10 +949,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const bar = await $.ui.mount({ plugin: 'lop-hoc', surface, component: 'SessionMode', props: { modes: ['Auto'] } } as never)
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
     await ui.press({ key: 'enter' })
-    const chip = await ui.find({ type: 'Text', text: /▼ Model Opus 5.5/ })
-    expect(chip).toBeDefined()
-    expect(chip?.props.backgroundColor).toBe('#FFEA00')
-    expect(await ui.find({ type: 'Text', text: /^Model Opus 5.5$/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^▼ Model Opus 5.5$/ })).toBeUndefined()
     expect(await ui.find({ text: /ở thanh dưới ô nhập/ })).toBeDefined()
     if (surface === 'desktop') {
       const mock = await svgByAlt(ui, /^Thanh dưới ô nhập, chỗ cần nhìn: Model Opus 5.5$/)
@@ -873,28 +960,30 @@ for (const surface of ['terminal', 'desktop'] as const) {
       expect(src).toContain('Opus 5.5')
       expect(src).toContain('<path d="M') // mũi tên
       expect(/This computer|thư mục/i.test(src)).toBe(false)
-      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
+      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(3) // thầy + thanh dưới ô nhập + thanh bước
     } else {
       expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
       expect(await ui.find({ text: '▼ Opus 5.5' })).toBeDefined()
     }
-    // Chỉ vào effort chưa biết: vẫn tô, ghi "…". Chỉ vào hạn mức: vòng tròn.
+    // Chỉ vào effort chưa biết; chỉ vào hạn mức.
     files['.lop-hoc/state.json'] = v8({ podium: { point: 'effort' } })
     await io.clock.advance(2 * SEC)
-    expect(await ui.find({ text: /▼ Effort …/ })).toBeDefined()
+    if (surface === 'desktop') expect(await svgByAlt(ui, /^Thanh dưới ô nhập, chỗ cần nhìn: Effort$/)).toBeDefined()
+    else expect(await ui.find({ text: '▼ —' })).toBeDefined()
     files['.lop-hoc/state.json'] = v8({ podium: { point: 'usage5' } })
     await io.clock.advance(2 * SEC)
-    expect(await ui.find({ text: /▼ 5 giờ 41%/ })).toBeDefined()
+    if (surface === 'desktop') expect(await svgByAlt(ui, /^Thanh dưới ô nhập, chỗ cần nhìn: 5 giờ 41%$/)).toBeDefined()
+    else expect(await ui.find({ text: '▼ ◔ 41%' })).toBeDefined()
     // point: null xoá hết.
     files['.lop-hoc/state.json'] = v8({ podium: { point: null } })
     await io.clock.advance(2 * SEC)
     expect(await ui.find({ text: /▼|ở thanh dưới ô nhập/ })).toBeUndefined()
-    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 1 : 0)
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 2 : 0)
     await bar.unmount()
     await ui.unmount()
   })
 
-  test(`${surface}: cỡ bục mini · normal · wide; nút do giáo viên chọn, Giơ tay · Xin phép · Xin nghỉ luôn với tới được qua "⋯"`, LONG, async ($, on) => {
+  test(`${surface}: cỡ bục mini · normal · wide; nút do giáo viên chọn đi cùng Giơ tay · Xin phép; còn lại nằm sau "⋯"`, LONG, async ($, on) => {
     const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({ destination: 'Bảng tổng hợp', podium: { size: 'mini', buttons: ['slower', 'raise-hand', 'slower', 'bogus'] } }) }
     const io = classroom(on, files)
     await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
@@ -902,20 +991,24 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'enter' })
     expect(await ui.find({ text: /Đích:/ })).toBeUndefined()
     if (surface === 'desktop') expect((await svgByAlt(ui, /trên bục giảng/))?.props.width).toBe(56)
-    // Chọn 'slower' và 'raise-hand' (trùng và lạ bị bỏ); Xin phép + Xin nghỉ nằm sau "⋯".
+    // Chọn 'slower' và 'raise-hand' (trùng và lạ bị bỏ); Giơ tay · Xin phép luôn có; Xin nghỉ · Nhanh hơn nằm sau "⋯".
     expect(await ui.find({ key: 'cham' })).toBeDefined()
     expect(await ui.find({ key: 'gio-tay' })).toBeDefined()
-    expect(await ui.find({ key: 'nhanh' })).toBeUndefined()
-    expect(await ui.find({ key: 'xin-phep' })).toBeUndefined()
-    await ui.press({ key: 'more' })
     expect(await ui.find({ key: 'xin-phep' })).toBeDefined()
-    expect(await ui.find({ key: 'xin-nghi' })).toBeDefined()
+    expect(await ui.find({ key: 'nhanh' })).toBeUndefined()
+    expect(await ui.find({ key: 'xin-nghi' })).toBeUndefined()
     await ui.press({ key: 'more' })
-    expect(await ui.find({ key: 'xin-phep' })).toBeUndefined()
+    expect(await ui.find({ key: 'nhanh' })).toBeDefined()
+    expect(await ui.find({ key: 'xin-nghi' })).toBeDefined()
+    expect(await ui.find({ key: 'cham' })).toBeDefined() // không có hai nút cùng khoá
+    expect(await ui.findAll({ key: 'cham' })).toHaveLength(1)
+    await ui.press({ key: 'more' })
+    expect(await ui.find({ key: 'xin-nghi' })).toBeUndefined()
     files['.lop-hoc/state.json'] = v8({ destination: 'Bảng tổng hợp', podium: { size: 'wide', buttons: ALL_BUTTONS } })
     await io.clock.advance(2 * SEC)
-    expect(await ui.find({ text: /Đích: Bảng tổng hợp/ })).toBeDefined()
-    expect(await ui.find({ key: 'more' })).toBeUndefined() // đã chọn đủ ba nút luôn có: không cần "⋯"
+    expect(await ui.find({ text: /Đích:/ })).toBeUndefined()
+    for (const key of ['gio-tay', 'xin-phep', 'xin-nghi', 'cham', 'nhanh', 'goi-y', 'phieu', 'b-form']) expect(await ui.find({ key })).toBeDefined()
+    expect(await ui.find({ key: 'more' })).toBeDefined() // ⋯ luôn có (Thiết lập · Claude của tôi · Tiến độ)
     if (surface === 'desktop') expect((await svgByAlt(ui, /trên bục giảng/))?.props.width).toBe(140)
     files['.lop-hoc/state.json'] = v8({ destination: 'Bảng tổng hợp' })
     await io.clock.advance(2 * SEC)
@@ -1017,7 +1110,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
       expect(src).toContain('<circle')
       expect(src).toContain('<rect')
       expect(/script|foreignobject|onload|onclick|evil\.example|href/i.test(src)).toBe(false)
-      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
+      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(3) // thầy + hình bảng + thanh bước
     } else expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
     // SVG quá 16 KB: bỏ hình, chữ vẫn còn.
     const big = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">${'<rect width="1" height="1"/>'.repeat(700)}</svg>`
@@ -1025,11 +1118,11 @@ for (const surface of ['terminal', 'desktop'] as const) {
     files['.lop-hoc/state.json'] = v8({ board: { title: 'Bảng to', lines: ['một'], svg: big } })
     await io.clock.advance(2 * SEC)
     expect(await ui.find({ text: 'Bảng to' })).toBeDefined()
-    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 1 : 0)
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 2 : 0)
     files['.lop-hoc/state.json'] = v8({ board: { title: 'Không phải hình', lines: ['hai'], svg: '<div>x</div>' } })
     await io.clock.advance(2 * SEC)
     expect(await ui.find({ text: 'Không phải hình' })).toBeDefined()
-    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 1 : 0)
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(surface === 'desktop' ? 2 : 0)
     // Bỏ board: bảng biến mất.
     files['.lop-hoc/state.json'] = v8({})
     await io.clock.advance(2 * SEC)
@@ -1059,13 +1152,13 @@ for (const surface of ['terminal', 'desktop'] as const) {
       const src = String(pic?.props.source)
       expect(src).toContain('viewBox="0 0 960 540"')
       expect(src).toContain('href="data:image/jpeg;base64,')
-      // Một Svg của giáo viên (bục) + một Svg ảnh; svg của giáo viên (đã lọc) không vẽ khi có ảnh.
-      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(2)
+      // Một Svg của giáo viên (bục) + một Svg ảnh + thanh bước; svg của giáo viên (đã lọc) không vẽ khi có ảnh.
+      expect(await ui.findAll({ type: 'Svg' })).toHaveLength(3)
       expect(await svgByAlt(ui, /^Bảng của lớp/)).toBeUndefined()
       expect(src).not.toContain('<circle')
-      // Ảnh co theo hộp bảng (không to quá cỡ rộng 560 × 340).
+      // Ảnh co theo hộp bảng (không to quá cỡ rộng 560 × 260).
       expect(Number(pic?.props.width)).toBeLessThanOrEqual(560)
-      expect(Number(pic?.props.height)).toBeLessThanOrEqual(340)
+      expect(Number(pic?.props.height)).toBeLessThanOrEqual(260)
       const reads = io.blobReads
       expect(reads).toBeGreaterThan(0)
       // Không đổi gì: các nhịp sau không đọc lại byte.
@@ -1266,6 +1359,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
     await ui.press({ key: 'enter' })
+    // Có lựa chọn ở tầng 1 nên hình thu thành nút; bấm "ເບິ່ງຮູບ" thì thấy chỗ chỉ.
+    expect((await ui.find({ key: 'xem-hinh' }))?.props.label).toBe(STR.lo.showPic)
+    await ui.press({ key: 'xem-hinh' })
+    expect((await ui.find({ key: 'xem-hinh' }))?.props.label).toBe(STR.lo.hidePic)
     expect(await ui.find({ text: /ຢູ່ແຖບລຸ່ມຊ່ອງພິມ/ })).toBeDefined()
     expect((await ui.find({ key: 'more' }))?.props.label).toBe('⋯ ເພີ່ມ')
     await io.clock.advance(20 * SEC)
@@ -1381,14 +1478,14 @@ for (const surface of ['terminal', 'desktop'] as const) {
 const RUNG = (n: number) => `Học viên im lặng · nấc ${n}`
 const rungs = (io: Io) => io.sent.filter(t => t.startsWith('[Giáo án] Học viên im lặng')).map(t => t.slice(-1))
 
-test('silenceDue: 90 giây · 3 phút · 5 phút; làm việc thật / thử thách thì nấc 1 chờ 3 phút; sau nấc 3 không còn gì', async () => {
+test('silenceDue: 2 phút · 3,5 phút · 5 phút (cộng dồn); làm việc thật / thử thách thì nấc 1 chờ 3 phút; sau nấc 3 không còn gì', async () => {
   const at = 1_000_000
-  expect(silenceDue({ at, rung: 0 }, at + 89 * SEC, false)).toBeNull()
-  expect(silenceDue({ at, rung: 0 }, at + 90 * SEC, false)).toBe(1)
+  expect(silenceDue({ at, rung: 0 }, at + 119 * SEC, false)).toBeNull()
+  expect(silenceDue({ at, rung: 0 }, at + 2 * MIN, false)).toBe(1)
   expect(silenceDue({ at, rung: 0 }, at + 179 * SEC, true)).toBeNull()
   expect(silenceDue({ at, rung: 0 }, at + 3 * MIN, true)).toBe(1)
-  expect(silenceDue({ at, rung: 1 }, at + 3 * MIN - SEC, true)).toBeNull()
-  expect(silenceDue({ at, rung: 1 }, at + 3 * MIN, false)).toBe(2)
+  expect(silenceDue({ at, rung: 1 }, at + 3.5 * MIN - SEC, true)).toBeNull()
+  expect(silenceDue({ at, rung: 1 }, at + 3.5 * MIN, false)).toBe(2)
   expect(silenceDue({ at, rung: 2 }, at + 5 * MIN - SEC, false)).toBeNull()
   expect(silenceDue({ at, rung: 2 }, at + 5 * MIN, false)).toBe(3)
   expect(silenceDue({ at, rung: 3 }, at + 999 * MIN, false)).toBeNull()
@@ -1404,21 +1501,28 @@ for (const surface of ['terminal', 'desktop'] as const) {
     return { io, ui }
   }
 
-  test(`${surface}: thang im lặng — nấc 1 sau 90 giây, nấc 2 sau 3 phút, nấc 3 sau 5 phút nữa, rồi dừng đến khi học viên tác động`, LONG, async ($, on) => {
+  test(`${surface}: thang im lặng — nhắc trên bục sau 45 giây (không gửi gì), nấc 1 sau 2 phút, nấc 2 sau 3,5 phút, nấc 3 sau 5 phút (cộng dồn từ lúc thầy nói xong), rồi dừng đến khi học viên tác động`, LONG, async ($, on) => {
     const { io, ui } = await open($ as never, on, { 'CLAUDE.md': '# Lớp học NNC' })
-    await io.clock.advance(80 * SEC)
+    const NUDGE = /Làm xong thì bấm Xong — chưa biết làm thì bấm Gợi ý/
+    await io.clock.advance(40 * SEC)
+    expect(await ui.find({ text: NUDGE })).toBeUndefined()
+    await io.clock.advance(15 * SEC)
+    expect(await ui.find({ text: NUDGE })).toBeDefined()
+    expect(rungs(io)).toEqual([])
+    expect(io.sent).toEqual([OPEN_BAN])
+    await io.clock.advance(55 * SEC)
     expect(rungs(io)).toEqual([])
     await io.clock.advance(15 * SEC)
     expect(rungs(io)).toEqual(['1'])
     expect(io.sent).toContain(`[Giáo án] ${RUNG(1)}`)
-    // Giáo viên đáp xong: ba phút im lặng tính từ lúc nói xong.
+    // Thầy đáp xong: mốc giữ nguyên (cộng dồn), nấc 2 ở 3,5 phút kể từ lúc thầy nói xong lần đầu.
     await teacherTalks($ as never)
-    await io.clock.advance(2 * MIN + 50 * SEC)
+    await io.clock.advance(80 * SEC)
     expect(rungs(io)).toEqual(['1'])
     await io.clock.advance(15 * SEC)
     expect(rungs(io)).toEqual(['1', '2'])
     await teacherTalks($ as never)
-    await io.clock.advance(4 * MIN + 50 * SEC)
+    await io.clock.advance(70 * SEC)
     expect(rungs(io)).toEqual(['1', '2'])
     await io.clock.advance(15 * SEC)
     expect(rungs(io)).toEqual(['1', '2', '3'])
@@ -1436,19 +1540,19 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const choices = { id: 'buoc', prompt: 'Bạn đang ở bước nào?', options: [{ label: 'Bước 1' }, { label: 'Chưa rõ' }], default: 0 }
     const { io, ui } = await open($ as never, on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v8({ choices }) })
     const d = $ as unknown as { prompt: { submit: (e: object) => Promise<unknown> }; turn: { start: (e: object) => Promise<unknown>; complete: (e: object) => Promise<unknown> } }
-    await io.clock.advance(100 * SEC)
+    await io.clock.advance(130 * SEC)
     expect(rungs(io)).toEqual(['1'])
-    // Bấm lựa chọn trên bục là tác động: thang về 0; nấc 1 mới chỉ đến sau 90 giây kể từ lúc giáo viên đáp xong.
+    // Bấm lựa chọn trên bục là tác động: thang về 0; nấc 1 mới chỉ đến sau 2 phút kể từ lúc giáo viên đáp xong.
     await ui.press({ key: 'choice-1' })
     await teacherTalks($ as never)
-    await io.clock.advance(80 * SEC)
+    await io.clock.advance(110 * SEC)
     expect(rungs(io)).toEqual(['1'])
     await io.clock.advance(15 * SEC)
     expect(rungs(io)).toEqual(['1', '1'])
     // Học viên gõ và gửi một câu cũng là tác động.
     await d.prompt.submit({ text: 'em chưa hiểu' })
     await teacherTalks($ as never)
-    await io.clock.advance(80 * SEC)
+    await io.clock.advance(110 * SEC)
     expect(rungs(io)).toEqual(['1', '1'])
     await io.clock.advance(15 * SEC)
     expect(rungs(io)).toEqual(['1', '1', '1'])
@@ -1457,7 +1561,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await io.clock.advance(10 * MIN)
     expect(rungs(io)).toEqual(['1', '1', '1'])
     io.box.text = ''
-    await io.clock.advance(80 * SEC)
+    await io.clock.advance(110 * SEC)
     expect(rungs(io)).toEqual(['1', '1', '1'])
     await io.clock.advance(20 * SEC)
     expect(rungs(io)).toEqual(['1', '1', '1', '1'])
@@ -1467,7 +1571,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await io.clock.advance(10 * MIN)
     expect(rungs(io)).toHaveLength(4)
     await d.turn.complete({ answer: '', durationMs: 0, isAborted: false, turnId: 'dai', reason: 'answer' })
-    await io.clock.advance(80 * SEC)
+    await io.clock.advance(110 * SEC)
     expect(rungs(io)).toHaveLength(4)
     await io.clock.advance(20 * SEC)
     expect(rungs(io)).toHaveLength(5)
@@ -1483,7 +1587,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(rungs(io)).toEqual([])
     await ui.press({ key: 'quay-lai' })
     await teacherTalks($ as never)
-    await io.clock.advance(80 * SEC)
+    await io.clock.advance(110 * SEC)
     expect(rungs(io)).toEqual([])
     await io.clock.advance(15 * SEC)
     expect(rungs(io)).toEqual(['1'])
@@ -1522,9 +1626,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(cues(io, 'Hết giờ thử thách · Tìm 3 dòng thiếu giá')).toBe(1)
     expect(rungs(io)).toEqual(['1', '2', '3'])
     for (let i = 1; i < seen.length; i++) expect(seen[i]! - seen[i - 1]!).toBeGreaterThanOrEqual(20)
-    // Tín hiệu hết giờ ở giây 60; nấc 1 sau 90 giây kể từ lúc giáo viên đáp xong, không sớm hơn.
+    // Tín hiệu hết giờ ở giây 60; nấc 1 sau 2 phút kể từ lúc giáo viên đáp xong, không sớm hơn.
     expect(seen[0]).toBe(60)
-    expect(seen[1]! - seen[0]!).toBeGreaterThanOrEqual(90)
+    expect(seen[1]! - seen[0]!).toBeGreaterThanOrEqual(120)
     await ui.unmount()
   })
 
@@ -1537,7 +1641,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
     await ui.press({ key: 'enter' })
     await teacherTalks($ as never)
-    await io.clock.advance(100 * SEC)
+    await io.clock.advance(125 * SEC)
     expect(rungs(io)).toEqual(['1'])
     five = 75
     await teacherTalks($ as never)
@@ -1922,3 +2026,571 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(out[1]?.text).toBe(' rồi so với đáp án')
   })
 }
+
+// ── v0.13 — màn Thiết lập, thẻ bước, nút Xong · Chưa được · Gợi ý, bong bóng lời nói, im lặng 45 giây, giao diện sáng/tối ──────────
+const HINT = (id: string, n: number, lang: 'vi' | 'lo' = 'vi') => stepView({ id }, lang).hints![n - 1]!
+
+test('stepView · stepOf: bước 0 khi chưa có state.step; id có trong giáo án → k/N, why, gợi ý theo tiếng; title của giáo viên thắng; id lạ chỉ có title', () => {
+  expect(stepView(null, 'vi')).toMatchObject({ id: '0', k: 1, n: 8, title: 'Tham quan lớp học', cueTitle: 'Tham quan lớp học', why: 'biết dùng chính công cụ học' })
+  expect(stepView({ id: '3' }, 'vi')).toMatchObject({ k: 4, title: 'Chế độ Auto' })
+  expect(stepView({ id: '0' }, 'lo')).toMatchObject({ k: 1, title: 'ທ່ຽວຊົມຫ້ອງຮຽນ', cueTitle: 'Tham quan lớp học' }) // tín hiệu luôn tiếng Việt
+  expect(stepView({ id: '2', title: 'Việc đầu tiên của vòng 2' }, 'vi')).toMatchObject({ k: 3, title: 'Việc đầu tiên của vòng 2', cueTitle: 'Việc đầu tiên của vòng 2', why: null, hints: null })
+  expect(stepView({ id: 'v2-1', title: 'Soạn thư nhắc nợ' }, 'vi')).toMatchObject({ id: 'v2-1', k: null, n: 8, title: 'Soạn thư nhắc nợ', why: null, hints: null })
+  expect(stepView({ id: 'v2-1' }, 'vi')).toMatchObject({ title: '', cueTitle: '' })
+  expect(stepOf({ id: '4', title: 'x' })).toEqual({ id: '4', title: 'x' })
+  expect(stepOf({ id: 5 })).toEqual({ id: '5' })
+  expect(stepOf('2')).toEqual({ id: '2' })
+  expect(stepOf({ title: 'thiếu id' })).toBeNull()
+  expect(stepOf(null)).toBeNull()
+  expect(stepOf({ id: ['x'] })).toBeNull()
+})
+
+test('railText · addrLabel · paletteOf: thanh bước chữ, cách gọi theo tiếng, bảng màu sáng/tối', () => {
+  expect(railText(2, 8)).toBe('●◉○○○○○○')
+  expect(railText(8, 8)).toBe('●●●●●●●◉')
+  expect(addrLabel('Chị', 'vi')).toBe('Chị')
+  expect(addrLabel('Chị', 'lo')).toBe('ເອື້ອຍ')
+  expect(addrLabel('Chị Lan', 'lo')).toBe('Chị Lan')
+  expect(paletteOf('light')).toEqual(LIGHT)
+  expect(paletteOf('Light-Daltonized')).toBe(LIGHT)
+  expect(LIGHT).toMatchObject({ board: '#EAF4EC', ink: '#14301B', dim: '#3F6A4A', accent: '#006D11', frame: '#008816' })
+  for (const v of ['dark', 'auto', 'dark-ansi', '', undefined, null, 7, true]) expect(paletteOf(v)).toBe(DARK)
+  expect(DARK).toMatchObject({ board: '#123F1E', ink: '#F4F4EC', dim: '#B9D3BF', accent: '#FFEA00' })
+})
+
+test('bubbleKind: suy nghĩ · nói · đọc · ghi · chạy lệnh · tra cứu · việc khác; khối khác không đổi bong bóng', () => {
+  expect(bubbleKind({ kind: 'thinking' })).toBe('think')
+  expect(bubbleKind({ kind: 'text' })).toBe('say')
+  for (const n of ['Read', 'Glob', 'Grep']) expect(bubbleKind({ kind: 'tool', name: n })).toBe('read')
+  for (const n of ['Write', 'Edit', 'NotebookEdit']) expect(bubbleKind({ kind: 'tool', name: n })).toBe('write')
+  for (const n of ['Bash', 'PowerShell']) expect(bubbleKind({ kind: 'tool', name: n })).toBe('run')
+  for (const n of ['WebFetch', 'WebSearch']) expect(bubbleKind({ kind: 'tool', name: n })).toBe('web')
+  for (const n of ['TodoWrite', 'mcp__x__y', 'Skill']) expect(bubbleKind({ kind: 'tool', name: n })).toBe('work')
+  expect(bubbleKind({ kind: 'input' })).toBeNull()
+  expect(bubbleKind({ kind: 'stop' })).toBeNull()
+  expect(STR.vi.bubble('think', 'Thầy')).toBe('Thầy đang nghĩ cách làm…')
+  expect(STR.vi.bubble('say', 'Cô')).toBe('Cô đang nói với bạn…')
+  expect(STR.vi.bubble('read', 'Thầy')).toBe('Thầy đang đọc file…')
+  expect(STR.vi.bubble('write', 'Thầy')).toBe('Thầy đang ghi file…')
+  expect(STR.vi.bubble('run', 'Thầy')).toBe('Thầy đang chạy một lệnh trên máy…')
+  expect(STR.vi.bubble('web', 'Thầy')).toBe('Thầy đang tra cứu…')
+  expect(STR.vi.bubble('work', 'Thầy')).toBe('Thầy đang làm việc…')
+  expect(STR.lo.bubble('read', 'ຄູ')).toMatch(/^ຄູ/)
+})
+
+test('i18n v0.13: mọi chữ mới có đủ tiếng Việt và tiếng Lào', () => {
+  const LAO = /[\u0E80-\u0EFF]/
+  const pick = (S: typeof STR.vi) => [S.setTitle, S.setLang, S.setAddress, S.setAddressFree, S.setAddressHint, S.save, S.setMenu, S.stepHead(1, 8, 'x'), S.stepWhy('y'), S.stepDone, S.stepNot, S.stepHint, S.hintLabel(1), S.nudge, S.showPic, S.hidePic, S.bubble('read', 'T'), S.menuProgress, S.progressNone, S.railAlt(1, 8), ...Object.values(S.addr)]
+  for (const t of pick(STR.vi)) expect(t.length > 0).toBe(true)
+  for (const t of pick(STR.lo)) expect(LAO.test(t)).toBe(true)
+  expect(STR.vi.stepHead(1, 8, 'Tham quan lớp học')).toBe('Bước 1/8 · Tham quan lớp học')
+  expect(STR.vi.stepWhy('biết dùng chính công cụ học')).toBe('để biết dùng chính công cụ học')
+  expect(STR.lo.stepWhy('x')).toBe('ເພື່ອ x')
+  expect(STR.lo.addr).toEqual({ anh: 'ອ້າຍ', chi: 'ເອື້ອຍ', em: 'ນ້ອງ', ban: 'ທ່ານ' })
+  expect(STR.vi.nudge).toBe('👉 Làm xong thì bấm Xong — chưa biết làm thì bấm Gợi ý')
+})
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`${surface}: màn Thiết lập — chọn tiếng Lào, tên tự viết, cô/thầy → Vào lớp gửi đúng câu Mở lớp và lưu $.store; học viên thắng state.json`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ language: 'vi', address: 'anh' }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    // Một ngôn ngữ (v0.13): dòng chờ chỉ bằng tiếng đang chọn; ba hàng thiết lập, nút Vào lớp.
+    expect(await ui.find({ text: /Lớp đang chờ giáo viên/ })).toBeDefined()
+    expect(await ui.find({ text: /ຫ້ອງຮຽນລໍຖ້າຄູ/ })).toBeUndefined()
+    for (const key of ['lang-vi', 'lang-lo', 'addr-anh', 'addr-chi', 'addr-em', 'addr-ban', 'addr-text', 't-thay', 't-co', 'enter']) expect(await ui.find({ key })).toBeDefined()
+    expect((await ui.find({ key: 'lang-vi' }))?.props.variant).toBe('primary')
+    expect((await ui.find({ key: 'addr-anh' }))?.props.variant).toBe('primary') // state.address làm mặc định khi học viên chưa chọn
+    await ui.press({ key: 'lang-lo' })
+    expect((await ui.find({ key: 'lang-lo' }))?.props.variant).toBe('primary')
+    expect((await ui.find({ key: 'addr-ban' }))?.props.label).toBe('ທ່ານ')
+    expect((await ui.find({ key: 'addr-chi' }))?.props.label).toBe('ເອື້ອຍ')
+    expect(await ui.find({ text: /ເລືອກພາສາ/ })).toBeDefined()
+    await ui.press({ key: 't-thay' })
+    await ui.input({ key: 'addr-text', text: 'Chị Lan' })
+    await ui.press({ key: 'enter' })
+    expect(io.sent).toEqual(['[Giáo án] Mở lớp · giáo viên thay · ngôn ngữ lo · gọi “Chị Lan”'])
+    expect(io.stored.language).toBe('lo')
+    expect(io.stored.address).toBe('Chị Lan')
+    expect(io.stored.teacher).toBe('thay')
+    // Giáo viên ghi language 'vi' · address 'em': lựa chọn của học viên thắng.
+    files['.lop-hoc/state.json'] = v7({ language: 'vi', address: 'em' })
+    await teacherTalks($ as never)
+    expect(await ui.find({ text: /ພາກ 2/ })).toBeDefined()
+    expect(await ui.find({ text: /Phần 2/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test(`${surface}: màn Thiết lập — ô tự viết cắt ở 30 ký tự; chọn nút sẵn thì bỏ chữ tự viết; cô mặc định, Bạn mặc định`, LONG, async ($, on) => {
+    const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    expect((await ui.find({ key: 'addr-ban' }))?.props.variant).toBe('primary')
+    expect((await ui.find({ key: 't-co' }))?.props.variant).toBe('primary')
+    await ui.input({ key: 'addr-text', text: 'x'.repeat(45) })
+    await ui.press({ key: 'addr-em' })
+    expect((await ui.find({ key: 'addr-em' }))?.props.variant).toBe('primary')
+    await ui.input({ key: 'addr-text', text: 'y'.repeat(45) })
+    await ui.press({ key: 'enter' })
+    expect(io.sent).toEqual([`[Giáo án] Mở lớp · giáo viên co · ngôn ngữ vi · gọi “${'y'.repeat(30)}”`])
+    await ui.unmount()
+  })
+
+  test(`${surface}: ⋯ → Thiết lập → Lưu: gửi "[Giáo án] Thiết lập …" chỉ khi có đổi; Thôi thì không đổi gì; quay lại bục thường`, LONG, async ($, on) => {
+    const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
+    const saved = async (k: string) => io.stored[k]
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    expect(io.sent).toEqual([OPEN_BAN])
+    // Mở rồi Lưu không đổi gì: không gửi.
+    await ui.press({ key: 'more' })
+    await ui.press({ key: 'thiet-lap' })
+    expect(await ui.find({ key: 'enter' })).toBeUndefined()
+    expect((await ui.find({ key: 'luu' }))?.props.label).toBe('Lưu')
+    expect(await ui.find({ key: 'xong' })).toBeUndefined()
+    expect(await ui.find({ text: /Lớp đang chờ giáo viên/ })).toBeUndefined()
+    await ui.press({ key: 'luu' })
+    expect(io.sent).toEqual([OPEN_BAN])
+    expect(await ui.find({ key: 'xong' })).toBeDefined()
+    // Thôi: bỏ các thay đổi.
+    await ui.press({ key: 'more' })
+    await ui.press({ key: 'thiet-lap' })
+    await ui.press({ key: 'lang-lo' })
+    await ui.press({ key: 'addr-anh' })
+    await ui.press({ key: 'thiet-lap-thoi' })
+    expect(io.sent).toEqual([OPEN_BAN])
+    expect(await ui.find({ key: 'xong' })).toBeDefined()
+    expect((await ui.find({ key: 'xong' }))?.props.label).toBe('Xong') // vẫn tiếng Việt
+    // Đổi thật: tiếng Lào, "ອ້າຍ" (Anh), thầy.
+    await ui.press({ key: 'more' })
+    await ui.press({ key: 'thiet-lap' })
+    await ui.press({ key: 'lang-lo' })
+    await ui.press({ key: 'addr-anh' })
+    await ui.press({ key: 't-thay' })
+    await ui.press({ key: 'luu' })
+    expect(io.sent).toEqual([OPEN_BAN, '[Giáo án] Thiết lập · ngôn ngữ lo · gọi “ອ້າຍ” · giáo viên thay'])
+    expect((await ui.find({ key: 'xong' }))?.props.label).toBe('ແລ້ວ')
+    expect(await saved('language')).toBe('lo')
+    expect(await saved('address')).toBe('Anh')
+    expect(await saved('teacher')).toBe('thay')
+    // Tên tự viết cũng lưu, bằng tiếng Việt.
+    await ui.press({ key: 'more' })
+    await ui.press({ key: 'thiet-lap' })
+    await ui.press({ key: 'lang-vi' })
+    await ui.input({ key: 'addr-text', text: 'Lan' })
+    await ui.press({ key: 'luu' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Thiết lập · ngôn ngữ vi · gọi “Lan” · giáo viên thay')
+    expect(await ui.find({ text: /Thầy/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test(`${surface}: thẻ bước — "Bước 1/8 · Tham quan lớp học" + "để …" + Xong · Chưa được · Gợi ý ngay sau Vào lớp, trước cả lời giáo viên`, LONG, async ($, on) => {
+    classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    expect(await ui.find({ text: 'Bước 1/8 · Tham quan lớp học' })).toBeDefined()
+    expect(await ui.find({ text: 'để biết dùng chính công cụ học' })).toBeDefined()
+    for (const [key, label] of [['xong', 'Xong'], ['chua-duoc', 'Chưa được'], ['goi-y-buoc', 'Gợi ý']]) expect((await ui.find({ key }))?.props.label).toBe(label)
+    // Thanh bước: Svg trên desktop, chữ trên terminal.
+    if (surface === 'desktop') expect((await svgByAlt(ui, /^Bước 1 trên 8$/))?.props.source).toContain('<circle')
+    else expect(await ui.find({ text: '◉○○○○○○○' })).toBeDefined()
+    await noForbiddenWords(ui as never)
+    await ui.unmount()
+  })
+
+  test(`${surface}: thẻ bước theo state.step — bước 3, đổi tên bước, id lạ có tên, id lạ không tên (ẩn tiêu đề, giữ nút); tiếng Lào; thanh bước`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ step: { id: '3' } }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    expect(await ui.find({ text: 'Bước 4/8 · Chế độ Auto' })).toBeDefined()
+    // Lời "để …" không lặp chữ "để" khi lời của giáo án đã bắt đầu bằng "để".
+    expect(await ui.find({ text: 'để Claude làm mà không hỏi từng việc nhỏ' })).toBeDefined()
+    if (surface === 'terminal') expect(await ui.find({ text: '●●●◉○○○○' })).toBeDefined()
+    files['.lop-hoc/state.json'] = v7({ step: { id: '3', title: 'Chế độ Auto lần hai' } })
+    await io.clock.advance(2 * SEC)
+    expect(await ui.find({ text: 'Bước 4/8 · Chế độ Auto lần hai' })).toBeDefined()
+    expect(await ui.find({ text: /^để / })).toBeUndefined()
+    files['.lop-hoc/state.json'] = v7({ step: { id: 'v2-1', title: 'Soạn thư nhắc nợ' } })
+    await io.clock.advance(2 * SEC)
+    expect(await ui.find({ text: 'Soạn thư nhắc nợ' })).toBeDefined()
+    expect(await ui.find({ text: /^Bước / })).toBeUndefined()
+    expect(await ui.find({ key: 'xong' })).toBeDefined()
+    if (surface === 'desktop') expect(await svgByAlt(ui, /^Bước \d trên 8$/)).toBeUndefined()
+    files['.lop-hoc/state.json'] = v7({ step: { id: 'v2-1' } })
+    await io.clock.advance(2 * SEC)
+    expect(await ui.find({ text: /^Bước |Soạn thư/ })).toBeUndefined()
+    for (const key of ['xong', 'chua-duoc', 'goi-y-buoc']) expect(await ui.find({ key })).toBeDefined()
+    await ui.press({ key: 'xong' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Xong · bước v2-1')
+    await ui.unmount()
+  })
+
+  test(`${surface}: thẻ bước tiếng Lào — Bước k/N → ຂັ້ນ k/N, "để" → ເພື່ອ, nút ແລ້ວ · ຍັງບໍ່ໄດ້ · ແນະນຳ; tín hiệu vẫn tiếng Việt`, LONG, async ($, on) => {
+    const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'lang-lo' })
+    await ui.press({ key: 'enter' })
+    expect(await ui.find({ text: 'ຂັ້ນ 1/8 · ທ່ຽວຊົມຫ້ອງຮຽນ' })).toBeDefined()
+    expect(await ui.find({ text: 'ເພື່ອ ຮູ້ຈັກໃຊ້ເຄື່ອງມືຮຽນ' })).toBeDefined()
+    expect((await ui.find({ key: 'xong' }))?.props.label).toBe('ແລ້ວ')
+    expect((await ui.find({ key: 'chua-duoc' }))?.props.label).toBe('ຍັງບໍ່ໄດ້')
+    expect((await ui.find({ key: 'goi-y-buoc' }))?.props.label).toBe('ແນະນຳ')
+    await ui.press({ key: 'goi-y-buoc' })
+    expect(await ui.find({ text: `ແນະນຳ 1/3 · ${HINT('0', 1, 'lo')}` })).toBeDefined()
+    await ui.press({ key: 'xong' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Xong · bước 0 · Tham quan lớp học')
+    await ui.unmount()
+  })
+
+  test(`${surface}: Xong · Chưa được gửi đúng câu "[Giáo án] Xong · bước {id} · {tên}"; tính là học viên tác động (xoá nhắc, xoá thang im lặng)`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ step: { id: '2' } }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    await teacherTalks($ as never)
+    await io.clock.advance(125 * SEC)
+    expect(rungs(io)).toEqual(['1'])
+    await ui.press({ key: 'xong' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Xong · bước 2 · Việc đầu tiên')
+    expect(await ui.find({ text: /Làm xong thì bấm Xong/ })).toBeUndefined()
+    await ui.press({ key: 'chua-duoc' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Chưa được · bước 2 · Việc đầu tiên')
+    // Thầy đáp; thang im lặng tính lại từ đầu sau lần bấm.
+    await teacherTalks($ as never)
+    await io.clock.advance(110 * SEC)
+    expect(rungs(io)).toEqual(['1'])
+    await io.clock.advance(15 * SEC)
+    expect(rungs(io)).toEqual(['1', '1'])
+    await ui.unmount()
+  })
+
+  test(`${surface}: Gợi ý — nấc 1 hiện gợi ý đầu tại chỗ, không gửi gì; nấc 2 · 3 gửi "[Giáo án] Gợi ý · bước {id} · nấc n" và hiện gợi ý tương ứng; bấm nữa thì quay lại nấc 1; đổi bước thì về 0`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ step: { id: '3' } }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    const before = io.sent.length
+    expect(await ui.find({ text: /^Gợi ý \d\/3/ })).toBeUndefined()
+    await ui.press({ key: 'goi-y-buoc' })
+    expect(io.sent.length).toBe(before)
+    expect(await ui.find({ text: `Gợi ý 1/3 · ${HINT('3', 1)}` })).toBeDefined()
+    await ui.press({ key: 'goi-y-buoc' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Gợi ý · bước 3 · nấc 2')
+    expect(await ui.find({ text: `Gợi ý 2/3 · ${HINT('3', 2)}` })).toBeDefined()
+    expect(await ui.find({ text: /^Gợi ý 1\/3/ })).toBeUndefined()
+    await ui.press({ key: 'goi-y-buoc' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Gợi ý · bước 3 · nấc 3')
+    expect(await ui.find({ text: `Gợi ý 3/3 · ${HINT('3', 3)}` })).toBeDefined()
+    expect(io.sent.filter(t => t.includes('Gợi ý ·'))).toHaveLength(2)
+    await ui.press({ key: 'goi-y-buoc' })
+    expect(io.sent.filter(t => t.includes('Gợi ý ·'))).toHaveLength(2)
+    expect(await ui.find({ text: `Gợi ý 1/3 · ${HINT('3', 1)}` })).toBeDefined()
+    // Đổi bước: gợi ý cũ biến mất, nút bắt đầu lại từ nấc 1 (cục bộ).
+    await ui.press({ key: 'goi-y-buoc' })
+    files['.lop-hoc/state.json'] = v7({ step: { id: '4' } })
+    await io.clock.advance(2 * SEC)
+    expect(await ui.find({ text: 'Bước 5/8 · Tự kiểm' })).toBeDefined()
+    expect(await ui.find({ text: /^Gợi ý \d\/3/ })).toBeUndefined()
+    const n = io.sent.length
+    await ui.press({ key: 'goi-y-buoc' })
+    expect(io.sent.length).toBe(n)
+    expect(await ui.find({ text: `Gợi ý 1/3 · ${HINT('4', 1)}` })).toBeDefined()
+    // Bước không có gợi ý sẵn: bỏ nấc 1, đi thẳng nấc 2.
+    files['.lop-hoc/state.json'] = v7({ step: { id: 'v2-1', title: 'Soạn thư nhắc nợ' } })
+    await io.clock.advance(2 * SEC)
+    await ui.press({ key: 'goi-y-buoc' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Giáo án] Gợi ý · bước v2-1 · nấc 2')
+    await ui.unmount()
+  })
+
+  test(`${surface}: nhắc trên bục sau 45 giây là cục bộ (không có tín hiệu nào); ẩn khi đang gõ, khi thầy đang làm, khi xin phép`, LONG, async ($, on) => {
+    const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7(WITH_ALL) })
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    await teacherTalks($ as never)
+    const NUDGE = { text: /^👉 Làm xong thì bấm Xong — chưa biết làm thì bấm Gợi ý$/ }
+    await io.clock.advance(50 * SEC)
+    const nudge = await ui.find({ type: 'Text', ...NUDGE })
+    expect(nudge).toBeDefined()
+    expect(nudge?.props.color).toBe('#FFEA00') // vàng trên nền tối
+    expect(io.sent).toEqual([OPEN_CHI])
+    // Đang gõ: không nhắc.
+    io.box.text = 'em đang nghĩ'
+    await io.clock.advance(10 * SEC)
+    expect(await ui.find(NUDGE)).toBeUndefined()
+    io.box.text = ''
+    await io.clock.advance(35 * SEC)
+    expect(await ui.find(NUDGE)).toBeUndefined() // gõ xong tính lại từ đầu
+    await io.clock.advance(15 * SEC)
+    expect(await ui.find(NUDGE)).toBeDefined()
+    // Xin phép: không nhắc.
+    await ui.press({ key: 'xin-phep' })
+    await ui.press({ key: 'ly-do-nuoc' })
+    await io.clock.advance(MIN)
+    expect(await ui.find(NUDGE)).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test(`${surface}: bong bóng lời nói — tầng 1 hàng đầu khi thầy đang làm: nghĩ · nói · đọc file · ghi file · chạy lệnh · tra cứu; hết lượt thì về thẻ bước; Lào dùng ຄູ`, LONG, async ($, on) => {
+    const chunks: object[] = []
+    on('turn.step', async function* (_$, e) {
+      for (const c of chunks) yield c as never
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as never
+    })
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ board: { title: 'Bảng nhỏ', lines: ['một'] } }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const working = { ...BAND, props: { ...BAND.props, isWorking: true } }
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    await ui.unmount()
+    const bub = await $.ui.mount({ plugin: 'lop-hoc', surface, ...working } as never)
+    const d = $ as unknown as { turn: { start: (e: object) => Promise<unknown>; step: (e: object) => AsyncIterable<unknown>; complete: (e: object) => Promise<unknown> } }
+    const run = async (cs: object[]) => {
+      chunks.length = 0
+      chunks.push(...cs)
+      for await (const _ of d.turn.step({ turnId: 'bb', index: 0, model: 'claude-opus-5-5', messageCount: 1 })) void _
+    }
+    await d.turn.start({ text: '', turnId: 'bb' })
+    // Chưa có khối nào: "đang làm việc…"; thẻ bước và nút Xong ẩn.
+    expect(await bub.find({ text: 'Cô đang làm việc…' })).toBeDefined()
+    expect(await bub.find({ key: 'xong' })).toBeUndefined()
+    expect(await bub.find({ text: /^Bước 1\/8/ })).toBeUndefined()
+    const cases: [object[], string][] = [
+      [[{ kind: 'thinking', index: 0, text: 'x' }], 'Cô đang nghĩ cách làm…'],
+      [[{ kind: 'text', index: 1, text: 'Chào' }], 'Cô đang nói với bạn…'],
+      [[{ kind: 'tool', index: 2, id: 't1', name: 'Read' }], 'Cô đang đọc file…'],
+      [[{ kind: 'tool', index: 2, id: 't2', name: 'Write' }], 'Cô đang ghi file…'],
+      [[{ kind: 'tool', index: 2, id: 't3', name: 'Bash' }], 'Cô đang chạy một lệnh trên máy…'],
+      [[{ kind: 'tool', index: 2, id: 't4', name: 'WebSearch' }], 'Cô đang tra cứu…'],
+      [[{ kind: 'tool', index: 2, id: 't5', name: 'mcp__a__b' }], 'Cô đang làm việc…'],
+    ]
+    for (const [cs, text] of cases) {
+      await run(cs)
+      expect(await bub.find({ text })).toBeDefined()
+    }
+    // Bong bóng là hàng đầu của tầng 1 (trước hình), thẻ bước ẩn.
+    await run([{ kind: 'tool', index: 0, id: 't9', name: 'Read' }])
+    const texts = (await bub.findAll({ type: 'Text' })).map(x => x.text)
+    expect(texts.indexOf('Cô đang đọc file…')).toBeGreaterThanOrEqual(0)
+    expect(texts.indexOf('Cô đang đọc file…')).toBeLessThan(texts.indexOf('Bảng nhỏ'))
+    await bub.unmount()
+    // Hết lượt: bong bóng xoá, thẻ bước trở lại.
+    await d.turn.complete({ answer: '', durationMs: 0, isAborted: false, turnId: 'bb', reason: 'answer' })
+    const idle = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    expect(await idle.find({ text: /đang (đọc|làm việc)/ })).toBeUndefined()
+    expect(await idle.find({ text: 'Bước 1/8 · Tham quan lớp học' })).toBeDefined()
+    // Ngoài lượt chạy mà vẫn "isWorking" (props của engine): quay về "đang làm việc…".
+    await idle.unmount()
+    expect(io.sent.length).toBe(1)
+  })
+
+  test(`${surface}: bong bóng lời nói — lớp tiếng Lào dùng ຄູ; suy nghĩ vẫn là một dòng của thầy`, LONG, async ($, on) => {
+    on('turn.step', async function* (_$, e) {
+      yield { kind: 'thinking', index: 0, text: 'Tôi nghĩ' } as never
+      yield { kind: 'tool', index: 1, id: 'x', name: 'Bash' } as never
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as never
+    })
+    classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'lang-lo' })
+    await ui.press({ key: 'enter' })
+    await ui.unmount()
+    const d = $ as unknown as { turn: { start: (e: object) => Promise<unknown>; step: (e: object) => AsyncIterable<{ kind: string; text?: string }> } }
+    await d.turn.start({ text: '', turnId: 'lo' })
+    const out: { kind: string; text?: string }[] = []
+    for await (const c of d.turn.step({ turnId: 'lo', index: 0, model: 'claude-opus-5-5', messageCount: 1 })) out.push(c)
+    expect(out[0]?.text).toBe('ຄູກຳລັງຄິດ…')
+    const w = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND, props: { ...BAND.props, isWorking: true } } as never)
+    expect(await w.find({ text: STR.lo.bubble('run', 'ຄູ') })).toBeDefined()
+    expect(STR.lo.bubble('run', 'ຄູ')).toMatch(/^ຄູ/)
+    await w.unmount()
+  })
+
+  test(`${surface}: giao diện sáng — hàng cài đặt theme chứa "light" thì bục dùng bảng màu sáng; đọc lại mỗi 30 giây; không đọc được thì tối`, LONG, async ($, on) => {
+    let theme: unknown = 'light'
+    let boom = false
+    const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ board: { title: 'Bảng nhỏ', lines: ['một'] }, help_needed: true }) })
+    on('config.list', async () => {
+      if (boom) return { deny: 'không đọc được' } as never
+      return { value: [{ key: 'verbose', label: 'Verbose', kind: 'boolean', value: true }, { key: 'theme', label: 'Theme', kind: 'choice', value: theme }] } as never
+    })
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    const bg = async () => (await ui.findAll({ type: 'Box' })).map(b => b.props.backgroundColor).find(c => c === '#EAF4EC' || c === '#123F1E')
+    expect(await bg()).toBe('#EAF4EC') // màn Thiết lập đã sáng
+    await ui.press({ key: 'enter' })
+    expect(await bg()).toBe('#EAF4EC')
+    const board = await ui.find({ type: 'Box', key: 'board-row' })
+    expect(board?.props.borderColor).toBe('#008816')
+    const head = await ui.find({ type: 'Text', text: 'Bước 1/8 · Tham quan lớp học' })
+    expect(head?.props.color).toBe('#006D11')
+    const why = await ui.find({ type: 'Text', text: /^để / })
+    expect(why?.props.color).toBe('#14301B')
+    const help = await ui.find({ type: 'Text', text: /Đang cần người hỗ trợ/ })
+    expect(help?.props.color).toBe('#14301B')
+    // Đổi sang tối: lần đọc kế tiếp (≤ 30 giây) đổi bảng màu.
+    theme = 'dark'
+    await io.clock.advance(35 * SEC)
+    expect(await bg()).toBe('#123F1E')
+    expect((await ui.find({ type: 'Text', text: 'Bước 1/8 · Tham quan lớp học' }))?.props.color).toBe('#FFEA00')
+    // Lại sáng; rồi không đọc được: tối.
+    theme = 'light-daltonized'
+    await io.clock.advance(35 * SEC)
+    expect(await bg()).toBe('#EAF4EC')
+    boom = true
+    await io.clock.advance(35 * SEC)
+    expect(await bg()).toBe('#123F1E')
+    await ui.unmount()
+  })
+
+  test(`${surface}: không có hàng theme hoặc không có bộ đọc cài đặt → bảng màu tối như 0.12`, LONG, async ($, on) => {
+    classroom(on, { 'CLAUDE.md': '# Lớp học NNC' })
+    on('config.list', async () => ({ value: [{ key: 'verbose', label: 'Verbose', kind: 'boolean', value: true }] }) as never)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    expect((await ui.findAll({ type: 'Box' })).some(b => b.props.backgroundColor === '#123F1E')).toBe(true)
+    expect((await ui.findAll({ type: 'Box' })).some(b => b.props.backgroundColor === '#EAF4EC')).toBe(false)
+    await ui.unmount()
+  })
+
+  test(`${surface}: thứ tự ba tầng — Bypass (nếu có) → tầng 1 (thẻ bước, nút) → tầng 2 (hình) → tầng 3 (thanh bước, Giơ tay · Xin phép · ⋯)`, LONG, async ($, on) => {
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ board: { title: 'Bảng nhỏ', lines: ['một dòng'] }, stars: 2, help_needed: true }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const bar = await $.ui.mount({ plugin: 'lop-hoc', surface, component: 'SessionMode', props: { modes: ['Bypass permissions'] } } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await io.clock.advance(3 * SEC)
+    await ui.press({ key: 'enter' })
+    const order = (await ui.findAll({})).map(x => (x.type === 'Button' ? `k:${x.key}` : x.type === 'Text' ? `t:${x.text}` : ''))
+    const at = (m: string | RegExp) => order.findIndex(o => (typeof m === 'string' ? o === m : m.test(o)))
+    const idx = [at(/^t:.*Bypass permissions/), at('t:Bước 1/8 · Tham quan lớp học'), at('k:xong'), at('k:goi-y-buoc'), at('k:nho-ho-tro'), at('t:Bảng nhỏ'), at('t:một dòng'), at('k:gio-tay'), at('k:xin-phep'), at('k:more')]
+    expect(idx.every(i => i >= 0)).toBe(true)
+    expect([...idx].sort((a, b) => a - b)).toEqual(idx)
+    await bar.unmount()
+    await ui.unmount()
+  })
+
+  test(`${surface}: hình thu thành "Xem hình" khi tầng 1 có lựa chọn; bấm xem được và ẩn lại; giáo viên ghi lại state thì thu lại`, LONG, async ($, on) => {
+    const choices = { id: 'kiem', prompt: 'Ba dòng khớp hay lệch?', options: [{ label: 'Khớp' }, { label: 'Có chỗ lệch' }], default: 0 }
+    const files: Record<string, string> = { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ step: { id: '4' }, choices, board: { title: 'Bảng nhỏ', lines: ['một'] } }) }
+    const io = classroom(on, files)
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await ui.press({ key: 'enter' })
+    // Lựa chọn nằm trong tầng 1, ngay dưới thẻ bước, trước nút Xong.
+    const order = (await ui.findAll({})).map(x => (x.type === 'Button' ? `k:${x.key}` : x.type === 'Text' ? `t:${x.text}` : ''))
+    expect(order.indexOf('t:Bước 5/8 · Tự kiểm')).toBeLessThan(order.indexOf('k:choice-0'))
+    expect(order.indexOf('k:choice-1')).toBeLessThan(order.indexOf('k:xong'))
+    expect(await ui.find({ text: 'Bảng nhỏ' })).toBeUndefined()
+    expect((await ui.find({ key: 'xem-hinh' }))?.props.label).toBe('Xem hình')
+    await ui.press({ key: 'xem-hinh' })
+    expect(await ui.find({ text: 'Bảng nhỏ' })).toBeDefined()
+    expect((await ui.find({ key: 'xem-hinh' }))?.props.label).toBe('Ẩn hình')
+    await ui.press({ key: 'choice-0' })
+    expect(io.sent[io.sent.length - 1]).toBe('[Lớp học] Chọn · kiem · Khớp')
+    // Học viên đã mở hình thì giữ mở (kể cả khi chọn xong); bấm "Ẩn hình" thì đóng.
+    expect(await ui.find({ text: 'Bảng nhỏ' })).toBeDefined()
+    await ui.press({ key: 'xem-hinh' })
+    expect(await ui.find({ text: 'Bảng nhỏ' })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test(`${surface}: bypass chip đứng trước tầng 1; trợ giúp (Soạn tin nhờ hỗ trợ) nằm trong tầng 1 khi help_needed`, LONG, async ($, on) => {
+    const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({ help_needed: true }) })
+    await $.session.start({ cwd: 'D:/sandbox', surface, isInteractive: true } as never)
+    const bar = await $.ui.mount({ plugin: 'lop-hoc', surface, component: 'SessionMode', props: { modes: ['Bypass permissions'] } } as never)
+    const ui = await $.ui.mount({ plugin: 'lop-hoc', surface, ...BAND } as never)
+    await io.clock.advance(3 * SEC)
+    await ui.press({ key: 'enter' })
+    const chip = await ui.find({ type: 'Text', text: /⚠ Bypass permissions/ })
+    expect(chip?.props.backgroundColor).toBe('#FF8A80')
+    expect(await ui.find({ key: 'nho-ho-tro' })).toBeDefined()
+    await bar.unmount()
+    await ui.unmount()
+  })
+}
+
+// ── v0.13: góp ý — thầy ghi, bục gửi lên Drive người phụ trách ─────────────────────
+test('góp ý: đọc bản thầy ghi và cấu hình nơi nhận; sai thì bỏ', async () => {
+  expect(feedbackOf({ id: 'v1-chot', loai: 'chot-vong', muc: 'lon', thay_danh_gia: 'Bước 3 học viên lúng túng', de_xuat: 'Thêm ảnh' }))
+    .toEqual({ id: 'v1-chot', loai: 'chot-vong', muc: 'lon', thay_danh_gia: 'Bước 3 học viên lúng túng', de_xuat: 'Thêm ảnh' })
+  expect(feedbackOf({ id: 'x', thay_danh_gia: 'ok', loai: 'la', muc: 'la' })).toEqual({ id: 'x', loai: 'gop-y', muc: 'gop-y', thay_danh_gia: 'ok' })
+  expect(feedbackOf({ id: 'x' })).toBeNull()
+  expect(feedbackOf({ thay_danh_gia: 'ok' })).toBeNull()
+  expect(feedbackConfigOf({ url: 'https://script.google.com/macros/s/abc/exec', token: 't1' })).toEqual({ url: 'https://script.google.com/macros/s/abc/exec', token: 't1' })
+  expect(feedbackConfigOf({ url: 'http://x', token: 't1' })).toBeNull()
+  expect(feedbackConfigOf({ url: 'https://x' })).toBeNull()
+  const body = JSON.parse(feedbackBody({ id: 'a', loai: 'gop-y', muc: 'nho', thay_danh_gia: 'tốt' }, { token: 't', hoc_vien: 'Laty', ngon_ngu: 'lo', giao_vien: 'co', gui_luc: '2026-10-20T03:00:00.000Z' }))
+  expect(feedbackDelivered({ status: 200, ok: true, text: '{"ok":true}', headers: {} })).toBe(true)
+  expect(feedbackDelivered({ status: 200, ok: true, text: '{"ok":false,"error":"token"}', headers: {} })).toBe(false)
+  expect(feedbackDelivered({ status: 302, ok: false, text: '', headers: { location: 'https://script.googleusercontent.com/macros/echo?x=1' } })).toBe(true)
+  expect(feedbackDelivered({ status: 302, ok: false, text: '', headers: { location: 'https://evil.example/' } })).toBe(false)
+  expect(feedbackDelivered({ status: 500, ok: false, text: '', headers: {} })).toBe(false)
+  expect(body).toEqual({ token: 't', ban: CLASS_VERSION, hoc_vien: 'Laty', ngon_ngu: 'lo', giao_vien: 'co', gui_luc: '2026-10-20T03:00:00.000Z', id: 'a', loai: 'gop-y', muc: 'nho', thay_danh_gia: 'tốt' })
+})
+
+test('desktop: thầy ghi góp ý → bục gửi một lần kèm tên học viên đã chọn, báo học viên; không có cấu hình thì không gửi', LONG, async ($, on) => {
+  const files: Record<string, string> = {
+    'CLAUDE.md': '# Lớp học NNC',
+    '.claude/phan-hoi.json': JSON.stringify({ url: 'https://script.google.com/macros/s/abc/exec', token: 'tk' }),
+  }
+  const io = classroom(on, files)
+  const posts: { url: string; body: string }[] = []
+  on('http.fetch', async (_$, e) => {
+    const ev = e as unknown as { url: string; init?: { body?: string } }
+    posts.push({ url: ev.url, body: ev.init?.body ?? '' })
+    return { value: { status: 200, ok: true, headers: {}, text: '{"ok":true}' } } as never
+  })
+  await $.session.start({ cwd: 'D:/sandbox', surface: 'desktop', isInteractive: true } as never)
+  const ui = await $.ui.mount({ plugin: 'lop-hoc', surface: 'desktop', ...BAND } as never)
+  await ui.input({ key: 'addr-text', text: 'Laty' })
+  await ui.press({ key: 'enter' })
+  files['.lop-hoc/state.json'] = v7({ feedback: { id: 'v1-chot', loai: 'chot-vong', muc: 'lon', thay_danh_gia: 'Bước 3: Laty chưa tìm thấy chế độ quyền', de_xuat: 'Ảnh phóng to' } })
+  await teacherTalks($ as never)
+  await io.clock.advance(10 * SEC)
+  expect(posts).toHaveLength(1)
+  expect(posts[0].url).toBe('https://script.google.com/macros/s/abc/exec')
+  const b = JSON.parse(posts[0].body)
+  expect(b.token).toBe('tk')
+  expect(b.hoc_vien).toBe('Laty')
+  expect(b.id).toBe('v1-chot')
+  expect(b.ban).toBe(CLASS_VERSION)
+  expect(io.toasts.some(x => /đã gửi góp ý/.test(x))).toBe(true)
+  // Cùng id: không gửi lại.
+  await teacherTalks($ as never)
+  await io.clock.advance(60 * SEC)
+  expect(posts).toHaveLength(1)
+  // Bỏ cấu hình: id mới cũng không gửi.
+  delete files['.claude/phan-hoi.json']
+  files['.lop-hoc/state.json'] = v7({ feedback: { id: 'v1-nghi', loai: 'xin-nghi', muc: 'nho', thay_danh_gia: 'Nghỉ giữa bước 4' } })
+  await teacherTalks($ as never)
+  await io.clock.advance(60 * SEC)
+  expect(posts).toHaveLength(1)
+  await ui.unmount()
+})
+
+test('desktop: ⋯ → Góp ý cho lớp: học viên viết, lời đến thầy như tin của học viên', LONG, async ($, on) => {
+  const io = classroom(on, { 'CLAUDE.md': '# Lớp học NNC', '.lop-hoc/state.json': v7({}) })
+  await $.session.start({ cwd: 'D:/sandbox', surface: 'desktop', isInteractive: true } as never)
+  const ui = await $.ui.mount({ plugin: 'lop-hoc', surface: 'desktop', ...BAND } as never)
+  await ui.press({ key: 'enter' })
+  await ui.press({ key: 'more' })
+  await ui.press({ key: 'gop-y' })
+  expect(await ui.find({ key: 'gop-y-o' })).toBeDefined()
+  await ui.input({ key: 'gop-y-o', text: 'Bước chế độ quyền hơi khó tìm' })
+  expect(io.sent).toContain('[Lớp học] Góp ý: Bước chế độ quyền hơi khó tìm')
+  expect(await ui.find({ key: 'gop-y-o' })).toBeUndefined()
+  await ui.unmount()
+})

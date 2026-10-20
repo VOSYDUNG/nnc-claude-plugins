@@ -9,6 +9,7 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 - Mở ứng dụng, chọn tab **Code**. Nếu được hỏi cài Git cho Windows thì cài theo hướng dẫn trên màn hình.
 
 ## 2. Nhờ Claude cài lớp học
+- Lần đầu nên có **người hỗ trợ ngồi cài cùng** bạn (người ghi ở đầu trang này).
 - Mở **Claude Desktop** → tab **Code** → mở **bất kỳ thư mục nào** (ví dụ thư mục *Tải về*).
 - **Kéo file ZIP** *Lop-hoc-NNC* vào ô nhập, hoặc gõ: *hãy cài đặt lớp học NNC cho tôi* (kèm file ZIP).
 - Bạn không cần giải nén, không cần gõ lệnh nào khác.
@@ -20,8 +21,8 @@ Lớp học diễn ra ngay trong Claude trên máy của bạn và **luôn mở*
 - Thấy bục giảng ghi *"Lớp đang chờ giáo viên"* là xong. **Chưa thấy bục giảng: gõ `/reload-plugins`** vào ô nhập rồi chờ vài giây (đây là lệnh duy nhất lớp nhờ bạn gõ). Vẫn chưa thấy thì Claude hướng dẫn thêm; nếu vẫn kẹt, Claude soạn sẵn tin để bạn gửi cho người hỗ trợ.
 
 ## 4. Vào học
-- Chọn **thầy** hoặc **cô**, rồi bấm **Vào lớp**. Mở lại app sau vài hôm thì bấm **Tiếp tục**.
-- Giáo viên hỏi bạn học bằng **tiếng Việt** hay **ພາສາລາວ**. Chọn tiếng Lào thì bảng lớp, các nút và lời giáo viên chuyển sang tiếng Lào.
+- Bảng lớp hiện **Thiết lập**: chọn **Tiếng Việt** hay **ພາສາລາວ**, cách gọi bạn (Anh · Chị · Em · Bạn, hoặc tự gõ tên), **thầy** hay **cô**, rồi bấm **Vào lớp**. Đổi lại lúc nào cũng được ở nút **⋯ → Thiết lập**.
+- Giáo viên dẫn bạn đi một vòng lớp học trước, rồi làm từng bước. Mỗi bước có nút **Xong** (làm xong), **Chưa được** và **Gợi ý** (bí thì bấm). Mở lại app sau vài hôm thì bấm **Tiếp tục**.
 - Giáo viên dẫn từng bước. Khi thấy nút **"▶ …"**, bấm nút rồi bấm **Enter** là bạn đã giao việc cho Claude.
 - Có việc thật trong thư mục của bạn? Chọn **Làm việc thật trong thư mục của tôi**, giáo viên kèm bạn làm ngay trong thư mục đó.
 - Cần hỏi thì **Giơ tay**. Cần đi đâu một lát thì **Xin phép**. Phải dừng thì **Xin nghỉ**, giáo viên lưu chỗ.
