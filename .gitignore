@@ -3,3 +3,19 @@ __pycache__/
 .pytest_cache/
 .nnc-oser/
 .venv/
+
+# Engine-generated editor types/tsconfig beside the lop-hoc mod
+plugins/lop-hoc/.claude-plugin/types/
+plugins/lop-hoc/tsconfig.json
+
+# Danh sách từ nội bộ cấm đưa lên repo (chỉ trên máy người phát hành)
+.noi-bo-tu-cam.txt
+
+# Dòng người hỗ trợ điền vào HUONG-DAN.md khi đóng ZIP (tên người, không đưa lên repo)
+.lien-he-ho-tro.txt
+
+# Danh mục liên kết tài liệu nội bộ cho giáo viên tra cứu (chèn vào ZIP, không đưa lên repo)
+.nguon-tai-lieu.md
+
+# Nơi nhận góp ý của lớp (url + token Apps Script) — chèn vào ZIP, không đưa lên repo
+.phan-hoi.json
