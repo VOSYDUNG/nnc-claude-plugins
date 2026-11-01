@@ -5,6 +5,13 @@ formats. Adding an adapter does not create a permission to use another provider
 or copy project data to it. Each approved host/provider/account binding stays
 separate. The default route is the host's native agent orchestration.
 
+The kernel is a durable Mission and evidence boundary, not a universal agent
+runner. A host may choose direct work, native subagents, an experimental team
+feature, or no delegation at all. Store the host's native execution reference and
+receipt; do not translate one provider's spawn, question, roster, wave, polling, or
+continuation API into a required NNC primitive. Governance invariants are
+tracked in [DECLARATION.md](../DECLARATION.md), owned by the repository ROOT.
+
 ## Common stdio MCP entry
 
 Launch from the intended project or pass its absolute path explicitly:
@@ -87,6 +94,28 @@ Record returned catalog via `catalog.record`, returned samples via `health`, and
 retain the native output as provenance. No auto-admission occurs when a probe is
 run. The actual native model execution remains the agent/host's responsibility.
 
+## Native delegation surfaces (documented, host-specific)
+
+Codex custom agents are project-scoped standalone TOML files under
+`.codex/agents/*.toml`; Codex also exposes built-in agents and an optional
+`[agents] max_concurrent_threads_per_session` setting. These are Codex
+configuration surfaces, not NNC roster requirements. A Codex client may spawn,
+wait for, steer or close subagent threads through its own supported controls; NNC
+records only approved execution intent and native receipts. The official docs do
+not make a model label, effort, or concurrent count proof of live execution.
+
+Claude Code supports project/user subagents under `.claude/agents/*.md` and has a
+separate experimental agent-teams feature. Teams, teammate messaging and team
+task coordination remain Claude host behavior. They are not interchangeable with
+Codex custom-agent TOML or with the NNC kernel. A Claude question helper is also
+not a cross-host requirement: on Codex, present the same decision contract using
+the active host's native interaction or ordinary conversation.
+
+The statements above are DOCUMENTED interface facts from the official references;
+this repository has not established live conformance for every installed host,
+version, team feature, model, effort, or approval setting. Record PROBED or
+OBSERVED only after the relevant host operation supplies evidence.
+
 ## Read versus report versus enforcement
 
 - DOCUMENTED: schema/instructions are known; no local proof yet.
@@ -118,6 +147,10 @@ STALE, not reset to zero. Full raw transcripts remain outside the parent context
 - Claude statusLine: https://code.claude.com/docs/en/statusline
 - Claude lifecycle hooks: https://code.claude.com/docs/en/hooks
 - Codex App Server: https://developers.openai.com/codex/app-server
+- Codex subagents and custom agents: https://learn.chatgpt.com/docs/agent-configuration/subagents
+- Codex skills: https://learn.chatgpt.com/docs/build-skills
+- Claude Code subagents: https://code.claude.com/docs/en/sub-agents
+- Claude Code agent teams: https://code.claude.com/docs/en/agent-teams
 - MCP lifecycle: https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
 
 These references describe potential host support. Test the installed version;

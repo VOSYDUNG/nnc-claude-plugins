@@ -126,6 +126,8 @@ class TestR2Formation(unittest.TestCase):
                           "unknowns": ["Có đủ cho free-text hay không"]}],
             "decision": self.card(),
             "selected_direction": "Pilot native/configuration trước",
+             "direction_approval": {"approved_by": "human-ceo", "approved_at": "2026-10-12T10:00:00Z",
+                                    "decision_ref": "DEC-FANPAGE-001"},
             "unresolved": [],
             "mission_draft": {"goal": "Giảm phản hồi thủ công trên một fanpage",
                               "owner": "nontech-user",
@@ -135,6 +137,22 @@ class TestR2Formation(unittest.TestCase):
         view = formation_view(validate_formation(value))
         self.assertTrue(view["mission_ready"])
         self.assertIn("not approval", view["note"])
+
+    def test_mission_ready_requires_recorded_direction_approval(self):
+        value = {
+            "id": "F-NONTECH-002", "stage": "MISSION_READY", "actor": "nontech-user",
+            "problem": "Muốn tự động hóa FAQ", "current_reality": {
+                "workflow": "Trả lời thủ công", "pain": "Lặp lại", "current_tools": ["Inbox"],
+                "constraints": ["Không tự gửi khi chưa duyệt"]},
+            "research": [{"candidate": "native", "class": "native", "fit": "phù hợp",
+                           "source_ref": "official-doc", "unknowns": []}],
+            "decision": self.card(), "selected_direction": "Pilot native", "unresolved": [],
+            "mission_draft": {"goal": "Giảm thao tác", "owner": "human-ceo",
+                               "authority_refs": ["faq"], "acceptance_outcomes": ["đúng"]},
+        }
+        with self.assertRaises(OserError) as ctx:
+            validate_formation(value)
+        self.assertEqual(ctx.exception.code, "DIRECTION_APPROVAL_REQUIRED")
 
 
 class TestR2DecisionHook(unittest.TestCase):

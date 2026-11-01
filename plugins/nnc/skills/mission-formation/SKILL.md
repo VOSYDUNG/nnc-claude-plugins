@@ -1,7 +1,8 @@
 ---
 name: mission-formation
 description: Use when a user has a vague improvement idea, wants to build an app, agent, chatbot, automation, skill or report, says they do not know where to start, or needs help deciding whether to configure, buy, integrate, reuse or custom-build. Guides a non-technical user from real work to an approved Mission without forcing technical vocabulary.
-version: 0.1.0
+metadata:
+  version: "0.1.0"
 ---
 
 # NNC OSER — Mission Formation
@@ -41,7 +42,9 @@ Read only what applies:
 ## Material decisions
 
 For D2/D3 decisions, save a Decision Card under .nnc-oser/decisions through
-oser decision-write, then generate the native question shape with oser decision-ask.
+oser decision-write, then present the decision through the active host interface.
+Use a host-native question tool when that host documents one; do not require a
+Claude-only question API on Codex or another host.
 
 Never hide business consequences behind labels such as Firebase, vector DB,
 OAuth, agent team or event bus. Translate the decision into what changes for the

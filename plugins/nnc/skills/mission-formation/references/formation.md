@@ -27,5 +27,11 @@ The list can be shorter if the problem clearly excludes a class.
 
 ## Mission boundary
 
-A Mission describes the outcome, not Claude's internal plan. Internal tasks,
-agents and workflows may change without rewriting acceptance.
+A Mission describes the outcome, not a host's internal plan. Internal tasks,
+subagents, teams and workflows may change without rewriting acceptance.
+
+At `MISSION_READY`, retain `direction_approval` with `approved_by`, an ISO-8601
+`approved_at` with timezone, and `decision_ref` pointing to the human's actual
+approval. Reuse approval already present in the session or authoritative record;
+do not ask again or manufacture an approval. This is a recorded attestation, not
+authentication, Mission initialization, or permission to deploy.

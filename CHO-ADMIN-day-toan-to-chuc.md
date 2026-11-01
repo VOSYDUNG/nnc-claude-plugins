@@ -1,5 +1,10 @@
 # Cách 2 — Admin đẩy cho TOÀN tổ chức (không ai phải gõ lệnh)
 
+> Phạm vi: hướng dẫn managed settings của **Claude Code**, không áp cho Codex.
+> Các lệnh `oser update/migrate` bên dưới thuộc compatibility v4. Với Mission R1/R2,
+> dùng [migration guide](docs/oser-r1/MIGRATION.md) và [host integration](docs/oser-r1/INTEGRATIONS.md);
+> không tự chạy migration dự án hoặc đổi settings tổ chức chỉ vì plugin được cập nhật.
+
 Cách 1 (mỗi người gõ 2 lệnh) nằm ở `README.md`. Cách này dành cho quản trị viên Claude của
 NNC Lao Group: thêm hai khoá vào **managed settings** của tổ chức, mọi thành viên tự có.
 

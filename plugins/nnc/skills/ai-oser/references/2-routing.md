@@ -22,5 +22,6 @@ execution. Store its resolved candidate and capability snapshot for provenance.
 
 ADMITTED means the requested plan passed local policy checks. It does not start
 inference and does not mean the host applied the plan. Native receipt records are
-separate. The agent uses native delegation after admission; no second mandatory
-routing model is inserted into every interaction.
+separate. After admission, let the active host select its documented delegation
+surface (for example, Codex custom agents or Claude subagents/teams). Do not invent
+a cross-host spawn call, roster, wave, or second mandatory routing model.

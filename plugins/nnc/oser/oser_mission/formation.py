@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from .common import require, text
+from .common import epoch, require, text
 from .decision import validate_decision
 
 STAGES = ("INTAKE", "REALITY_AUDIT", "RESEARCH", "DECISION", "MISSION_READY")
@@ -79,6 +79,15 @@ def validate_formation(value):
     if result["stage"] == "MISSION_READY":
         require(result["selected_direction"], "DIRECTION_REQUIRED",
                 "lock a selected direction before Mission formation")
+        approval = value.get("direction_approval")
+        require(isinstance(approval, dict), "DIRECTION_APPROVAL_REQUIRED",
+                "Mission draft requires recorded human approval of the selected direction")
+        result["direction_approval"] = {
+            "approved_by": text(approval.get("approved_by"), "direction_approval.approved_by"),
+            "approved_at": text(approval.get("approved_at"), "direction_approval.approved_at"),
+            "decision_ref": text(approval.get("decision_ref"), "direction_approval.decision_ref"),
+        }
+        epoch(result["direction_approval"]["approved_at"])
         require(not result["unresolved"], "FORMATION_UNRESOLVED",
                 "resolve or explicitly defer Formation unknowns before Mission lock")
         draft = value.get("mission_draft")
@@ -96,6 +105,10 @@ def validate_formation(value):
                 "Mission draft needs outcome acceptance")
     elif value.get("mission_draft") is not None:
         result["mission_draft"] = deepcopy(value["mission_draft"])
+    if result["stage"] != "MISSION_READY" and value.get("direction_approval") is not None:
+        approval = value["direction_approval"]
+        require(isinstance(approval, dict), "INVALID_FORMATION", "direction_approval must be an object")
+        result["direction_approval"] = deepcopy(approval)
 
     return result
 
@@ -109,6 +122,7 @@ def formation_view(value):
         "research_candidates": len(formation["research"]),
         "decision": formation.get("decision", {}).get("id"),
         "selected_direction": formation.get("selected_direction"),
+        "direction_approval": formation.get("direction_approval"),
         "unresolved": formation["unresolved"],
         "mission_ready": formation["stage"] == "MISSION_READY",
         "note": "MISSION_READY is a validated draft state, not approval and not oser init.",

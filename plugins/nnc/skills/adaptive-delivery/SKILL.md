@@ -1,7 +1,8 @@
 ---
 name: adaptive-delivery
 description: Use when an NNC OSER Mission is already clear or approved and the user wants to build, configure, test, release, operate, fix or update the result. Chooses a delivery route appropriate to the product instead of forcing the NNC-Kho or web-app lifecycle.
-version: 0.1.0
+metadata:
+  version: "0.1.0"
 ---
 
 # NNC OSER — Adaptive Delivery

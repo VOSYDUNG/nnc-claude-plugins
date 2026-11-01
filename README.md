@@ -1,6 +1,6 @@
 # NNC OSER — Human Mission R2 Alpha
 
-**5.1.0-alpha.2 · Human Mission Space pilot candidate, not a production certification.**
+**5.1.0-alpha.3 · Human Mission Space pilot candidate, not a production certification.**
 
 NNC OSER keeps a project's Mission, approved authority, acceptance evidence,
 continuation state and Health durable while the current agent chooses how to
@@ -12,6 +12,11 @@ The repository retains its Claude-plugin packaging name. The R1 Python kernel
 and stdio MCP server also work outside Claude Code: Codex and other hosts connect
 through their own supported interface. No inference provider SDK is required.
 Python **3.9+**, standard library, Git for linked-worktree resolution.
+
+Read the [shared declaration](docs/DECLARATION.md) for kernel, business-domain and
+host boundaries, and the [current audit](docs/ROOT.md) for verified changes and
+remaining acceptance. Provider-native orchestration follows each host's official
+documentation; OSER does not impose a cross-provider agent workflow.
 
 ## Test this branch
 

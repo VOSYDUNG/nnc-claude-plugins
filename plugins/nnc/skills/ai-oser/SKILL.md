@@ -13,12 +13,17 @@ The CLI/MCP implements state contracts. Host permissions remain authoritative.
    No state yet: ask for or derive a proposed Mission contract, then have its
    authority, acceptance and resource envelope approved before `init`.
 2. Work toward that Mission. Proactively choose direct work, tools, delegation,
-   parallel work and appropriate review. No mandatory team, wave or packet.
+   parallel work and appropriate review. No mandatory team, wave or packet. When
+   the host offers native subagents or teams, use that host workflow; the kernel
+   records the Mission, execution reference and receipts but does not emulate the
+   host's delegation API.
 3. Select only real runtime candidates within the approved envelope. Native
    selectors are preferred where appropriate. Do not guess latest model IDs,
    infer permissions from your identity, or assume effort names match providers.
 4. Record useful checkpoints and evidence through structured OSER tools. Waiting
    while registered children run is legal; `end_turn` is not Mission completion.
+   Do not require a Claude-only question tool such as `AskUserQuestion` on Codex
+   or another host; render the same decision contract through the active interface.
 5. Reconcile terminal results before completion, including late notifications.
    Missing observability is UNKNOWN, never "everything is healthy".
 
