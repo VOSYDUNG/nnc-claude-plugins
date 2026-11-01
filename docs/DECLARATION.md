@@ -32,7 +32,7 @@ Thông tin kỹ thuật và nguồn chính thức nằm ở [Host integrations](
 
 ## Cấp và ký hiệu
 
-Workflow A (Formation/Decision) là bước thành lập ở cấp dự án hoặc nhánh: làm rõ vấn đề, lựa chọn và quyết định trước khi cam kết. Workflow B (Adaptive Delivery/Operation) là bước xúc tiến ở cấp dự án hoặc nhánh: giao kết quả, ghi nhận sử dụng và xử lý nghẽn trong phạm vi đã thành lập.
+Workflow A (Formation/Decision) là bước thành lập ở cấp dự án hoặc nhánh: làm rõ vấn đề, lựa chọn và quyết định trước khi cam kết. Trong thành lập, QA/QC sơ bộ là giai đoạn đầu của kiểm chứng: sau khi hướng được duyệt và trước `MISSION_READY`, nó hình thành luật chung của Mission (tiêu chí nghiệm thu kèm loại bằng chứng, bất biến, các phép kiểm QC và điều chưa biết), được kernel R1 khóa làm mẫu số nghiệm thu cố định; thay đổi sau khi khóa là Delta Mission. Workflow B (Adaptive Delivery/Operation) là bước xúc tiến ở cấp dự án hoặc nhánh: giao kết quả, ghi nhận sử dụng và xử lý nghẽn trong phạm vi đã thành lập.
 
 Cổng `MISSION_READY` kèm `direction_approval` (từ alpha.3) là cổng chuyển sang tự chủ: hướng đã chọn phải có người duyệt, thời điểm và tham chiếu quyết định. Mission kernel R1 là điều kiện bắt buộc của cấp tự chủ; không có kernel giữ hợp đồng, thẩm quyền và bằng chứng thì không vận hành tự chủ.
 

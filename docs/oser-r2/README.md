@@ -7,7 +7,16 @@ R2 is an additive alpha over the provider-neutral R1 Mission kernel.
 ### Workflow A — Formation / Decision
 
 vague problem -> reality audit -> research available paths -> consequence-oriented
-decision -> approved direction -> Mission draft.
+decision -> approved direction -> QA/QC sơ bộ (early verification) -> Mission draft.
+
+QA/QC sơ bộ is the early phase of verification: it forms the Mission's common rules
+before MISSION_READY. QA designs how quality/outcome will be assured; QC names the
+concrete checks that Workflow B will run. Its output is carried into the Mission
+draft and locked by the R1 kernel as the fixed acceptance denominator: outcome
+acceptance criteria with the evidence kinds each `requires`, invariants that must
+not be violated, the QC checks/evaluators producing each evidence kind, and the
+remaining unknowns with how they will be reduced. No QA/QC sơ bộ means not
+MISSION_READY; changing these rules after lock is a Delta Mission.
 
 The goal is to help a non-technical user form the right Mission before custom
 building. Research may conclude that configuration, an existing product, a
@@ -15,8 +24,9 @@ reusable Skill, an integration or a custom build is appropriate.
 
 ### Workflow B — Adaptive Delivery / Operation
 
-approved Mission -> product-appropriate delivery route -> evidence / user test ->
-real use -> operation -> Delta Mission for fix/update.
+approved Mission -> product-appropriate delivery route -> run the QC checks defined
+at formation -> evidence / user test -> real use -> operation -> Delta Mission for
+fix/update. A passing test is still separate from real use.
 
 The route is not fixed. A chatbot, spreadsheet, Skill, automation and production
 web application do not need the same gates.

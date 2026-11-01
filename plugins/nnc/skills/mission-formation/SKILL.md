@@ -22,9 +22,16 @@ database or agent terminology before the real job is understood.
 4. Decision — for material choices, write a Decision Card and present consequences
    in user language. A recommendation is not approval. Always include an
    investigate/test-first path when uncertainty can be reduced safely.
-5. Mission draft — only after direction is approved, propose goal, authority,
-   outcome acceptance and the resource/safety envelope. R1 oser init remains the
-   durable Mission lock.
+5. QA/QC sơ bộ (early verification) — after direction is approved, form the
+   Mission's common rules: outcome acceptance criteria with the evidence kinds each
+   `requires`; invariants (source-of-truth data, authority, safety, privacy); the
+   QC checks/evaluators that will produce each evidence kind in delivery and who or
+   what evaluates; remaining unknowns and how to reduce them. QA designs how the
+   outcome will be assured; QC is the concrete checks. Without it, not MISSION_READY.
+   See references/formation.md.
+6. Mission draft — carry those rules into goal, authority, outcome acceptance and
+   the resource/safety envelope. R1 oser init remains the durable Mission lock and
+   fixes the acceptance denominator; changing the rules after lock is a Delta Mission.
 
 Do not build merely because build is possible.
 
@@ -52,6 +59,7 @@ user, data, recurring cost, maintenance, reversibility and next action.
 
 ## Stop condition
 
-Formation is done when the user has approved a direction and the Mission draft
-has explicit authority plus outcome acceptance. MISSION_READY is a validated
+Formation is done when the user has approved a direction, QA/QC sơ bộ has
+produced the Mission's common rules, and the Mission draft has explicit authority
+plus outcome acceptance. MISSION_READY is a validated
 draft state, not approval and must not silently initialize or mutate production.

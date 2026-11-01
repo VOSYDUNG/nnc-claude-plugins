@@ -11,6 +11,10 @@ Read the active Mission and current authority first. Let the native agentic
 runtime choose direct work, tools, subagents, workflows, parallelism, model and
 effort inside approved boundaries.
 
+Run the QC checks defined at formation (QA/QC sơ bộ in the Mission's common
+rules) to produce the evidence each acceptance criterion requires; a passing test
+is still separate from real use.
+
 Choose only the gates the product actually needs.
 
 Examples:

@@ -25,6 +25,30 @@ Compare relevant classes, not a predetermined stack:
 For each viable candidate, capture fit, source, unknowns and what must be tested.
 The list can be shorter if the problem clearly excludes a class.
 
+## QA/QC sơ bộ — early verification
+
+QA/QC sơ bộ is the early phase of verification inside Formation. It runs after
+the direction is approved (DECISION) and before `MISSION_READY`, and its output is
+the Mission's common rules. QA designs how quality and outcome will be assured;
+QC names the concrete checks that will run during delivery (Workflow B).
+
+Produce four things:
+1. Outcome acceptance criteria, each listing the evidence kinds it `requires`.
+   This maps directly onto the `oser init` contract:
+   `acceptance: [{id, description, requires: [...]}]`.
+2. Invariants that must not be violated: source-of-truth data, authority, safety
+   and privacy.
+3. The QC checks/evaluators that will produce each evidence kind in delivery, and
+   who or what evaluates: deterministic test, reviewer, or human UAT.
+4. Remaining unknowns and how each will be reduced (investigate, test-first, pilot).
+
+Rules:
+- No QA/QC sơ bộ → not `MISSION_READY`.
+- These rules are carried into the Mission draft and locked by the R1 kernel as the
+  fixed acceptance denominator. Changing them after lock is a Delta Mission.
+- Delivery runs the QC checks defined here; a passing test is still separate from
+  real-world use and acceptance.
+
 ## Mission boundary
 
 A Mission describes the outcome, not a host's internal plan. Internal tasks,
